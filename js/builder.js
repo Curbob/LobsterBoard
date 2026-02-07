@@ -633,6 +633,7 @@ function showPreview() {
     const template = WIDGETS[widget.type];
     if (!template) return '';
     
+    console.log('Preview widget:', widget.id, 'showHeader:', widget.properties.showHeader);
     const props = { ...widget.properties, id: widget.id };
     let html = processWidgetHtml(template.generateHtml(props), widget.properties.showHeader);
     
