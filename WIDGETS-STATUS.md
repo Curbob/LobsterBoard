@@ -23,8 +23,8 @@
 - [ ] crypto-price - various free APIs
 - [ ] github-stats - optional token for rate limits
 
-## 🦞 Needs OpenClaw Running (use server.js proxy)
-- [x] openclaw-release - /api/status, compares to GitHub - **VERIFIED**
+## 🦞 OpenClaw Widgets (⚠️ Needs Custom API Backend)
+- [ ] openclaw-release - fetches running version from /api/status + GitHub
 - [ ] auth-status - /api/status
 - [ ] activity-list - /api/activity
 - [ ] cron-jobs - /api/cron
@@ -33,7 +33,7 @@
 - [ ] token-gauge - /api/usage/tokens
 - [ ] api-status - checks OpenClaw + external
 
-Note: OpenClaw widgets need server.js proxy due to CORS. Preview shows error; works when exported.
+**⚠️ Note:** OpenClaw doesn't expose REST API endpoints. These widgets require a custom backend bridge that translates OpenClaw's WebSocket/CLI data to REST JSON. The `server.js` proxy alone is not enough.
 
 ## ⚠️ Needs Backend (Custom Setup Required)
 - [ ] ai-usage-claude - proxy to Anthropic usage API
