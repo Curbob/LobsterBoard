@@ -145,7 +145,7 @@ const WIDGETS = {
     apiKeyName: 'OPENCLAW_API',
     properties: {
       title: 'Auth Type',
-      endpoint: 'http://localhost:18789/api/status',
+      endpoint: '/api/status',
       refreshInterval: 30
     },
     preview: `<div style="text-align:center;padding:8px;">
@@ -239,7 +239,7 @@ const WIDGETS = {
     hasApiKey: false,
     properties: {
       title: 'OpenClaw',
-      openclawUrl: 'http://localhost:18789',
+      openclawUrl: '',
       refreshInterval: 3600
     },
     preview: `<div style="text-align:center;padding:8px;">
@@ -261,7 +261,7 @@ const WIDGETS = {
       async function update_${props.id.replace(/-/g, '_')}() {
         const versionEl = document.getElementById('${props.id}-version');
         const statusEl = document.getElementById('${props.id}-status');
-        const baseUrl = '${props.openclawUrl || 'http://localhost:11470'}'.replace(/\\/$/, '');
+        const baseUrl = '${props.openclawUrl || ''}'.replace(/\\/$/, '');
         
         try {
           // Get current running version from OpenClaw API
