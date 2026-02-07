@@ -395,6 +395,7 @@ function initProperties() {
   document.getElementById('prop-endpoint').addEventListener('input', onPropertyChange);
   document.getElementById('prop-refresh').addEventListener('change', onPropertyChange);
   document.getElementById('prop-timeformat').addEventListener('change', onPropertyChange);
+  document.getElementById('prop-timezones').addEventListener('input', onPropertyChange);
   
   // Show header checkbox
   document.getElementById('prop-show-header').addEventListener('change', onPropertyChange);
@@ -426,6 +427,7 @@ function showProperties(widget) {
   document.getElementById('prop-locations-group').style.display = 'none';
   document.getElementById('prop-units-group').style.display = 'none';
   document.getElementById('prop-timeformat-group').style.display = 'none';
+  document.getElementById('prop-timezones-group').style.display = 'none';
   
   // Show location field (single)
   if (widget.properties.location !== undefined) {
@@ -449,6 +451,13 @@ function showProperties(widget) {
   if (widget.properties.format24h !== undefined) {
     document.getElementById('prop-timeformat-group').style.display = 'block';
     document.getElementById('prop-timeformat').value = widget.properties.format24h ? '24h' : '12h';
+  }
+  
+  // Show timezones field (for world clock)
+  if (widget.properties.timezones !== undefined) {
+    document.getElementById('prop-timezones-group').style.display = 'block';
+    // Convert comma-separated to newline-separated for display
+    document.getElementById('prop-timezones').value = (widget.properties.timezones || '').split(',').map(s => s.trim()).join('\n');
   }
   
   // Show API fields
@@ -521,6 +530,10 @@ function onPropertyChange(e) {
       break;
     case 'prop-timeformat':
       widget.properties.format24h = e.target.value === '24h';
+      break;
+    case 'prop-timezones':
+      // Convert newline-separated to comma-separated for storage
+      widget.properties.timezones = e.target.value.split('\n').map(s => s.trim()).filter(s => s).join(',');
       break;
     case 'prop-endpoint':
       widget.properties.endpoint = e.target.value;

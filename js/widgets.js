@@ -1998,7 +1998,8 @@ const WIDGETS = {
     hasApiKey: false,
     properties: {
       title: 'World Clock',
-      timezones: 'America/New_York,Europe/London,Asia/Tokyo'
+      timezones: 'America/New_York|New York,Europe/London|London,Asia/Tokyo|Tokyo',
+      format24h: false
     },
     preview: `<div style="padding:4px;font-size:11px;">
       <div>🇺🇸 New York: 5:30 PM</div>
@@ -2015,14 +2016,19 @@ const WIDGETS = {
       </div>`,
     generateJs: (props) => `
       // World Clock Widget: ${props.id}
-      const tzs_${props.id.replace(/-/g, '_')} = '${props.timezones || 'UTC'}'.split(',');
+      // Format: timezone|label,timezone|label (label optional)
+      const tzs_${props.id.replace(/-/g, '_')} = '${props.timezones || 'UTC'}'.split(',').map(entry => {
+        const parts = entry.trim().split('|');
+        const tz = parts[0].trim();
+        const label = parts[1] ? parts[1].trim() : tz.split('/').pop().replace(/_/g, ' ');
+        return { tz, label };
+      });
       function update_${props.id.replace(/-/g, '_')}() {
         const container = document.getElementById('${props.id}-clocks');
-        container.innerHTML = tzs_${props.id.replace(/-/g, '_')}.map(tz => {
-          const t = tz.trim();
-          const city = t.split('/').pop().replace('_', ' ');
-          const time = new Date().toLocaleTimeString('en-US', { timeZone: t, hour: 'numeric', minute: '2-digit' });
-          return '<div class="tz-row"><span class="tz-city">' + city + '</span><span class="tz-time">' + time + '</span></div>';
+        const hour12 = ${!props.format24h};
+        container.innerHTML = tzs_${props.id.replace(/-/g, '_')}.map(item => {
+          const time = new Date().toLocaleTimeString('en-US', { timeZone: item.tz, hour: 'numeric', minute: '2-digit', hour12 });
+          return '<div class="tz-row"><span class="tz-city">' + item.label + '</span><span class="tz-time">' + time + '</span></div>';
         }).join('');
       }
       update_${props.id.replace(/-/g, '_')}();
