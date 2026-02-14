@@ -761,11 +761,38 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && pathname === '/api/rss') {
     const feedUrl = parsedUrl.searchParams.get('url');
     if (!feedUrl) { sendError(res, 'Missing url parameter', 400); return; }
+
+    // Validate URL: only http/https, block private/internal IPs (SSRF protection)
+    function isPrivateHost(hostname) {
+      const patterns = [
+        /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
+        /^169\.254\./, /^0\./, /^localhost$/i, /^\[?::1\]?$/, /^\[?fc/i, /^\[?fd/i
+      ];
+      return patterns.some(p => p.test(hostname));
+    }
+    try {
+      const parsed = new URL(feedUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        sendError(res, 'Only http and https URLs are allowed', 400); return;
+      }
+      if (isPrivateHost(parsed.hostname)) {
+        sendError(res, 'URLs pointing to private/internal addresses are not allowed', 400); return;
+      }
+    } catch (urlErr) {
+      sendError(res, 'Invalid URL', 400); return;
+    }
+
     try {
       const https = require('https');
       const http2 = require('http');
       function fetchFeed(url, redirects) {
         if (redirects > 3) { sendError(res, 'Too many redirects'); return; }
+        // Validate each URL (including redirects) against SSRF
+        try {
+          const rp = new URL(url);
+          if (rp.protocol !== 'http:' && rp.protocol !== 'https:') { sendError(res, 'Redirect to disallowed scheme', 400); return; }
+          if (isPrivateHost(rp.hostname)) { sendError(res, 'Redirect to private address blocked', 400); return; }
+        } catch (_) { sendError(res, 'Invalid redirect URL', 400); return; }
         const mod = url.startsWith('https') ? https : http2;
         const req2 = mod.get(url, { headers: { 'User-Agent': 'LobsterBoard/1.0' }, timeout: 15000 }, (proxyRes) => {
           if ([301, 302, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
