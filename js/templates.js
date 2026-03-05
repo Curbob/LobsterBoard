@@ -155,7 +155,7 @@
         tplGrid.style.display = '';
         loadTemplates();
       } else {
-        alert('❌ ' + (data.error || 'Delete failed'));
+        alert('❌ ' + (data.error || data.message || 'Delete failed'));
       }
     } catch (e) {
       alert('❌ Delete failed: ' + e.message);
@@ -187,7 +187,7 @@
         alert(`✅ ${data.message}\n\nReloading dashboard...`);
         location.reload();
       } else {
-        alert('❌ ' + (data.error || 'Import failed'));
+        alert('❌ ' + (data.error || data.message || 'Import failed'));
       }
     } catch (e) {
       alert('❌ Import failed: ' + e.message);

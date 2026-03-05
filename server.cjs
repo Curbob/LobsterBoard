@@ -1458,12 +1458,25 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const { id, mode } = JSON.parse(body);
+        if (!id) { sendJson(res, 400, { error: 'Missing template id' }); return; }
+        if (!mode) { sendJson(res, 400, { error: 'Missing import mode' }); return; }
+        
         const tplConfigPath = path.join(TEMPLATES_DIR, id, 'config.json');
-        if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: 'Template not found' }); return; }
-        const tplConfig = JSON.parse(fs.readFileSync(tplConfigPath, 'utf8'));
+        if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: `Template "${id}" not found` }); return; }
+        
+        let tplConfig;
+        try {
+          tplConfig = JSON.parse(fs.readFileSync(tplConfigPath, 'utf8'));
+        } catch (parseErr) {
+          sendJson(res, 500, { error: `Template config is invalid JSON: ${parseErr.message}` }); return;
+        }
 
         if (mode === 'replace') {
-          fs.writeFileSync(CONFIG_FILE, JSON.stringify(tplConfig, null, 2));
+          try {
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(tplConfig, null, 2));
+          } catch (writeErr) {
+            sendJson(res, 500, { error: `Failed to write config: ${writeErr.message}` }); return;
+          }
           sendJson(res, 200, { status: 'success', message: 'Template imported (replace)' });
         } else if (mode === 'merge') {
           let currentConfig = { canvas: { width: 1920, height: 1080 }, widgets: [] };
@@ -1481,12 +1494,16 @@ const server = http.createServer(async (req, res) => {
             y: (w.y || 0) + offset
           }));
           currentConfig.widgets = [...(currentConfig.widgets || []), ...newWidgets];
-          fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2));
+          try {
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2));
+          } catch (writeErr) {
+            sendJson(res, 500, { error: `Failed to write config: ${writeErr.message}` }); return;
+          }
           sendJson(res, 200, { status: 'success', message: `Merged ${newWidgets.length} widgets` });
         } else {
           sendJson(res, 400, { error: 'Invalid mode. Use "replace" or "merge"' });
         }
-      } catch (e) { sendError(res, e.message); }
+      } catch (e) { sendJson(res, 500, { error: `Import error: ${e.message}` }); }
     });
     return;
   }
