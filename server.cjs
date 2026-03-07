@@ -298,9 +298,77 @@ const AUTH_FILE = path.join(__dirname, 'auth.json');
 const SECRETS_FILE = path.join(__dirname, 'secrets.json');
 
 // ─────────────────────────────────────────────
-// Security helpers
+// Server-side Session Authentication
 // ─────────────────────────────────────────────
 const crypto = require('crypto');
+
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || null;
+const SESSION_TTL_MS = (parseInt(process.env.SESSION_TTL_HOURS) || 24) * 60 * 60 * 1000;
+
+// In-memory session store: token -> expiresAt timestamp
+const sessions = new Map();
+
+// Rate limit store: ip -> { count, resetAt }
+const loginAttempts = new Map();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex'); // 64-char hex
+}
+
+function createSession() {
+  const token = generateSessionToken();
+  sessions.set(token, Date.now() + SESSION_TTL_MS);
+  return token;
+}
+
+function isValidSession(token) {
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return false;
+  const exp = sessions.get(token);
+  if (!exp) return false;
+  if (Date.now() > exp) { sessions.delete(token); return false; }
+  return true;
+}
+
+function getSessionCookie(req) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/(?:^|;\s*)lb_session=([a-f0-9]{64})/);
+  return match ? match[1] : null;
+}
+
+function checkPassword(input) {
+  if (!DASHBOARD_PASSWORD || !input) return false;
+  // HMAC both inputs so timingSafeEqual always compares equal-length buffers
+  const inputHash = crypto.createHmac('sha256', 'lb-session-auth').update(String(input)).digest();
+  const correctHash = crypto.createHmac('sha256', 'lb-session-auth').update(DASHBOARD_PASSWORD).digest();
+  return crypto.timingSafeEqual(inputHash, correctHash);
+}
+
+function isRateLimited(ip) {
+  const entry = loginAttempts.get(ip);
+  if (!entry) return false;
+  if (Date.now() > entry.resetAt) { loginAttempts.delete(ip); return false; }
+  return entry.count >= MAX_LOGIN_ATTEMPTS;
+}
+
+function recordFailedAttempt(ip) {
+  const entry = loginAttempts.get(ip) || { count: 0, resetAt: Date.now() + LOCKOUT_MS };
+  entry.count++;
+  loginAttempts.set(ip, entry);
+}
+
+// Clean expired sessions every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, exp] of sessions) {
+    if (now > exp) sessions.delete(token);
+  }
+}, 60 * 60 * 1000);
+
+// ─────────────────────────────────────────────
+// Security helpers
+// ─────────────────────────────────────────────
 
 function hashPin(pin) {
   return crypto.createHash('sha256').update(pin).digest('hex');
@@ -486,6 +554,77 @@ function parseIcal(text, maxEvents) {
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
+
+  // ── Auth: serve login page (always accessible) ──
+  if (req.method === 'GET' && pathname === '/login') {
+    const loginPath = path.join(__dirname, 'login.html');
+    fs.readFile(loginPath, (err, data) => {
+      if (err) { sendResponse(res, 404, 'text/plain', 'Login page not found'); return; }
+      sendResponse(res, 200, 'text/html', data);
+    });
+    return;
+  }
+
+  // ── Auth: login action ──
+  if (req.method === 'POST' && pathname === '/api/auth/login') {
+    if (!DASHBOARD_PASSWORD) {
+      sendJson(res, 200, { status: 'ok', redirect: '/' });
+      return;
+    }
+    const ip = req.socket.remoteAddress || 'unknown';
+    if (isRateLimited(ip)) {
+      sendJson(res, 429, { error: 'Too many failed attempts. Try again in 15 minutes.' });
+      return;
+    }
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 4096) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { password } = JSON.parse(body);
+        if (checkPassword(password)) {
+          const token = createSession();
+          const cookieOpts = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`;
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Set-Cookie': `lb_session=${token}; ${cookieOpts}`
+          });
+          res.end(JSON.stringify({ status: 'ok', redirect: '/' }));
+        } else {
+          recordFailedAttempt(ip);
+          sendJson(res, 401, { error: 'Invalid password' });
+        }
+      } catch (e) {
+        sendJson(res, 400, { error: 'Invalid request' });
+      }
+    });
+    return;
+  }
+
+  // ── Auth: logout ──
+  if (req.method === 'POST' && pathname === '/api/auth/logout') {
+    const token = getSessionCookie(req);
+    if (token) sessions.delete(token);
+    res.writeHead(302, {
+      'Set-Cookie': 'lb_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
+      'Location': '/login'
+    });
+    res.end();
+    return;
+  }
+
+  // ── Auth: enforce session for all other routes ──
+  if (DASHBOARD_PASSWORD) {
+    const token = getSessionCookie(req);
+    if (!isValidSession(token)) {
+      if (pathname.startsWith('/api/')) {
+        sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
+      } else {
+        res.writeHead(302, { 'Location': '/login' });
+        res.end();
+      }
+      return;
+    }
+  }
 
   // CORS preflight for /config
   if (req.method === 'OPTIONS' && pathname === '/config') {
@@ -1728,8 +1867,13 @@ process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('SIGINT', () => server.close(() => process.exit(0)));
 
 server.listen(PORT, HOST, () => {
+  const authStatus = DASHBOARD_PASSWORD
+    ? '   Password auth: ENABLED (DASHBOARD_PASSWORD is set)'
+    : '   Password auth: DISABLED — set DASHBOARD_PASSWORD=yourpassword to enable';
   console.log(`
-🦞 LobsterBoard Builder Server running at http://${HOST}:${PORT}
+LobsterBoard Builder Server running at http://${HOST}:${PORT}
+
+${authStatus}
 
    Press Ctrl+C to stop
 `);

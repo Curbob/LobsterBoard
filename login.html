@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LobsterBoard — Sign In</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header .icon {
+      font-size: 52px;
+      line-height: 1;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #e6edf3;
+      letter-spacing: -0.3px;
+    }
+    .header p {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #8b949e;
+    }
+    .field {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #8b949e;
+      margin-bottom: 6px;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 9px 13px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="password"]:focus {
+      border-color: #388bfd;
+      box-shadow: 0 0 0 3px rgba(56,139,253,0.12);
+    }
+    button[type="submit"] {
+      width: 100%;
+      padding: 9px;
+      background: #238636;
+      border: 1px solid rgba(240,246,252,0.1);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      margin-top: 4px;
+    }
+    button[type="submit"]:hover:not(:disabled) { background: #2ea043; }
+    button[type="submit"]:disabled { opacity: 0.55; cursor: not-allowed; }
+    .error {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 13px;
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.35);
+      border-radius: 6px;
+      color: #f85149;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .error.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span class="icon">&#x1F99E;</span>
+      <h1>LobsterBoard</h1>
+      <p>Enter your password to access the dashboard</p>
+    </div>
+    <form id="form" autocomplete="on" onsubmit="return false;">
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Dashboard password" autocomplete="current-password" autofocus>
+      </div>
+      <button type="submit" id="btn">Sign in</button>
+      <div class="error" id="error-msg"></div>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('form').addEventListener('submit', login);
+    document.getElementById('btn').addEventListener('click', login);
+
+    async function login() {
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn');
+      const errEl = document.getElementById('error-msg');
+
+      if (!password) {
+        showError('Please enter your password.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+      errEl.classList.remove('visible');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'ok') {
+          window.location.href = data.redirect || '/';
+        } else {
+          showError(data.error || 'Incorrect password. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Sign in';
+          document.getElementById('password').select();
+        }
+      } catch (e) {
+        showError('Connection error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+  </script>
+</body>
+</html>
