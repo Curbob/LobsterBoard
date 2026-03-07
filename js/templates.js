@@ -2,6 +2,13 @@
  * LobsterBoard Template Gallery System
  */
 (function() {
+  function _esc(str) {
+    if (str == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
   const galleryModal = document.getElementById('template-gallery-modal');
   const exportModal = document.getElementById('template-export-modal');
   const tplGrid = document.getElementById('tpl-grid');
@@ -88,19 +95,19 @@
       return;
     }
     tplGrid.innerHTML = templates.map(t => `
-      <div class="tpl-card" data-id="${t.id}">
+      <div class="tpl-card" data-id="${_esc(t.id)}">
         <div class="tpl-card-img">
-          <img src="/api/templates/${t.id}/preview" alt="${t.name}" onerror="this.parentElement.innerHTML='<div class=\\'tpl-no-preview\\'>🦞</div>'">
+          <img src="/api/templates/${_esc(t.id)}/preview" alt="${_esc(t.name)}" onerror="this.parentElement.innerHTML='<div class=\\'tpl-no-preview\\'>🦞</div>'">
         </div>
         <div class="tpl-card-body">
-          <h3>${t.name}</h3>
-          <p>${t.description || ''}</p>
+          <h3>${_esc(t.name)}</h3>
+          <p>${_esc(t.description || '')}</p>
           <div class="tpl-card-meta">
-            <span>${t.widgetCount || 0} widgets</span>
-            <span>${t.canvasSize || ''}</span>
+            <span>${_esc(String(t.widgetCount || 0))} widgets</span>
+            <span>${_esc(t.canvasSize || '')}</span>
           </div>
-          ${(t.widgetTypes || []).length ? `<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">${t.widgetTypes.slice(0,6).map(w => (w.icon || '') + ' ' + w.name).join(' · ')}${t.widgetTypes.length > 6 ? ' · +' + (t.widgetTypes.length - 6) + ' more' : ''}</div>` : ''}
-          <div class="tpl-card-tags">${(t.tags || []).map(tag => `<span class="tpl-tag">${tag}</span>`).join('')}</div>
+          ${(t.widgetTypes || []).length ? `<div style="margin-top:4px;font-size:10px;color:var(--text-muted);">${t.widgetTypes.slice(0,6).map(w => _esc((w.icon || '') + ' ' + w.name)).join(' · ')}${t.widgetTypes.length > 6 ? ' · +' + (t.widgetTypes.length - 6) + ' more' : ''}</div>` : ''}
+          <div class="tpl-card-tags">${(t.tags || []).map(tag => `<span class="tpl-tag">${_esc(tag)}</span>`).join('')}</div>
         </div>
       </div>
     `).join('');
@@ -122,13 +129,13 @@
     document.getElementById('tpl-detail-name').textContent = selectedTemplate.name;
     document.getElementById('tpl-detail-desc').textContent = selectedTemplate.description || '';
     document.getElementById('tpl-detail-meta').innerHTML = `
-      <div><strong>Author:</strong> ${selectedTemplate.author || 'anonymous'}</div>
-      <div><strong>Canvas:</strong> ${selectedTemplate.canvasSize || 'unknown'}</div>
-      <div><strong>Widgets:</strong> ${selectedTemplate.widgetCount || 0}</div>
-      ${(selectedTemplate.requiresSetup || []).length ? `<div><strong>Requires:</strong> ${selectedTemplate.requiresSetup.join(', ')}</div>` : ''}
-      ${(selectedTemplate.widgetTypes || []).length ? `<div style="margin-top:8px;"><strong>Widget Types:</strong><div style="margin-top:4px;">${selectedTemplate.widgetTypes.map(w => `<span style="display:inline-block;padding:2px 8px;margin:2px;background:var(--bg-tertiary);border-radius:4px;font-size:11px;">${w.icon || ''} ${w.name}${w.count > 1 ? ' ×' + w.count : ''}</span>`).join('')}</div></div>` : ''}
+      <div><strong>Author:</strong> ${_esc(selectedTemplate.author || 'anonymous')}</div>
+      <div><strong>Canvas:</strong> ${_esc(selectedTemplate.canvasSize || 'unknown')}</div>
+      <div><strong>Widgets:</strong> ${_esc(String(selectedTemplate.widgetCount || 0))}</div>
+      ${(selectedTemplate.requiresSetup || []).length ? `<div><strong>Requires:</strong> ${(selectedTemplate.requiresSetup || []).map(s => _esc(s)).join(', ')}</div>` : ''}
+      ${(selectedTemplate.widgetTypes || []).length ? `<div style="margin-top:8px;"><strong>Widget Types:</strong><div style="margin-top:4px;">${selectedTemplate.widgetTypes.map(w => `<span style="display:inline-block;padding:2px 8px;margin:2px;background:var(--bg-tertiary);border-radius:4px;font-size:11px;">${_esc((w.icon || '') + ' ' + w.name)}${w.count > 1 ? ' ×' + _esc(String(w.count)) : ''}</span>`).join('')}</div></div>` : ''}
     `;
-    document.getElementById('tpl-detail-tags').innerHTML = (selectedTemplate.tags || []).map(t => `<span class="tpl-tag">${t}</span>`).join('');
+    document.getElementById('tpl-detail-tags').innerHTML = (selectedTemplate.tags || []).map(t => `<span class="tpl-tag">${_esc(t)}</span>`).join('');
   }
 
   document.getElementById('tpl-back').addEventListener('click', () => {
@@ -267,16 +274,16 @@
             body: JSON.stringify({ data: screenshotData })
           });
         }
-        resultEl.innerHTML = `✅ Template exported as <strong>${data.id}</strong>${screenshotData ? '<br>Screenshot captured!' : '<br>⚠️ No screenshot (auto-capture failed).'}`;
+        resultEl.innerHTML = `✅ Template exported as <strong>${_esc(data.id)}</strong>${screenshotData ? '<br>Screenshot captured!' : '<br>⚠️ No screenshot (auto-capture failed).'}`;
         resultEl.className = 'tpl-export-result tpl-export-success';
       } else {
-        resultEl.innerHTML = `❌ ${data.error || 'Export failed'}`;
+        resultEl.innerHTML = `❌ ${_esc(data.error || 'Export failed')}`;
         resultEl.className = 'tpl-export-result tpl-export-error';
       }
       resultEl.style.display = 'block';
     } catch (e) {
       const resultEl = document.getElementById('tpl-export-result');
-      resultEl.innerHTML = `❌ Export failed: ${e.message}`;
+      resultEl.innerHTML = `❌ Export failed: ${_esc(e.message)}`;
       resultEl.className = 'tpl-export-result tpl-export-error';
       resultEl.style.display = 'block';
     }

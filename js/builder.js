@@ -3290,32 +3290,35 @@ async function openDirBrowser(startDir) {
   try {
     const res = await fetch('/api/browse-dirs?dir=' + encodeURIComponent(dir));
     const data = await res.json();
-    if (data.status !== 'ok') { browser.innerHTML = `<span style="color:#f85149;">${data.message}</span>`; return; }
-    let html = `<div style="margin-bottom:6px;color:var(--text-secondary);font-size:11px;word-break:break-all;">${data.path}</div>`;
+    if (data.status !== 'ok') { browser.innerHTML = `<span style="color:#f85149;">${escapeHtml(data.message)}</span>`; return; }
+    let html = `<div style="margin-bottom:6px;color:var(--text-secondary);font-size:11px;word-break:break-all;">${escapeHtml(data.path)}</div>`;
     if (data.imageCount > 0) {
-      html += `<div style="margin-bottom:6px;padding:4px 8px;background:var(--bg-secondary);border-radius:4px;color:#3fb950;font-size:11px;">📷 ${data.imageCount} image${data.imageCount !== 1 ? 's' : ''} in this folder</div>`;
+      html += `<div style="margin-bottom:6px;padding:4px 8px;background:var(--bg-secondary);border-radius:4px;color:#3fb950;font-size:11px;">📷 ${escapeHtml(String(data.imageCount))} image${data.imageCount !== 1 ? 's' : ''} in this folder</div>`;
     }
     // Up one level
     const parent = data.path.replace(/\/[^/]+\/?$/, '') || '/';
     if (data.path !== parent) {
-      html += `<div class="dir-entry" data-path="${parent}" style="cursor:pointer;padding:3px 6px;border-radius:4px;color:var(--text-primary);" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">📁 ..</div>`;
+      html += `<div class="dir-entry" data-path="${escapeHtml(parent)}" style="cursor:pointer;padding:3px 6px;border-radius:4px;color:var(--text-primary);" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">📁 ..</div>`;
     }
     for (const d of data.dirs) {
       const full = data.path + '/' + d;
-      html += `<div class="dir-entry" data-path="${full}" style="cursor:pointer;padding:3px 6px;border-radius:4px;color:var(--text-primary);" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">📁 ${d}</div>`;
+      html += `<div class="dir-entry" data-path="${escapeHtml(full)}" style="cursor:pointer;padding:3px 6px;border-radius:4px;color:var(--text-primary);" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">📁 ${escapeHtml(d)}</div>`;
     }
     if (data.dirs.length === 0 && data.imageCount === 0) {
       html += `<div style="color:var(--text-muted);font-size:11px;padding:4px;">Empty directory</div>`;
     }
     html += `<div style="margin-top:8px;display:flex;gap:4px;">`;
-    html += `<button type="button" onclick="selectDir('${data.path.replace(/'/g, "\\'")}')" style="flex:1;padding:4px 8px;background:var(--accent-blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">✓ Select this folder</button>`;
+    html += `<button type="button" style="flex:1;padding:4px 8px;background:var(--accent-blue);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">✓ Select this folder</button>`;
     html += `<button type="button" onclick="document.getElementById('dir-browser').style.display='none'" style="padding:4px 8px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:4px;cursor:pointer;font-size:11px;">Cancel</button>`;
     html += `</div>`;
     browser.innerHTML = html;
+    // Attach select button handler safely (avoid inline onclick with path data)
+    const selectBtn = browser.querySelector('button');
+    if (selectBtn) selectBtn.addEventListener('click', () => selectDir(data.path));
     browser.querySelectorAll('.dir-entry').forEach(el => {
       el.addEventListener('click', () => openDirBrowser(el.dataset.path));
     });
-  } catch (e) { browser.innerHTML = `<span style="color:#f85149;">Error: ${e.message}</span>`; }
+  } catch (e) { browser.innerHTML = `<span style="color:#f85149;">Error: ${escapeHtml(e.message)}</span>`; }
 }
 
 function selectDir(dirPath) {

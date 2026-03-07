@@ -30,6 +30,9 @@ const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '127.0.0.1';
 const OPENCLAW_URL = (process.env.OPENCLAW_URL || 'http://localhost:18789').replace(/\/$/, '');
 
+// Restrict CORS to the dashboard's own origin (no wildcard)
+const ALLOWED_ORIGIN = `http://${HOST}:${PORT}`;
+
 // Allowed API endpoints (whitelist for security)
 const ALLOWED_API_PATHS = [
   '/api/status',
@@ -83,7 +86,7 @@ function generateRequestId() {
 function sendError(res, message, statusCode = 500, requestId = null) {
   res.writeHead(statusCode, { 
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     ...(requestId && { 'X-Request-Id': requestId })
   });
   res.end(JSON.stringify({ status: 'error', message }));
@@ -114,7 +117,7 @@ async function proxyToOpenClaw(reqPath, res, requestId) {
     
     res.writeHead(response.status, {
       'Content-Type': response.headers.get('content-type') || 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
       'X-Request-Id': requestId
     });
     res.end(data);
@@ -184,7 +187,7 @@ const server = http.createServer(async (req, res) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'X-Request-Id': requestId

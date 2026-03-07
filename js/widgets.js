@@ -4,6 +4,29 @@
  */
 
 // ─────────────────────────────────────────────
+// Security helpers (available to generated widget scripts via window)
+// ─────────────────────────────────────────────
+
+function _escHtmlGlobal(str) {
+  if (str == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+window._esc = _escHtmlGlobal;
+
+function _isSafeUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (e) {
+    return false;
+  }
+}
+window._isSafeUrl = _isSafeUrl;
+
+// ─────────────────────────────────────────────
 // Icon System - Themeable widget icons
 // ─────────────────────────────────────────────
 const WIDGET_ICONS = {
@@ -287,8 +310,8 @@ const WIDGETS = {
           }
         }));
         
-        container.innerHTML = results.map(r => 
-          '<div class="weather-row"><span class="weather-icon lb-icon" data-icon="' + r.iconId + '">' + r.emoji + '</span><span class="weather-loc">' + r.loc + '</span><span class="weather-temp">' + r.temp + unitSymbol + '</span></div>'
+        container.innerHTML = results.map(r =>
+          '<div class="weather-row"><span class="weather-icon lb-icon" data-icon="' + _esc(r.iconId) + '">' + _esc(r.emoji) + '</span><span class="weather-loc">' + _esc(r.loc) + '</span><span class="weather-temp">' + _esc(r.temp) + _esc(unitSymbol) + '</span></div>'
         ).join('');
       }
       update_${props.id.replace(/-/g, '_')}();
@@ -746,11 +769,11 @@ const WIDGETS = {
           const fs = 'calc(12px * var(--font-scale, 1))';
           list.innerHTML = activities.slice(0, ${props.maxItems || 10}).map(a => {
             const icon = a.status === 'ok' ? '✓' : a.status === 'error' ? '❌' : '';
-            const text = (a.text || '').replace(/</g, '&lt;');
-            const source = (a.source || '').replace(/</g, '&lt;');
+            const text = _esc(a.text || '');
+            const source = _esc(a.source || '');
             return '<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 0;border-bottom:1px solid #30363d;font-size:' + fs + ';">' +
-              '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (a.icon || '') + ' ' + text + '</div>' +
-              '<div style="flex-shrink:0;font-size:0.85em;color:#8b949e;margin-left:8px;">' + icon + ' ' + source + '</div>' +
+              '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.icon || '') + ' ' + text + '</div>' +
+              '<div style="flex-shrink:0;font-size:0.85em;color:#8b949e;margin-left:8px;">' + _esc(icon) + ' ' + source + '</div>' +
             '</div>';
           }).join('');
         } catch (e) { console.error('Today widget error:', e); }
@@ -815,12 +838,12 @@ const WIDGETS = {
             const lastRun = job.lastRun ? new Date(job.lastRun).toLocaleTimeString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never';
             const statusBadge = job.lastStatus ? (job.lastStatus === 'ok' ? '✓' : '✗') : '';
             return '<div class="cron-item" style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#30363d);font-size:calc(13px * var(--font-scale, 1));">' +
-              '<span style="flex-shrink:0;">' + statusDot + '</span>' +
+              '<span style="flex-shrink:0;">' + _esc(statusDot) + '</span>' +
               '<div style="flex:1;min-width:0;">' +
-                '<div style="font-weight:500;">' + job.name + '</div>' +
+                '<div style="font-weight:500;">' + _esc(job.name) + '</div>' +
               '</div>' +
               '<div style="text-align:right;font-size:0.8em;opacity:0.6;flex-shrink:0;">' +
-                '<div>' + statusBadge + ' ' + lastRun + '</div>' +
+                '<div>' + _esc(statusBadge) + ' ' + _esc(lastRun) + '</div>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -2788,12 +2811,12 @@ const WIDGETS = {
         container.style.display = 'grid';
         container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
         container.style.gap = '4px';
-        container.innerHTML = links.map(link => {
+        container.innerHTML = links.filter(link => _isSafeUrl(link.url)).map(link => {
           const domain = new URL(link.url).hostname;
-          const favicon = 'https://www.google.com/s2/favicons?sz=32&domain=' + domain;
-          return '<a href="' + link.url + '" class="quick-link" target="_blank" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:var(--text-primary);border-bottom:1px solid var(--border);overflow:hidden;">' +
+          const favicon = 'https://www.google.com/s2/favicons?sz=32&domain=' + _esc(domain);
+          return '<a href="' + _esc(link.url) + '" class="quick-link" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:var(--text-primary);border-bottom:1px solid var(--border);overflow:hidden;">' +
             '<img src="' + favicon + '" style="width:16px;height:16px;flex-shrink:0;" onerror="this.style.display=\\'none\\'">' +
-            '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + link.name + '</span>' +
+            '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(link.name) + '</span>' +
           '</a>';
         }).join('');
       })();
@@ -2823,7 +2846,7 @@ const WIDGETS = {
           <span class="dash-card-title">${renderIcon('embed')} ${props.title || 'Embed'}</span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;">
-          <iframe src="${props.embedUrl || 'about:blank'}" style="width:100%;height:100%;border:none;" ${props.allowFullscreen ? 'allowfullscreen' : ''}></iframe>
+          <iframe src="${_isSafeUrl(props.embedUrl) ? props.embedUrl : 'about:blank'}" style="width:100%;height:100%;border:none;" ${props.allowFullscreen ? 'allowfullscreen' : ''}></iframe>
         </div>
       </div>`,
     generateJs: (props) => `
