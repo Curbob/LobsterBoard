@@ -63,6 +63,8 @@
     "build": "rollup -c",
     "build:watch": "rollup -c -w",
     "prebuild": "rm -rf dist",
+    "start": "node server.cjs",
+    "dev": "node server.cjs",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
@@ -71,7 +73,7 @@
     "rollup-plugin-copy": "^3.5.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=16.0.0 <23.0.0"
   },
   "dependencies": {
     "systeminformation": "^5.30.7"
