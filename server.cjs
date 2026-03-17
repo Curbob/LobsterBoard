@@ -1289,16 +1289,16 @@ async function fetchGeminiUsage() {
     // Parse quota buckets (API returns 'buckets' with 'remainingFraction')
     const buckets = data.buckets || data.quotaBuckets || [];
     
-    // Filter for interesting models and REQUESTS type
-    const interestingModels = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    // Track all non-Vertex Gemini request buckets instead of a hardcoded
+    // 2.x allowlist so new Gemini CLI quota windows surface automatically.
     const seen = new Set();
     
     for (const bucket of buckets) {
       if (bucket.tokenType !== 'REQUESTS') continue;
       // Skip vertex variants
       if (bucket.modelId?.includes('_vertex')) continue;
-      // Only show interesting models
-      if (!interestingModels.some(m => bucket.modelId?.startsWith(m))) continue;
+      // Only show Gemini model buckets
+      if (!bucket.modelId?.startsWith('gemini-')) continue;
       // Dedupe
       if (seen.has(bucket.modelId)) continue;
       seen.add(bucket.modelId);
@@ -1313,6 +1313,8 @@ async function fetchGeminiUsage() {
       });
     }
     
+    metrics.sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
+
     return {
       ...baseInfo,
       plan: 'Gemini CLI',

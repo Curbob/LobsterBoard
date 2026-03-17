@@ -169,7 +169,7 @@ Track your AI coding subscriptions in real-time. Inspired by [OpenUsage](https:/
 | Codex CLI | Session, weekly, code reviews | Run `codex` once |
 | GitHub Copilot | Premium, chat, completions | Run `gh auth login` |
 | Cursor | Credits, usage breakdown | Just use Cursor IDE |
-| Gemini CLI | Pro, flash models | Run `gemini` once |
+| Gemini CLI | All available Gemini CLI quota buckets | Run `gemini` once |
 | Amp | Free tier, credits | Run `amp` once |
 | Factory / Droid | Standard, premium tokens | Run `factory` once |
 | Kimi Code | Session, weekly | Run `kimi` once |
