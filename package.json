@@ -65,12 +65,18 @@
     "prebuild": "rm -rf dist",
     "start": "node server.cjs",
     "dev": "node server.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
+    "@vitest/coverage-v8": "^4.1.2",
+    "jsdom": "^29.0.1",
     "rollup": "^4.9.6",
-    "rollup-plugin-copy": "^3.5.0"
+    "rollup-plugin-copy": "^3.5.0",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=16.0.0"
