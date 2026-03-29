@@ -742,8 +742,33 @@
     </div>
   </div>
 
-  <script src="js/widgets.js"></script>
-  <script src="js/builder.js"></script>
+  <!-- Widget modules (shared first, then index, then categories) -->
+  <script src="js/widgets/shared/helpers.js"></script>
+  <script src="js/widgets/shared/icons.js"></script>
+  <script src="js/widgets/shared/stats.js"></script>
+  <script src="js/widgets/index.js"></script>
+  <script src="js/widgets/weather.js"></script>
+  <script src="js/widgets/system.js"></script>
+  <script src="js/widgets/ai-tools.js"></script>
+  <script src="js/widgets/media.js"></script>
+  <script src="js/widgets/productivity.js"></script>
+  <script src="js/widgets/time.js"></script>
+  <script src="js/widgets/layout.js"></script>
+  <script src="js/widgets/releases.js"></script>
+  <script src="js/widgets/misc.js"></script>
+  <!-- Editor modules (order matters: state first, index last) -->
+  <script src="js/editor/state.js"></script>
+  <script src="js/editor/canvas.js"></script>
+  <script src="js/editor/auth.js"></script>
+  <script src="js/editor/config.js"></script>
+  <script src="js/editor/servers.js"></script>
+  <script src="js/editor/drag-drop.js"></script>
+  <script src="js/editor/widgets.js"></script>
+  <script src="js/editor/properties.js"></script>
+  <script src="js/editor/controls.js"></script>
+  <script src="js/editor/export.js"></script>
+  <script src="js/editor/modals.js"></script>
+  <script src="js/editor/index.js"></script>
   <script>
     // Load page links into nav
     fetch('/api/pages').then(r => r.json()).then(pages => {
