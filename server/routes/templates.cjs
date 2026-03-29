@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { sendResponse, sendJson, sendError } = require('../response.cjs');
 const { CONFIG_FILE, MIME_TYPES, scanTemplates } = require('../config.cjs');
+const { validateTemplateImport, validateTemplateExport } = require('../validation.cjs');
 
 function handle(req, res, pathname, parsedUrl, ctx) {
   const TEMPLATES_DIR = path.join(ctx.__dirname, 'templates');
@@ -48,9 +49,13 @@ function handle(req, res, pathname, parsedUrl, ctx) {
     req.on('data', c => body += c);
     req.on('end', () => {
       try {
-        const { id, mode } = JSON.parse(body);
-        if (!id) { sendJson(res, 400, { error: 'Missing template id' }); return; }
-        if (!mode) { sendJson(res, 400, { error: 'Missing import mode' }); return; }
+        const parsed = JSON.parse(body);
+        const validation = validateTemplateImport(parsed);
+        if (!validation.valid) {
+          sendJson(res, 400, { error: validation.errors.join('; ') });
+          return;
+        }
+        const { id, mode } = parsed;
 
         const tplConfigPath = path.join(TEMPLATES_DIR, id, 'config.json');
         if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: `Template "${id}" not found` }); return; }
@@ -103,8 +108,13 @@ function handle(req, res, pathname, parsedUrl, ctx) {
     req.on('data', c => body += c);
     req.on('end', () => {
       try {
-        const { name, description, author, tags, widgetTypes } = JSON.parse(body);
-        if (!name) { sendJson(res, 400, { error: 'Name is required' }); return; }
+        const parsed = JSON.parse(body);
+        const exportValidation = validateTemplateExport(parsed);
+        if (!exportValidation.valid) {
+          sendJson(res, 400, { error: exportValidation.errors.join('; ') });
+          return;
+        }
+        const { name, description, author, tags, widgetTypes } = parsed;
         const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         const tplDir = path.join(TEMPLATES_DIR, id);
         fs.mkdirSync(tplDir, { recursive: true });

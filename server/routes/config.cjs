@@ -2,6 +2,7 @@ const fs = require('fs');
 const { sendJson, sendError } = require('../response.cjs');
 const { CONFIG_FILE } = require('../config.cjs');
 const { maskConfig, extractSecrets } = require('../secrets.cjs');
+const { validateConfigSchema, sanitizeConfig } = require('../validation.cjs');
 
 function handle(req, res, pathname) {
   if (req.method === 'OPTIONS' && pathname === '/config') {
@@ -26,7 +27,7 @@ function handle(req, res, pathname) {
       }
       try {
         const config = JSON.parse(data);
-        sendJson(res, 200, maskConfig(config));
+        sendJson(res, 200, sanitizeConfig(maskConfig(config)));
       } catch (parseErr) {
         sendError(res, `Failed to parse config file: ${parseErr.message}`);
       }
@@ -46,6 +47,11 @@ function handle(req, res, pathname) {
       if (overflow) { sendError(res, 'Request body too large', 413); return; }
       try {
         let config = JSON.parse(body);
+        const validation = validateConfigSchema(config);
+        if (!validation.valid) {
+          sendError(res, `Config validation failed: ${validation.errors.join('; ')}`, 400);
+          return;
+        }
         config = extractSecrets(config);
         fs.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8', (err) => {
           if (err) {

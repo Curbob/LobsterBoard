@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { sendJson, sendError } = require('../response.cjs');
 const { CWD } = require('../config.cjs');
+const { validateTodos, validateNotes } = require('../validation.cjs');
 
 function handle(req, res, pathname) {
   if (pathname === '/api/todos') {
@@ -29,6 +30,11 @@ function handle(req, res, pathname) {
         if (overflow) { sendError(res, 'Request body too large', 413); return; }
         try {
           const todos = JSON.parse(body);
+          const validation = validateTodos(todos);
+          if (!validation.valid) {
+            sendError(res, validation.errors.join('; '), 400);
+            return;
+          }
           fs.writeFile(todosFile, JSON.stringify(todos, null, 2), 'utf8', (err) => {
             if (err) return sendError(res, err.message);
             sendJson(res, 200, { status: 'ok' });
@@ -64,6 +70,11 @@ function handle(req, res, pathname) {
         if (overflow) { sendError(res, 'Request body too large', 413); return; }
         try {
           const notes = JSON.parse(body);
+          const validation = validateNotes(notes);
+          if (!validation.valid) {
+            sendError(res, validation.errors.join('; '), 400);
+            return;
+          }
           fs.writeFile(notesFile, JSON.stringify(notes, null, 2), 'utf8', (err) => {
             if (err) return sendError(res, err.message);
             sendJson(res, 200, { status: 'ok' });
