@@ -2360,6 +2360,180 @@ const WIDGETS = {
     `
   },
 
+  'system-graphical': {
+    name: 'System (Graphical)',
+    icon: '💻',
+    category: 'system',
+    description: 'Graphical CPU and Memory usage with circular progress rings. Supports remote servers via lobsterboard-agent.',
+    defaultWidth: 320,
+    defaultHeight: 160,
+    hasApiKey: false,
+    properties: {
+      title: 'System',
+      server: 'local',
+      refreshInterval: 5,
+      showPercentages: true,
+      showLabels: true,
+      showLegend: true
+    },
+    preview: `<div style="display:flex;padding:12px;">
+      <div style="flex:1;display:flex;align-items:center;justify-content:space-around;">
+        <div style="text-align:center;">
+          <div style="position:relative;width:70px;height:70px;margin:0 auto 6px;">
+            <svg viewBox="0 0 42 42" style="width:100%;height:100%;transform:rotate(-90deg);">
+              <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#e8eaed" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#4285f4" stroke-width="6"
+                stroke-dasharray="25 75"/>
+            </svg>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:700;color:#202124;">25%</div>
+          </div>
+          <div style="font-size:10px;color:#5f6368;font-weight:500;">CPU</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="position:relative;width:70px;height:70px;margin:0 auto 6px;">
+            <svg viewBox="0 0 42 42" style="width:100%;height:100%;transform:rotate(-90deg);">
+              <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#e8eaed" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#34a853" stroke-width="6"
+                stroke-dasharray="40 60"/>
+            </svg>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:700;color:#202124;">40%</div>
+          </div>
+          <div style="font-size:10px;color:#5f6368;font-weight:500;">MEM</div>
+        </div>
+      </div>
+      <div style="padding-left:16px;display:flex;flex-direction:column;justify-content:center;font-size:11px;">
+        <div style="display:flex;align-items:center;margin-bottom:4px;">
+          <div style="width:12px;height:12px;background:#34a853;border-radius:2px;margin-right:8px;"></div>
+          <span style="color:#5f6368;">Good (&lt;50%)</span>
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:4px;">
+          <div style="width:12px;height:12px;background:#ff9800;border-radius:2px;margin-right:8px;"></div>
+          <span style="color:#5f6368;">Warning (75%+)</span>
+        </div>
+        <div style="display:flex;align-items:center;">
+          <div style="width:12px;height:12px;background:#ea4335;border-radius:2px;margin-right:8px;"></div>
+          <span style="color:#5f6368;">Critical (90%+)</span>
+        </div>
+      </div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">${renderIcon('cpu')} ${props.title || 'System'}</span>
+          ${props.server && props.server !== 'local' ? `<span class="dash-card-badge" style="font-size:10px;">🌐</span>` : ''}
+        </div>
+        <div class="dash-card-body" style="display:flex;padding:16px 12px;">
+          <div style="flex:1;display:flex;align-items:center;justify-content:space-around;">
+            <div class="system-metric" style="text-align:center;">
+              <div style="position:relative;width:90px;height:90px;margin:0 auto;">
+                <svg viewBox="0 0 42 42" style="width:100%;height:100%;transform:rotate(-90deg);">
+                  <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#e8eaed" stroke-width="6"/>
+                  <circle id="${props.id}-cpu-ring" cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#4285f4" stroke-width="6"
+                    stroke-dasharray="0 100" style="transition: stroke-dasharray 0.6s ease, stroke 0.3s ease;"/>
+                </svg>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--text-primary) !important;">
+                  <span id="${props.id}-cpu-pct" style="color:var(--text-primary) !important;">—</span>
+                </div>
+              </div>
+              ${props.showLabels ? '<div style="font-size:12px;color:#5f6368;font-weight:500;margin-top:8px;">CPU</div>' : ''}
+            </div>
+            <div class="system-metric" style="text-align:center;">
+              <div style="position:relative;width:90px;height:90px;margin:0 auto;">
+                <svg viewBox="0 0 42 42" style="width:100%;height:100%;transform:rotate(-90deg);">
+                  <circle cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#e8eaed" stroke-width="6"/>
+                  <circle id="${props.id}-mem-ring" cx="21" cy="21" r="15.91549430918954" fill="none" stroke="#34a853" stroke-width="6"
+                    stroke-dasharray="0 100" style="transition: stroke-dasharray 0.6s ease, stroke 0.3s ease;"/>
+                </svg>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--text-primary) !important;">
+                  <span id="${props.id}-mem-pct" style="color:var(--text-primary) !important;">—</span>
+                </div>
+              </div>
+              ${props.showLabels ? '<div style="font-size:12px;color:#5f6368;font-weight:500;margin-top:8px;">MEM</div>' : ''}
+            </div>
+          </div>
+          <div id="${props.id}-legend" style="padding-left:20px;display:flex !important;flex-direction:column;justify-content:center;font-size:11px;min-width:120px;visibility:visible !important;">
+            <div style="display:flex;align-items:center;margin-bottom:8px;">
+              <div style="width:12px;height:12px;background:#34a853 !important;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+              <span style="color:var(--text-secondary) !important;">Good (&lt;50%)</span>
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:8px;">
+              <div style="width:12px;height:12px;background:#4285f4 !important;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+              <span style="color:var(--text-secondary) !important;">Moderate (50%+)</span>
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:8px;">
+              <div style="width:12px;height:12px;background:#ff9800 !important;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+              <span style="color:var(--text-secondary) !important;">Warning (75%+)</span>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="width:12px;height:12px;background:#ea4335 !important;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+              <span style="color:var(--text-secondary) !important;">Critical (90%+)</span>
+            </div>
+          </div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      // System (Graphical) Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
+      
+      function getUsageColor_${props.id.replace(/-/g, '_')}(percentage, metric) {
+        // Different colors for CPU vs Memory like in the reference image
+        if (metric === 'cpu') {
+          if (percentage >= 90) return '#ea4335'; // Red for critical
+          if (percentage >= 75) return '#ff9800'; // Orange for warning  
+          return '#4285f4'; // Google blue for normal
+        } else {
+          if (percentage >= 90) return '#ea4335'; // Red for critical
+          if (percentage >= 75) return '#ff9800'; // Orange for warning
+          return '#34a853'; // Google green for normal
+        }
+      }
+      
+      function updateProgressRing_${props.id.replace(/-/g, '_')}(ringId, percentage, textId, metric) {
+        const ring = document.getElementById(ringId);
+        const text = document.getElementById(textId);
+        if (!ring || !text) return;
+        
+        const normalizedPct = Math.max(0, Math.min(100, percentage || 0));
+        const color = getUsageColor_${props.id.replace(/-/g, '_')}(normalizedPct, metric);
+        
+        // Use stroke-dasharray instead of stroke-dashoffset for cleaner animation
+        ring.style.strokeDasharray = normalizedPct + ' ' + (100 - normalizedPct);
+        ring.style.stroke = color;
+        text.textContent = Math.round(normalizedPct) + '%';
+        text.style.color = 'var(--text-primary)';
+        text.style.setProperty('color', 'var(--text-primary)', 'important');
+      }
+      
+      // Handle legend visibility
+      const legendEl = document.getElementById('${props.id}-legend');
+      if (legendEl) {
+        legendEl.style.display = ${props.showLegend !== false ? "'flex'" : "'none'"};
+        legendEl.style.visibility = 'visible';
+      }
+      
+      onStats('${props.server || 'local'}', function(data) {
+        // Handle offline state
+        if (data._offline) {
+          document.getElementById('${props.id}-cpu-pct').textContent = '⚠️';
+          document.getElementById('${props.id}-mem-pct').textContent = '⚠️';
+          document.getElementById('${props.id}-cpu-ring').style.strokeDasharray = '0 100';
+          document.getElementById('${props.id}-mem-ring').style.strokeDasharray = '0 100';
+          return;
+        }
+        
+        // Update CPU ring
+        if (data.cpu && data.cpu.currentLoad != null) {
+          updateProgressRing_${props.id.replace(/-/g, '_')}('${props.id}-cpu-ring', data.cpu.currentLoad, '${props.id}-cpu-pct', 'cpu');
+        }
+        
+        // Update Memory ring  
+        if (data.memory && data.memory.total && data.memory.active != null) {
+          const memoryPct = (data.memory.active / data.memory.total) * 100;
+          updateProgressRing_${props.id.replace(/-/g, '_')}('${props.id}-mem-ring', memoryPct, '${props.id}-mem-pct', 'mem');
+        }
+      }, ${(props.refreshInterval || 5) * 1000});
+    `
+  },
+
   'disk-usage': {
     name: 'Disk Usage',
     icon: '💾',

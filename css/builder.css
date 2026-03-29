@@ -535,6 +535,48 @@ body {
   color: var(--text-primary);
 }
 
+/* System Graphical Widget */
+.placed-widget .system-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.placed-widget .metric-label {
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.placed-widget .progress-ring-container {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placed-widget .progress-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.placed-widget .progress-ring-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1;
+}
+
 /* Dash Cards */
 .placed-widget .dash-card {
   background: var(--bg-secondary);

@@ -485,6 +485,128 @@
     `
     },
 
+    'system-graphical': {
+      name: 'System (Graphical)',
+      icon: '💻',
+      category: 'system',
+      description: 'Graphical CPU and Memory usage with circular progress rings. Supports remote servers via lobsterboard-agent.',
+      defaultWidth: 240,
+      defaultHeight: 140,
+      hasApiKey: false,
+      properties: {
+        title: 'System',
+        server: 'local',
+        refreshInterval: 5,
+        showPercentages: true,
+        showLabels: true
+      },
+      preview: `<div style="display:flex;align-items:center;justify-content:space-around;padding:8px;">
+      <div style="position:relative;width:50px;height:50px;">
+        <svg viewBox="0 0 48 48" style="width:100%;height:100%;transform:rotate(-90deg);">
+          <circle cx="24" cy="24" r="18" fill="none" stroke="#30363d" stroke-width="4"/>
+          <circle cx="24" cy="24" r="18" fill="none" stroke="#58a6ff" stroke-width="4"
+            stroke-dasharray="113" stroke-dashoffset="85" stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#58a6ff;">25%</div>
+      </div>
+      <div style="position:relative;width:50px;height:50px;">
+        <svg viewBox="0 0 48 48" style="width:100%;height:100%;transform:rotate(-90deg);">
+          <circle cx="24" cy="24" r="18" fill="none" stroke="#30363d" stroke-width="4"/>
+          <circle cx="24" cy="24" r="18" fill="none" stroke="#3fb950" stroke-width="4"
+            stroke-dasharray="113" stroke-dashoffset="68" stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#3fb950;">40%</div>
+      </div>
+    </div>`,
+      generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">${renderIcon('cpu')} ${props.title || 'System'}</span>
+          ${props.server && props.server !== 'local' ? `<span class="dash-card-badge" style="font-size:10px;">🌐</span>` : ''}
+        </div>
+        <div class="dash-card-body" style="display:flex;align-items:center;justify-content:space-around;padding:12px;">
+          <div class="system-metric">
+            ${props.showLabels ? '<div class="metric-label">CPU</div>' : ''}
+            <div class="progress-ring-container">
+              <svg class="progress-ring" viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="18" fill="none" stroke="var(--bg-tertiary)" stroke-width="4"/>
+                <circle id="${props.id}-cpu-ring" cx="24" cy="24" r="18" fill="none" stroke="#58a6ff" stroke-width="4"
+                  stroke-dasharray="113.1" stroke-dashoffset="113.1" stroke-linecap="round"
+                  style="transition: stroke-dashoffset 0.6s ease, stroke 0.3s ease; transform: rotate(-90deg); transform-origin: 50% 50%;"/>
+              </svg>
+              <div class="progress-ring-text">
+                <span id="${props.id}-cpu-pct" ${props.showPercentages ? '' : 'style="display:none;"'}>—</span>
+                <span id="${props.id}-cpu-icon" ${props.showPercentages ? 'style="display:none;"' : ''}>💻</span>
+              </div>
+            </div>
+          </div>
+          <div class="system-metric">
+            ${props.showLabels ? '<div class="metric-label">MEM</div>' : ''}
+            <div class="progress-ring-container">
+              <svg class="progress-ring" viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="18" fill="none" stroke="var(--bg-tertiary)" stroke-width="4"/>
+                <circle id="${props.id}-mem-ring" cx="24" cy="24" r="18" fill="none" stroke="#3fb950" stroke-width="4"
+                  stroke-dasharray="113.1" stroke-dashoffset="113.1" stroke-linecap="round"
+                  style="transition: stroke-dashoffset 0.6s ease, stroke 0.3s ease; transform: rotate(-90deg); transform-origin: 50% 50%;"/>
+              </svg>
+              <div class="progress-ring-text">
+                <span id="${props.id}-mem-pct" ${props.showPercentages ? '' : 'style="display:none;"'}>—</span>
+                <span id="${props.id}-mem-icon" ${props.showPercentages ? 'style="display:none;"' : ''}>🧠</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`,
+      generateJs: (props) => `
+      // System (Graphical) Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
+      
+      function getUsageColor(percentage) {
+        if (percentage >= 90) return '#f85149'; // Red for critical
+        if (percentage >= 75) return '#d29922'; // Yellow for warning
+        if (percentage >= 50) return '#58a6ff'; // Blue for moderate
+        return '#3fb950'; // Green for good
+      }
+      
+      function updateProgressRing(ringId, percentage, textId) {
+        const ring = document.getElementById(ringId);
+        const text = document.getElementById(textId);
+        if (!ring || !text) return;
+        
+        const normalizedPct = Math.max(0, Math.min(100, percentage || 0));
+        const circumference = 113.1; // 2 * π * 18
+        const offset = circumference - (normalizedPct / 100 * circumference);
+        const color = getUsageColor(normalizedPct);
+        
+        ring.style.strokeDashoffset = offset;
+        ring.style.stroke = color;
+        text.textContent = Math.round(normalizedPct) + '%';
+        text.style.color = color;
+      }
+      
+      onStats('${props.server || 'local'}', function(data) {
+        // Handle offline state
+        if (data._offline) {
+          document.getElementById('${props.id}-cpu-pct').textContent = '⚠️';
+          document.getElementById('${props.id}-mem-pct').textContent = '⚠️';
+          document.getElementById('${props.id}-cpu-ring').style.strokeDashoffset = '113.1';
+          document.getElementById('${props.id}-mem-ring').style.strokeDashoffset = '113.1';
+          return;
+        }
+        
+        // Update CPU ring
+        if (data.cpu && data.cpu.currentLoad != null) {
+          updateProgressRing('${props.id}-cpu-ring', data.cpu.currentLoad, '${props.id}-cpu-pct');
+        }
+        
+        // Update Memory ring  
+        if (data.memory && data.memory.total && data.memory.active != null) {
+          const memoryPct = (data.memory.active / data.memory.total) * 100;
+          updateProgressRing('${props.id}-mem-ring', memoryPct, '${props.id}-mem-pct');
+        }
+      }, ${(props.refreshInterval || 5) * 1000});
+    `
+    },
+
     'claude-usage': {
       name: 'Claude Usage',
       icon: '🤖',

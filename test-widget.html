@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Widget Test</title>
+  <link rel="stylesheet" href="css/builder.css">
+  <style>
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 20px;
+    }
+    .test-widget {
+      width: 300px;
+      height: 160px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>System Graphical Widget Test</h1>
+  
+  <div class="test-widget">
+    <div style="display:flex;height:100%;align-items:center;">
+      <div style="flex:1;display:flex;justify-content:center;gap:20px;">
+        <!-- CPU Ring -->
+        <div style="position:relative;width:60px;height:60px;">
+          <svg width="60" height="60" style="transform:rotate(-90deg);">
+            <circle cx="30" cy="30" r="20" fill="transparent" stroke="var(--bg-tertiary)" stroke-width="4"/>
+            <circle id="test-cpu-ring" cx="30" cy="30" r="20" fill="transparent" stroke="#34a853" stroke-width="4" stroke-dasharray="25 75" pathLength="100"/>
+          </svg>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--text-primary);">
+            <span id="test-cpu-pct" style="color:var(--text-primary);">25%</span>
+          </div>
+          <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-secondary);">CPU</div>
+        </div>
+
+        <!-- Memory Ring -->
+        <div style="position:relative;width:60px;height:60px;">
+          <svg width="60" height="60" style="transform:rotate(-90deg);">
+            <circle cx="30" cy="30" r="20" fill="transparent" stroke="var(--bg-tertiary)" stroke-width="4"/>
+            <circle id="test-mem-ring" cx="30" cy="30" r="20" fill="transparent" stroke="#ff9800" stroke-width="4" stroke-dasharray="75 25" pathLength="100"/>
+          </svg>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--text-primary);">
+            <span id="test-mem-pct" style="color:var(--text-primary);">75%</span>
+          </div>
+          <div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-secondary);">Memory</div>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div id="test-legend" style="padding-left:20px;display:flex;flex-direction:column;justify-content:center;font-size:11px;min-width:120px;">
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <div style="width:12px;height:12px;background:#34a853;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);">Good (&lt;50%)</span>
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <div style="width:12px;height:12px;background:#4285f4;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);">Moderate (50%+)</span>
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:8px;">
+          <div style="width:12px;height:12px;background:#ff9800;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);">Warning (75%+)</span>
+        </div>
+        <div style="display:flex;align-items:center;">
+          <div style="width:12px;height:12px;background:#ea4335;border-radius:2px;margin-right:8px;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);">Critical (90%+)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
