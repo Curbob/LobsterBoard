@@ -613,6 +613,194 @@ export const WIDGETS = {
       async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
       update_${props.id.replace(/-/g,'_')}(); setInterval(update_${props.id.replace(/-/g,'_')}, ${(props.refreshInterval||120)*1000});
     `
+  },
+
+  // ── Finance ──────────────────────────────────────────────────────────────
+
+  'stock-ticker': {
+    name: 'Stock Ticker',
+    icon: '📈',
+    category: 'large',
+    description: 'Live stock prices via Yahoo Finance. No API key required.',
+    defaultWidth: 320,
+    defaultHeight: 280,
+    hasApiKey: false,
+    properties: {
+      title: 'Stocks',
+      symbols: 'AAPL,MSFT,GOOGL,AMZN',
+      refreshInterval: 300
+    },
+    preview: `<div style="padding:6px;font-size:11px;">
+      <div style="display:flex;justify-content:space-between;"><span>AAPL</span><span>$182.50 <span style="color:#3fb950;">+1.24%</span></span></div>
+      <div style="display:flex;justify-content:space-between;"><span>MSFT</span><span>$375.20 <span style="color:#f85149;">-0.38%</span></span></div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">📈 ${props.title || 'Stocks'}</span>
+          <span class="dash-card-badge" id="${props.id}-badge">—</span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-list" style="overflow-y:auto;padding:4px 8px;">
+          <div style="color:#8b949e;font-size:12px;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      async function update_${props.id.replace(/-/g, '_')}() {
+        var list = document.getElementById('${props.id}-list');
+        var badge = document.getElementById('${props.id}-badge');
+        if (!list) return;
+        try {
+          var res = await fetch('/api/finance/stocks?symbols=' + encodeURIComponent('${props.symbols || 'AAPL,MSFT'}'));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          var data = await res.json();
+          var ok = data.filter(function(d) { return !d.error; });
+          list.innerHTML = data.map(function(d) {
+            if (d.error) return '<div style="padding:5px 0;border-bottom:1px solid #21262d;color:#8b949e;font-size:12px;">' + _esc(d.symbol) + ' — ' + _esc(d.error) + '</div>';
+            var color = d.up ? '#3fb950' : '#f85149';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #21262d;">'
+              + '<span style="font-weight:600;font-size:13px;">' + _esc(d.symbol) + '</span>'
+              + '<span style="text-align:right;">'
+              + '<span style="font-size:13px;font-weight:700;margin-right:8px;">$' + _esc(d.price) + '</span>'
+              + '<span style="font-size:11px;color:' + color + ';font-weight:600;">' + _esc(d.pctChange) + '%</span>'
+              + '</span></div>';
+          }).join('');
+          if (badge) badge.textContent = ok.length + ' stocks';
+        } catch (e) {
+          console.error('Stock ticker error:', e);
+          if (list) list.innerHTML = '<div style="color:#f85149;font-size:12px;">Failed to load</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
+    `
+  },
+
+  'crypto-price': {
+    name: 'Crypto Price',
+    icon: '₿',
+    category: 'large',
+    description: 'Live crypto prices via CoinGecko. No API key required.',
+    defaultWidth: 320,
+    defaultHeight: 280,
+    hasApiKey: false,
+    properties: {
+      title: 'Crypto',
+      coins: 'bitcoin,ethereum,solana',
+      currency: 'usd',
+      refreshInterval: 300
+    },
+    preview: `<div style="padding:6px;font-size:11px;">
+      <div style="display:flex;justify-content:space-between;"><span>Bitcoin</span><span>$67,240 <span style="color:#3fb950;">+2.1%</span></span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Ethereum</span><span>$3,521 <span style="color:#f85149;">-0.8%</span></span></div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">₿ ${props.title || 'Crypto'}</span>
+          <span class="dash-card-badge" id="${props.id}-badge">—</span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-list" style="overflow-y:auto;padding:4px 8px;">
+          <div style="color:#8b949e;font-size:12px;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      async function update_${props.id.replace(/-/g, '_')}() {
+        var list = document.getElementById('${props.id}-list');
+        var badge = document.getElementById('${props.id}-badge');
+        if (!list) return;
+        try {
+          var res = await fetch('/api/finance/crypto?coins=' + encodeURIComponent('${props.coins || 'bitcoin,ethereum'}') + '&currency=${props.currency || 'usd'}');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          var data = await res.json();
+          list.innerHTML = data.map(function(d) {
+            var color = d.up ? '#3fb950' : '#f85149';
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #21262d;">'
+              + '<span style="font-weight:600;font-size:13px;">' + _esc(d.name) + '</span>'
+              + '<span style="text-align:right;">'
+              + '<span style="font-size:13px;font-weight:700;margin-right:8px;">${(props.currency || 'usd').toUpperCase()} ' + _esc(d.price) + '</span>'
+              + '<span style="font-size:11px;color:' + color + ';font-weight:600;">' + _esc(d.pctChange) + '%</span>'
+              + '</span></div>';
+          }).join('');
+          if (badge) badge.textContent = data.length + ' coins';
+        } catch (e) {
+          console.error('Crypto price error:', e);
+          if (list) list.innerHTML = '<div style="color:#f85149;font-size:12px;">Failed to load</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
+    `
+  },
+
+  // ── Search ────────────────────────────────────────────────────────────────
+
+  'search': {
+    name: 'Search',
+    icon: '🔍',
+    category: 'large',
+    description: 'Search box with DuckDuckGo-style !bangs. Press S to focus, ↑ for last query.',
+    defaultWidth: 460,
+    defaultHeight: 120,
+    hasApiKey: false,
+    properties: {
+      title: 'Search',
+      placeholder: 'Search or use !bangs',
+      searchEngine: 'duckduckgo',
+      openInNewTab: true,
+      showBangHints: true
+    },
+    preview: `<div style="padding:10px;">
+      <input style="width:100%;padding:6px 10px;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;" placeholder="Search or use !bangs" readonly />
+      <div style="font-size:10px;color:#8b949e;margin-top:6px;">!yt YouTube &nbsp; !gh GitHub &nbsp; !r Reddit &nbsp; !so Stack Overflow</div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🔍 ${props.title || 'Search'}</span>
+        </div>
+        <div class="dash-card-body" style="padding:8px 10px;">
+          <form id="${props.id}-form" style="display:flex;gap:6px;" onsubmit="return false;">
+            <input id="${props.id}-input" type="text"
+              placeholder="${props.placeholder || 'Search or use !bangs'}"
+              autocomplete="off" spellcheck="false"
+              style="flex:1;padding:7px 11px;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;outline:none;" />
+            <button type="submit"
+              style="padding:7px 14px;background:#238636;border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;">Go</button>
+          </form>
+          ${props.showBangHints !== false ? `<div style="font-size:10px;color:#8b949e;margin-top:5px;"><span style="opacity:.7;">!g Google &nbsp; !yt YouTube &nbsp; !gh GitHub &nbsp; !r Reddit &nbsp; !so Stack Overflow &nbsp; !w Wikipedia &nbsp; !npm npm</span></div>` : ''}
+        </div>
+      </div>`,
+    generateJs: (props) => {
+      const providers = { duckduckgo:'https://duckduckgo.com/?q={q}', google:'https://www.google.com/search?q={q}', bing:'https://www.bing.com/search?q={q}', brave:'https://search.brave.com/search?q={q}' };
+      const bangs = { g:'https://www.google.com/search?q={q}',b:'https://www.bing.com/search?q={q}',yt:'https://www.youtube.com/results?search_query={q}',gh:'https://github.com/search?q={q}',r:'https://www.reddit.com/search/?q={q}',so:'https://stackoverflow.com/search?q={q}',w:'https://en.wikipedia.org/wiki/Special:Search/{q}',img:'https://www.google.com/search?tbm=isch&q={q}',maps:'https://www.google.com/maps/search/{q}',ddg:'https://duckduckgo.com/?q={q}',npm:'https://www.npmjs.com/search?q={q}',mdn:'https://developer.mozilla.org/en-US/search?q={q}',x:'https://x.com/search?q={q}',tw:'https://x.com/search?q={q}' };
+      const defaultUrl = providers[props.searchEngine] || providers.duckduckgo;
+      return `
+        (function() {
+          var BANGS = ${JSON.stringify(bangs)};
+          var DEFAULT_URL = '${defaultUrl}';
+          var lastQuery = '';
+          function navigate(q) {
+            q = q.trim(); if (!q) return; lastQuery = q;
+            var url = DEFAULT_URL;
+            var m = q.match(/^!(\\S+)\\s*(.*)/);
+            if (m) { var bang = m[1].toLowerCase(), rest = m[2]; if (BANGS[bang]) { url = BANGS[bang]; q = rest || q; } }
+            var target = url.replace('{q}', encodeURIComponent(q));
+            if (${props.openInNewTab !== false}) { window.open(target, '_blank', 'noopener'); } else { window.location.href = target; }
+          }
+          var form = document.getElementById('${props.id}-form');
+          var input = document.getElementById('${props.id}-input');
+          if (form) form.addEventListener('submit', function() { navigate(input.value); });
+          if (input) input.addEventListener('keydown', function(e) { if (e.key === 'ArrowUp') { e.preventDefault(); input.value = lastQuery; } });
+          document.addEventListener('keydown', function(e) {
+            var tag = document.activeElement && document.activeElement.tagName;
+            if (e.key === 's' && tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.ctrlKey && !e.metaKey) {
+              var inp = document.getElementById('${props.id}-input');
+              if (inp) { inp.focus(); inp.select(); e.preventDefault(); }
+            }
+          });
+        })();
+      `;
+    }
   }
 };
 
