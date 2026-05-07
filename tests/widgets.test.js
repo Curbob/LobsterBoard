@@ -131,6 +131,19 @@ describe('generateJs', () => {
       expect(opens, `${key} balanced braces`).toBe(closes);
     }
   });
+
+  it('search widget JS guards against duplicate global key handlers', () => {
+    const js = WIDGETS.search.generateJs(makeProps('search-js-1'));
+    expect(js).toContain('__lobsterboardSearchHandlers');
+    expect(js).toContain('removeEventListener');
+  });
+
+  it('finance widget JS registers replaceable polling intervals', () => {
+    const stockJs = WIDGETS['stock-ticker'].generateJs(makeProps('stock-js-1'));
+    const cryptoJs = WIDGETS['crypto-price'].generateJs(makeProps('crypto-js-1'));
+    expect(stockJs).toContain('__lobsterboardWidgetIntervals');
+    expect(cryptoJs).toContain('__lobsterboardWidgetIntervals');
+  });
 });
 
 describe('widget properties', () => {

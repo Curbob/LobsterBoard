@@ -645,6 +645,11 @@ export const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
+      function registerWidgetInterval(widgetId, intervalId) {
+        window.__lobsterboardWidgetIntervals = window.__lobsterboardWidgetIntervals || {};
+        if (window.__lobsterboardWidgetIntervals[widgetId]) clearInterval(window.__lobsterboardWidgetIntervals[widgetId]);
+        window.__lobsterboardWidgetIntervals[widgetId] = intervalId;
+      }
       async function update_${props.id.replace(/-/g, '_')}() {
         var list = document.getElementById('${props.id}-list');
         var badge = document.getElementById('${props.id}-badge');
@@ -671,7 +676,7 @@ export const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
+      registerWidgetInterval('${props.id}', setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000}));
     `
   },
 
@@ -704,6 +709,11 @@ export const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
+      function registerWidgetInterval(widgetId, intervalId) {
+        window.__lobsterboardWidgetIntervals = window.__lobsterboardWidgetIntervals || {};
+        if (window.__lobsterboardWidgetIntervals[widgetId]) clearInterval(window.__lobsterboardWidgetIntervals[widgetId]);
+        window.__lobsterboardWidgetIntervals[widgetId] = intervalId;
+      }
       async function update_${props.id.replace(/-/g, '_')}() {
         var list = document.getElementById('${props.id}-list');
         var badge = document.getElementById('${props.id}-badge');
@@ -728,7 +738,7 @@ export const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
+      registerWidgetInterval('${props.id}', setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000}));
     `
   },
 
@@ -778,6 +788,7 @@ export const WIDGETS = {
         (function() {
           var BANGS = ${JSON.stringify(bangs)};
           var DEFAULT_URL = '${defaultUrl}';
+          var widgetId = '${props.id}';
           var lastQuery = '';
           function navigate(q) {
             q = q.trim(); if (!q) return; lastQuery = q;
@@ -791,13 +802,19 @@ export const WIDGETS = {
           var input = document.getElementById('${props.id}-input');
           if (form) form.addEventListener('submit', function() { navigate(input.value); });
           if (input) input.addEventListener('keydown', function(e) { if (e.key === 'ArrowUp') { e.preventDefault(); input.value = lastQuery; } });
-          document.addEventListener('keydown', function(e) {
+          window.__lobsterboardSearchHandlers = window.__lobsterboardSearchHandlers || {};
+          if (window.__lobsterboardSearchHandlers[widgetId]) {
+            document.removeEventListener('keydown', window.__lobsterboardSearchHandlers[widgetId]);
+          }
+          var searchFocusHandler = function(e) {
             var tag = document.activeElement && document.activeElement.tagName;
             if (e.key === 's' && tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.ctrlKey && !e.metaKey) {
-              var inp = document.getElementById('${props.id}-input');
+              var inp = document.getElementById(widgetId + '-input');
               if (inp) { inp.focus(); inp.select(); e.preventDefault(); }
             }
-          });
+          };
+          window.__lobsterboardSearchHandlers[widgetId] = searchFocusHandler;
+          document.addEventListener('keydown', searchFocusHandler);
         })();
       `;
     }

@@ -1,6 +1,6 @@
 {
   "name": "lobsterboard",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Self-hosted drag-and-drop dashboard builder with 50 widgets, template gallery, and custom pages. Works standalone or with OpenClaw.",
   "keywords": [
     "dashboard",

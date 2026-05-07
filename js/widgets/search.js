@@ -76,12 +76,12 @@
         + '</div></div>';
     },
     generateJs: function (props) {
-      var fn = 'initSearch_' + props.id.replace(/-/g, '_');
       var provider = PROVIDERS[props.searchEngine] || PROVIDERS.duckduckgo;
       var newTab = props.openInNewTab !== false;
       return '(function() {'
         + '  var BANGS = ' + JSON.stringify(BUILT_IN_BANGS) + ';'
         + '  var DEFAULT_URL = "' + provider + '";'
+        + '  var widgetId = "' + props.id + '";'
         + '  var lastQuery = "";'
         + '  function navigate(q) {'
         + '    q = q.trim();'
@@ -105,13 +105,19 @@
         + '      if (e.key === "ArrowUp") { e.preventDefault(); input.value = lastQuery; }'
         + '    });'
         + '  }'
-        + '  document.addEventListener("keydown", function(e) {'
+        + '  window.__lobsterboardSearchHandlers = window.__lobsterboardSearchHandlers || {};'
+        + '  if (window.__lobsterboardSearchHandlers[widgetId]) {'
+        + '    document.removeEventListener("keydown", window.__lobsterboardSearchHandlers[widgetId]);'
+        + '  }'
+        + '  var searchFocusHandler = function(e) {'
         + '    var tag = document.activeElement && document.activeElement.tagName;'
         + '    if (e.key === "s" && tag !== "INPUT" && tag !== "TEXTAREA" && !e.ctrlKey && !e.metaKey) {'
-        + '      var inp = document.getElementById("' + props.id + '-input");'
+        + '      var inp = document.getElementById(widgetId + "-input");'
         + '      if (inp) { inp.focus(); inp.select(); e.preventDefault(); }'
         + '    }'
-        + '  });'
+        + '  };'
+        + '  window.__lobsterboardSearchHandlers[widgetId] = searchFocusHandler;'
+        + '  document.addEventListener("keydown", searchFocusHandler);'
         + '})();';
     }
   };

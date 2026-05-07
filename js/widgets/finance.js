@@ -11,14 +11,13 @@
     return '';
   }
 
-  function row(left, price, change, up) {
-    var color = up ? '#3fb950' : '#f85149';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #21262d;">'
-      + '<span style="font-weight:600;font-size:13px;">' + _esc(left) + '</span>'
-      + '<span style="text-align:right;">'
-      + '<span style="font-size:13px;font-weight:700;margin-right:8px;">' + _esc(price) + '</span>'
-      + '<span style="font-size:11px;color:' + color + ';font-weight:600;">' + _esc(change) + '%</span>'
-      + '</span></div>';
+  function registerWidgetInterval(widgetId, intervalId) {
+    if (typeof window === 'undefined') return;
+    window.__lobsterboardWidgetIntervals = window.__lobsterboardWidgetIntervals || {};
+    if (window.__lobsterboardWidgetIntervals[widgetId]) {
+      clearInterval(window.__lobsterboardWidgetIntervals[widgetId]);
+    }
+    window.__lobsterboardWidgetIntervals[widgetId] = intervalId;
   }
 
   // ── Stock Ticker ──────────────────────────────────────────────────────────
@@ -78,7 +77,7 @@
         + '  }'
         + '}'
         + fn + '();'
-        + 'setInterval(' + fn + ', ' + ((props.refreshInterval || 300) * 1000) + ');';
+        + 'registerWidgetInterval("' + props.id + '", setInterval(' + fn + ', ' + ((props.refreshInterval || 300) * 1000) + '));';
     }
   };
 
@@ -139,7 +138,7 @@
         + '  }'
         + '}'
         + fn + '();'
-        + 'setInterval(' + fn + ', ' + ((props.refreshInterval || 300) * 1000) + ');';
+        + 'registerWidgetInterval("' + props.id + '", setInterval(' + fn + ', ' + ((props.refreshInterval || 300) * 1000) + '));';
     }
   };
 
