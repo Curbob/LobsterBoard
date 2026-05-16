@@ -523,6 +523,12 @@ h3 {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.vital-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .vital-value {
   margin-top: 8px;
   font-size: 22px;

@@ -61,6 +61,10 @@ describe('Teddy Homebase health API', () => {
     expect(data.intelligence).toHaveProperty('softwareUpdates');
     expect(data.intelligence.softwareUpdates).toHaveProperty('items');
     expect(Array.isArray(data.intelligence.softwareUpdates.items)).toBe(true);
+    expect(data.intelligence).toHaveProperty('macUpdates');
+    expect(data.intelligence.macUpdates).toHaveProperty('checkedAt');
+    expect(data.intelligence).toHaveProperty('systemLogs');
+    expect(data.intelligence.systemLogs.detail).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data).toHaveProperty('visualEvidence');
     expect(data.visualEvidence).toHaveProperty('latest');
@@ -74,6 +78,11 @@ describe('Teddy Homebase health API', () => {
     expect(data.presentation.hiddenByDefault.signals).toContain('weirdThings');
     expect(data.presentation.hiddenByDefault.sections).toEqual(expect.arrayContaining(['readout', 'dependencyMap']));
     expect(data.vitals).toHaveProperty('memory');
+    expect(data.vitals).toHaveProperty('health');
+    expect(data.vitals.health.cpu).toEqual(expect.objectContaining({
+      state: expect.any(String),
+      detail: expect.any(String)
+    }));
     expect(Array.isArray(data.events)).toBe(true);
     expect(Array.isArray(data.timeline)).toBe(true);
   }, 12000);
@@ -113,6 +122,16 @@ describe('Teddy Homebase health API', () => {
 
     expect(visuals.signalGrid.type).toBe('metric-cards');
     expect(visuals.signalGrid.defaultKeys).toEqual(data.presentation.defaultSignalKeys);
+    expect(data.presentation.defaultSignalKeys).toEqual([
+      'adguardBlocks',
+      'homebridgeAccessories',
+      'homebridgeLogs',
+      'publicFunnel',
+      'wanQuality',
+      'softwareUpdates',
+      'macUpdates',
+      'systemLogs'
+    ]);
     for (const key of data.presentation.defaultSignalKeys) {
       expect(visuals.signalGrid.inputs[key]).toBeTruthy();
     }
@@ -156,6 +175,8 @@ describe('Teddy Homebase health API', () => {
     expect(html).not.toContain('Persistent truth');
     expect(script).toContain('Everything important is up.');
     expect(script).toContain('Nothing to do.');
+    expect(script).toContain('macOS updates');
+    expect(script).toContain('System log');
     expect(script).not.toContain('Teddy could not finish the check.');
   });
 
@@ -172,6 +193,9 @@ describe('Teddy Homebase health API', () => {
     expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service checks');
     expect(evidence.entries[0].visuals.serviceGrid.hiddenKeys).toContain('backups');
     expect(evidence.entries[0].visuals.signalGrid.hiddenKeys).toContain('weirdThings');
+    expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('macUpdates');
+    expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('systemLogs');
+    expect(evidence.entries[0].visuals.vitalsGrid.inputs.health.memory.detail).toMatch(/Memory/);
     expect(evidence.entries[0].visuals.timeline.source).toBe('data/teddy-house/timeline.json');
   }, 12000);
 

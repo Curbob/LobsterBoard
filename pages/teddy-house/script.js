@@ -80,18 +80,23 @@ function renderServices(data) {
 
 function renderVitals(vitals) {
   const grid = document.getElementById("vitals-grid");
+  const health = vitals.health || {};
   const rows = [
-    ["CPU", vitals.cpu || "--"],
-    ["Memory", vitals.memory || "--"],
-    ["Disk", vitals.disk || "--"],
-    ["Uptime", vitals.uptime || "--"],
-    ["Network", vitals.network || "--"],
-    ["Host", vitals.host || "--"]
+    ["CPU load", vitals.cpu || "--", health.cpu],
+    ["Memory used", vitals.memory || "--", health.memory],
+    ["Disk used", vitals.disk || "--", health.disk],
+    ["Uptime", vitals.uptime || "--", null],
+    ["Network", vitals.network || "--", null],
+    ["Host", vitals.host || "--", null]
   ];
   clear(grid);
-  rows.forEach(([label, value]) => {
+  rows.forEach(([label, value, signal]) => {
     const item = div("vital");
-    item.append(div("tiny-label", label), div("vital-value", value));
+    const top = div("vital-top");
+    top.append(div("tiny-label", label));
+    if (signal) top.append(span(`status-dot ${stateClass(signalState(signal))}`));
+    item.append(top, div("vital-value", value));
+    if (signal && signal.detail) item.title = signal.detail;
     grid.append(item);
   });
 }
@@ -151,7 +156,9 @@ function renderSignals(intelligence) {
   renderSignalCard(grid, "Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
   renderSignalCard(grid, "Public access", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
   renderSignalCard(grid, "WAN", data.wanQuality, data.wanQuality && data.wanQuality.check);
-  renderSignalCard(grid, "Updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
+  renderSignalCard(grid, "App updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
+  renderSignalCard(grid, "macOS updates", data.macUpdates, data.macUpdates && data.macUpdates.check);
+  renderSignalCard(grid, "System log", data.systemLogs, data.systemLogs && data.systemLogs.check);
   if (weirdFindings.length > 0) {
     const weirdState = weirdFindings.some(item => item.state === "bad")
       ? "bad"
@@ -177,6 +184,7 @@ function renderEvents(events) {
 
 function renderSummary(data) {
   const score = data.score ?? 0;
+  const needCount = Array.isArray(data.needsDan) ? data.needsDan.length : 0;
   const title = document.getElementById("summary-title");
   const copy = document.getElementById("summary-copy");
   const scoreText = document.getElementById("health-score");
@@ -189,11 +197,16 @@ function renderSummary(data) {
   ring.style.background = `conic-gradient(var(--green) ${score * 3.6}deg, rgba(255, 255, 255, 0.10) 0deg)`;
   last.textContent = `Checked ${new Date(data.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 
-  if (score >= 90) {
+  if (score >= 90 && needCount === 0) {
     title.textContent = "Everything important is up.";
     copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac are answering.";
     next.textContent = "Nothing to do.";
     teddyLine.textContent = "Quiet right now.";
+  } else if (score >= 90) {
+    title.textContent = "Core systems are up.";
+    copy.textContent = needCount === 1 ? "One useful signal needs a look." : `${needCount} useful signals need a look.`;
+    next.textContent = "Check the watch item.";
+    teddyLine.textContent = "Not broken. Worth eyes.";
   } else if (score >= 70) {
     title.textContent = "Mostly healthy.";
     copy.textContent = "Core services are up. One signal needs a look.";

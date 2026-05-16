@@ -9,6 +9,10 @@ const TIMEOUT_MS = 2200;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
+const MAC_UPDATE_CACHE_MS = 6 * HOUR_MS;
+const SYSTEM_LOG_CACHE_MS = 10 * 60 * 1000;
+const MAC_UPDATE_CACHE_SCHEMA = 'mac-updates-v2';
+const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v2';
 const EVIDENCE_LIMIT = 120;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
 const DEFAULT_SIGNAL_KEYS = [
@@ -17,7 +21,9 @@ const DEFAULT_SIGNAL_KEYS = [
   'homebridgeLogs',
   'publicFunnel',
   'wanQuality',
-  'softwareUpdates'
+  'softwareUpdates',
+  'macUpdates',
+  'systemLogs'
 ];
 const HIDDEN_BY_DEFAULT = {
   services: ['backups'],
@@ -83,6 +89,7 @@ function run(command, args, ms = TIMEOUT_MS) {
   return withTimeout(new Promise((resolve, reject) => {
     execFile(command, args, { timeout: ms, maxBuffer: 1024 * 512 }, (err, stdout, stderr) => {
       if (err) {
+        err.stdout = stdout;
         err.stderr = stderr;
         reject(err);
         return;
@@ -95,6 +102,28 @@ function run(command, args, ms = TIMEOUT_MS) {
 async function tryRun(command, args, ms = TIMEOUT_MS) {
   try {
     return { ok: true, stdout: await run(command, args, ms), stderr: '' };
+  } catch (err) {
+    return { ok: false, stdout: err.stdout || '', stderr: err.stderr || err.message };
+  }
+}
+
+function runFull(command, args, ms = TIMEOUT_MS) {
+  return withTimeout(new Promise((resolve, reject) => {
+    execFile(command, args, { timeout: ms, maxBuffer: 1024 * 512 }, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        reject(err);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  }), ms);
+}
+
+async function tryRunFull(command, args, ms = TIMEOUT_MS) {
+  try {
+    return { ok: true, ...(await runFull(command, args, ms)) };
   } catch (err) {
     return { ok: false, stdout: err.stdout || '', stderr: err.stderr || err.message };
   }
@@ -209,6 +238,8 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
           publicFunnel: stripSignal(intelligence.tailscaleFunnel),
           wanQuality: stripSignal(intelligence.wanQuality),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
+          macUpdates: stripSignal(intelligence.macUpdates),
+          systemLogs: stripSignal(intelligence.systemLogs),
           weirdThings: Array.isArray(intelligence.weirdThings)
             ? intelligence.weirdThings.filter(item => item.title !== 'No drift' && item.title !== 'No new weird thing').length
             : 0
@@ -563,6 +594,132 @@ async function checkSoftwareUpdates(ctx) {
   return normalized;
 }
 
+function cachedFresh(record, ms) {
+  if (!record || !record.checkedAt) return false;
+  const checked = new Date(record.checkedAt).getTime();
+  return Number.isFinite(checked) && Date.now() - checked < ms;
+}
+
+function cachedKnownFresh(record, ms, schema) {
+  return cachedFresh(record, ms)
+    && (!schema || record.schema === schema)
+    && record.metric !== 'unknown'
+    && record.value !== 'unknown';
+}
+
+function countMacUpdateItems(text) {
+  const starCount = (text.match(/\n\s*\*/g) || []).length;
+  const labelCount = (text.match(/\n\s*Label:/g) || []).length;
+  return Math.max(starCount, labelCount);
+}
+
+async function checkMacUpdates(ctx) {
+  const cached = readDataSafe(ctx, 'mac-updates.json', null);
+  if (cachedKnownFresh(cached, MAC_UPDATE_CACHE_MS, MAC_UPDATE_CACHE_SCHEMA)) return cached;
+
+  const result = await tryRunFull('/usr/sbin/softwareupdate', ['-l'], 6500);
+  let signal;
+  if (!result.ok) {
+    signal = info('Could not read macOS update status.', 'unknown', 'macOS');
+  } else {
+    const output = `${result.stdout}\n${result.stderr || ''}`;
+    if (/No new software available/i.test(output)) {
+      signal = ok('macOS reports no available updates.', 'current', 'macOS');
+    } else {
+      const count = countMacUpdateItems(output);
+      if (count === 0) {
+        signal = info('macOS update check finished without a readable update list.', 'unknown', 'macOS');
+      } else {
+        const needsAttention = /security|critical|urgent|restart|recommended/i.test(output);
+        signal = (needsAttention ? warn : info)(
+          `${count} macOS update${count === 1 ? '' : 's'} available. Review before installing.`,
+          `${count}`,
+          'macOS'
+        );
+      }
+    }
+  }
+
+  const record = { checkedAt: nowIso(), schema: MAC_UPDATE_CACHE_SCHEMA, ...signal };
+  writeDataSafe(ctx, 'mac-updates.json', record);
+  return record;
+}
+
+function systemLogLines(text) {
+  return String(text || '')
+    .split('\n')
+    .map(stripAnsi)
+    .map(line => line.trim())
+    .filter(line => /^\d{4}-\d{2}-\d{2}/.test(line));
+}
+
+async function recentCriticalReports() {
+  const dirs = [
+    '/Library/Logs/DiagnosticReports',
+    path.join(os.homedir(), 'Library/Logs/DiagnosticReports')
+  ];
+  const since = Date.now() - 24 * HOUR_MS;
+  let checked = 0;
+  let matches = 0;
+  for (const dir of dirs) {
+    try {
+      const files = await fs.readdir(dir);
+      checked += 1;
+      for (const file of files) {
+        if (!/\.(panic|ips|diag|crash)$/i.test(file)) continue;
+        if (!/(panic|kernel|thermal|watchdog|shutdown|disk|io|i\/o|corrupt)/i.test(file)) continue;
+        try {
+          const stat = await fs.stat(path.join(dir, file));
+          if (stat.mtimeMs >= since) matches += 1;
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  return { checked, matches };
+}
+
+async function checkSystemLogs(ctx) {
+  const cached = readDataSafe(ctx, 'system-logs.json', null);
+  if (cachedKnownFresh(cached, SYSTEM_LOG_CACHE_MS, SYSTEM_LOG_CACHE_SCHEMA)) return cached;
+
+  const reports = await recentCriticalReports();
+  if (reports.matches > 0) {
+    const signal = warn(
+      `${reports.matches} critical diagnostic report${reports.matches === 1 ? '' : 's'} in the last 24 hours.`,
+      `${reports.matches}`,
+      'System log'
+    );
+    const record = { checkedAt: nowIso(), schema: SYSTEM_LOG_CACHE_SCHEMA, ...signal };
+    writeDataSafe(ctx, 'system-logs.json', record);
+    return record;
+  }
+
+  const predicate = 'eventMessage CONTAINS[c] "panic" OR eventMessage CONTAINS[c] "shutdown cause" OR eventMessage CONTAINS[c] "thermal pressure" OR eventMessage CONTAINS[c] "I/O error" OR eventMessage CONTAINS[c] "media error" OR eventMessage CONTAINS[c] "corrupt"';
+  const result = await tryRun('/usr/bin/log', ['show', '--last', '1h', '--style', 'compact', '--predicate', predicate], 1800);
+  let signal;
+  if (!result.ok) {
+    signal = ok(
+      reports.checked > 0
+        ? 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports. Unified log scan timed out.'
+        : 'No critical diagnostic reports were readable. Unified log scan timed out.',
+      '0',
+      'System log'
+    );
+  } else {
+    const lines = systemLogLines(result.stdout);
+    const critical = lines.filter(line => /panic|kernel panic|shutdown cause|thermal pressure|I\/O error|media error|corrupt/i.test(line)).length;
+    if (critical > 0) {
+      signal = warn(`${critical} critical-pattern system log event${critical === 1 ? '' : 's'} in the last 24 hours.`, `${critical}`, 'System log');
+    } else {
+      signal = ok('No panic, shutdown, thermal-pressure, I/O, media-error, or corruption patterns in the recent system checks.', '0', 'System log');
+    }
+  }
+
+  const record = { checkedAt: nowIso(), schema: SYSTEM_LOG_CACHE_SCHEMA, ...signal };
+  writeDataSafe(ctx, 'system-logs.json', record);
+  return record;
+}
+
 async function adGuardStats() {
   try {
     const res = await fetchJson('http://127.0.0.1:3001/control/stats');
@@ -622,6 +779,34 @@ async function diskUsage() {
   }
 }
 
+async function memoryPressure(usedPct) {
+  const pressure = await tryRun('memory_pressure', [], 1800);
+  if (!pressure.ok) {
+    return {
+      state: 'ok',
+      metric: `${usedPct}%`,
+      detail: 'macOS uses idle RAM for cache; no memory-pressure warning was readable.'
+    };
+  }
+
+  const freeMatch = pressure.stdout.match(/System-wide memory free percentage:\s*(\d+)%/i);
+  const freePct = freeMatch ? Number(freeMatch[1]) : null;
+  if (freePct !== null && freePct < 5) {
+    return {
+      state: 'warn',
+      metric: `${usedPct}%`,
+      detail: `Memory pressure is worth watching: ${freePct}% free by macOS pressure check.`
+    };
+  }
+  return {
+    state: 'ok',
+    metric: `${usedPct}%`,
+    detail: freePct === null
+      ? 'Memory use is high, but macOS did not report a readable pressure warning.'
+      : `Memory pressure looks normal: ${freePct}% free by pressure check.`
+  };
+}
+
 function formatUptime(seconds) {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -648,14 +833,39 @@ async function vitals() {
   const total = os.totalmem();
   const free = os.freemem();
   const usedPct = Math.round(((total - free) / total) * 100);
-  const load = os.loadavg()[0].toFixed(2);
+  const loadRaw = os.loadavg()[0];
+  const load = loadRaw.toFixed(2);
+  const [disk, memorySignal] = await Promise.all([
+    diskUsage(),
+    memoryPressure(usedPct)
+  ]);
+  const diskPct = Number.parseInt(disk, 10);
+  const cpuState = loadRaw > os.cpus().length ? 'warn' : 'ok';
+  const diskState = Number.isFinite(diskPct) && diskPct >= 90 ? 'warn' : 'ok';
   return {
     cpu: load,
     memory: `${usedPct}%`,
-    disk: await diskUsage(),
+    disk,
     uptime: formatUptime(os.uptime()),
     network: 'local',
-    host: os.hostname()
+    host: os.hostname(),
+    health: {
+      cpu: {
+        state: cpuState,
+        metric: load,
+        detail: cpuState === 'warn' ? 'Load is above the CPU core count.' : 'Load is inside the normal range.'
+      },
+      memory: {
+        state: memorySignal.state,
+        metric: memorySignal.metric,
+        detail: memorySignal.detail
+      },
+      disk: {
+        state: diskState,
+        metric: disk,
+        detail: diskState === 'warn' ? 'Root disk is above the watch threshold.' : 'Root disk has room.'
+      }
+    }
   };
 }
 
@@ -804,11 +1014,13 @@ async function buildInsights(services, systemVitals, intelligence) {
 
   const blockers = Object.values(services).filter(service => service.state === 'bad').length;
   const watches = Object.values(services).filter(service => service.state === 'warn').length;
+  const vitalWatches = Object.values(systemVitals.health || {}).filter(vital => vital.state === 'warn').length;
+  const signalWatches = usefulSignals(intelligence).filter(item => item.state === 'warn' || item.state === 'bad').length;
   const parked = Object.values(services).filter(service => service.state === 'info').length;
   const teddySays = blockers > 0
     ? `${blockers} failed check${blockers === 1 ? '' : 's'}.`
-    : watches > 0
-      ? `${watches} watch item${watches === 1 ? '' : 's'}.`
+    : watches + vitalWatches + signalWatches > 0
+      ? `${watches + vitalWatches + signalWatches} watch item${watches + vitalWatches + signalWatches === 1 ? '' : 's'}.`
       : parked > 0
         ? 'Active systems clear.'
         : 'All clear.';
@@ -849,13 +1061,15 @@ async function buildInsights(services, systemVitals, intelligence) {
 }
 
 async function buildIntelligence(ctx) {
-  const [adguard, accessories, logHealth, funnel, wanQuality, softwareUpdates] = await Promise.all([
+  const [adguard, accessories, logHealth, funnel, wanQuality, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
     adGuardStats(),
     homebridgeAccessorySummary(),
     homebridgeLogHealth(),
     checkTailscaleFunnel(),
     checkWanQuality(),
-    checkSoftwareUpdates(ctx)
+    checkSoftwareUpdates(ctx),
+    checkMacUpdates(ctx),
+    checkSystemLogs(ctx)
   ]);
 
   return {
@@ -864,6 +1078,8 @@ async function buildIntelligence(ctx) {
     tailscaleFunnel: funnel,
     wanQuality,
     softwareUpdates,
+    macUpdates,
+    systemLogs,
     weirdThings: []
   };
 }
@@ -878,7 +1094,11 @@ function snapshotFor(services, intelligence, score) {
     wanState: intelligence.wanQuality.state,
     adguardStatsState: intelligence.adguard.state,
     softwareUpdateState: intelligence.softwareUpdates.state,
-    softwareUpdateValue: intelligence.softwareUpdates.value
+    softwareUpdateValue: intelligence.softwareUpdates.value,
+    macUpdateState: intelligence.macUpdates.state,
+    macUpdateMetric: intelligence.macUpdates.metric,
+    systemLogState: intelligence.systemLogs.state,
+    systemLogMetric: intelligence.systemLogs.metric
   };
 }
 
@@ -906,9 +1126,15 @@ function buildWeirdThings(previous, current) {
   if (current.softwareUpdateState === 'warn' && previous.softwareUpdateValue !== current.softwareUpdateValue) {
     items.push({ state: 'warn', title: 'Updates changed', detail: `${current.softwareUpdateValue} update signal changed.` });
   }
+  if (current.macUpdateState === 'warn' && previous.macUpdateMetric !== current.macUpdateMetric) {
+    items.push({ state: 'warn', title: 'macOS updates', detail: `${current.macUpdateMetric} macOS update signal changed.` });
+  }
+  if (current.systemLogState === 'bad' || current.systemLogState === 'warn') {
+    items.push({ state: current.systemLogState, title: 'System log', detail: 'Recent Mac logs need attention.' });
+  }
 
   if (items.length === 0) {
-    return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, accessory, or WAN changes since the last check.' }];
+    return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, accessory, WAN, update, or log changes since the last check.' }];
   }
   return items.slice(0, 5);
 }
@@ -957,8 +1183,33 @@ function scoreServices(services) {
   return Math.round((points / values.length) * 100);
 }
 
-function needsDan(services) {
-  return Object.entries(services)
+function usefulSignals(intelligence) {
+  if (!intelligence) return [];
+  return [
+    ['Public access', intelligence.tailscaleFunnel],
+    ['WAN', intelligence.wanQuality],
+    ['Homebridge log', intelligence.homebridge && intelligence.homebridge.logHealth],
+    ['App updates', intelligence.softwareUpdates],
+    ['macOS updates', intelligence.macUpdates],
+    ['System log', intelligence.systemLogs]
+  ]
+    .filter(([, signal]) => signal && (signal.state === 'warn' || signal.state === 'bad'))
+    .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch' }));
+}
+
+function usefulVitals(systemVitals) {
+  const health = systemVitals && systemVitals.health ? systemVitals.health : {};
+  return Object.entries(health)
+    .filter(([, signal]) => signal && (signal.state === 'warn' || signal.state === 'bad'))
+    .map(([key, signal]) => ({
+      name: key === 'cpu' ? 'CPU' : key === 'memory' ? 'Memory' : 'Disk',
+      state: signal.state,
+      metric: signal.metric || 'watch'
+    }));
+}
+
+function needsDan(services, intelligence, systemVitals) {
+  const serviceItems = Object.entries(services)
     .filter(([, service]) => service.state !== 'ok' && service.state !== 'info')
     .map(([key, service]) => {
       const names = {
@@ -971,6 +1222,9 @@ function needsDan(services) {
       };
       return `${names[key]}: ${service.metric}`;
     });
+  const signalItems = usefulSignals(intelligence).map(item => `${item.name}: ${item.metric}`);
+  const vitalItems = usefulVitals(systemVitals).map(item => `${item.name}: ${item.metric}`);
+  return [...serviceItems, ...signalItems, ...vitalItems];
 }
 
 function eventsFromServices(services) {
@@ -1008,7 +1262,7 @@ module.exports = function(ctx = {}) {
         return {
           checkedAt: nowIso(),
           score,
-          needsDan: needsDan(services),
+          needsDan: needsDan(services, intelligence, systemVitals),
           services,
           insights,
           intelligence,
