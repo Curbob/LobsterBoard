@@ -209,7 +209,9 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
           publicFunnel: stripSignal(intelligence.tailscaleFunnel),
           wanQuality: stripSignal(intelligence.wanQuality),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
-          weirdThings: Array.isArray(intelligence.weirdThings) ? intelligence.weirdThings.length : 0
+          weirdThings: Array.isArray(intelligence.weirdThings)
+            ? intelligence.weirdThings.filter(item => item.title !== 'No new weird thing').length
+            : 0
         }
       },
       vitalsGrid: {
@@ -452,6 +454,25 @@ async function gitFreshness(repoPath) {
 function normalizeSoftwareUpdateCopy(result) {
   if (!result || typeof result !== 'object') return result;
   const next = { ...result, label: 'updates' };
+  if (Array.isArray(next.items)) {
+    next.items = next.items.map(item => {
+      const itemCopy = { ...item };
+      if (itemCopy.name === 'Teddy House') itemCopy.name = 'Teddy Homebase';
+      if (typeof itemCopy.detail === 'string') {
+        itemCopy.detail = itemCopy.detail
+          .replace('Teddy House package version was not readable.', 'Teddy Homebase package version was not readable.')
+          .replace('Teddy House is current', 'Teddy Homebase is current')
+          .replace('Teddy House can update', 'Teddy Homebase can update');
+      }
+      return itemCopy;
+    });
+  }
+  if (next.git && typeof next.git === 'object' && typeof next.git.detail === 'string') {
+    next.git = {
+      ...next.git,
+      detail: normalizeGitCopy(next.git.detail)
+    };
+  }
   if (typeof next.detail === 'string') {
     next.detail = next.detail
       .replace('software update', 'update')
@@ -466,10 +487,30 @@ function normalizeSoftwareUpdateCopy(result) {
   return next;
 }
 
+function normalizeGitCopy(detail) {
+  return detail
+    .replace(/Git branch is behind origin by (\d+ commit[s]?)\./, 'Code is $1 behind origin.')
+    .replace(/Git branch has (\d+ local commit[s]?) not pushed\./, '$1 not pushed.')
+    .replace(/Git branch has (\d+ local change[s]?)\./, '$1.')
+    .replace('Git branch is clean locally.', 'Code is clean locally.');
+}
+
 async function checkSoftwareUpdates(ctx) {
   const cached = readDataSafe(ctx, 'software-updates.json', null);
   if (cached && cached.checkedAt && Date.now() - new Date(cached.checkedAt).getTime() < UPDATE_CACHE_MS) {
-    return normalizeSoftwareUpdateCopy(cached);
+    const gitState = await gitFreshness(path.resolve(__dirname, '..', '..'));
+    const cachedUpdates = Array.isArray(cached.items)
+      ? cached.items.filter(item => item.state === 'warn').length
+      : Number(cached.value || 0);
+    return normalizeSoftwareUpdateCopy({
+      ...cached,
+      state: cachedUpdates > 0 || gitState.state === 'warn' ? 'warn' : 'ok',
+      value: cachedUpdates > 0 ? `${cachedUpdates}` : 'current',
+      detail: cachedUpdates > 0
+        ? `${cachedUpdates} update${cachedUpdates === 1 ? '' : 's'} available. ${gitState.detail}`
+        : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
+      git: gitState
+    });
   }
 
   const [openclaw, lobsterboard] = await Promise.all([
