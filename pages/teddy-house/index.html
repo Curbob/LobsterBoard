@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teddy House</title>
+  <link rel="stylesheet" href="/pages/teddy-house/style.css">
+</head>
+<body>
+  <div class="window-shell">
+    <aside class="sidebar">
+      <div class="traffic-lights" aria-hidden="true">
+        <span class="light red"></span>
+        <span class="light amber"></span>
+        <span class="light green"></span>
+      </div>
+      <div class="brand-block">
+        <div class="brand-mark">TH</div>
+        <div>
+          <div class="brand-title">Teddy House</div>
+          <div class="brand-subtitle">House systems cockpit</div>
+        </div>
+      </div>
+      <nav class="side-nav" aria-label="Teddy House sections">
+        <a class="active" href="#overview">Overview</a>
+        <a href="#network">Network</a>
+        <a href="#home">Home</a>
+        <a href="#server">Server</a>
+        <a href="#agents">Agents</a>
+        <a href="#logs">Logs</a>
+      </nav>
+      <div class="teddy-card">
+        <div class="teddy-face" aria-hidden="true">
+          <span class="ear left"></span>
+          <span class="ear right"></span>
+          <span class="eye left"></span>
+          <span class="eye right"></span>
+          <span class="nose"></span>
+        </div>
+        <div>
+          <div class="tiny-label">Teddy checked</div>
+          <div id="teddy-line">Checking the house.</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="dashboard">
+      <header class="toolbar">
+        <div>
+          <p class="eyebrow">Live Mac mini status</p>
+          <h1>Teddy House</h1>
+        </div>
+        <div class="toolbar-actions">
+          <span class="badge" id="privacy-badge">Password protected</span>
+          <span class="last-check" id="last-check">Checking...</span>
+          <button id="refresh-button" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="status-band" id="overview">
+        <div>
+          <p class="eyebrow">House status</p>
+          <h2 id="summary-title">Checking the systems that matter.</h2>
+          <p id="summary-copy">Teddy is probing DNS, Homebridge, network reachability, OpenClaw, and the Mac mini itself.</p>
+        </div>
+        <div class="score-card">
+          <div class="score-ring" id="score-ring">
+            <span id="health-score">--</span>
+          </div>
+          <div>
+            <div class="tiny-label">Readiness score</div>
+            <div id="next-action" class="next-action">Waiting on first check.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="needs-lane" aria-labelledby="needs-title">
+        <div>
+          <p class="eyebrow">Needs Dan</p>
+          <h3 id="needs-title">No action needed right now.</h3>
+        </div>
+        <div class="needs-list" id="needs-list"></div>
+      </section>
+
+      <section class="insight-band" aria-labelledby="teddy-says-title">
+        <div class="teddy-says">
+          <p class="eyebrow">Teddy says</p>
+          <h3 id="teddy-says-title">Waiting on the first read.</h3>
+        </div>
+        <div class="insight-grid" id="insight-grid" aria-label="Useful signals"></div>
+      </section>
+
+      <section class="grid service-grid" id="service-grid" aria-label="Service health"></section>
+
+      <section class="lower-grid">
+        <article class="panel vitals-panel" id="server">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Mac mini</p>
+              <h3>Vitals</h3>
+            </div>
+            <span class="state-pill" id="vitals-pill">Live</span>
+          </div>
+          <div class="vitals-grid" id="vitals-grid"></div>
+        </article>
+
+        <article class="panel map-panel" id="network">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Dependency map</p>
+              <h3>Signal path</h3>
+            </div>
+          </div>
+          <div class="dependency-map">
+            <div class="node">Internet</div>
+            <div class="line"></div>
+            <div class="node">Tailscale</div>
+            <div class="line"></div>
+            <div class="node primary">Mac mini</div>
+            <div class="branches">
+              <div>AdGuard DNS</div>
+              <div>Homebridge</div>
+              <div>OpenClaw / Teddy</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel events-panel" id="logs">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Recent truth</p>
+              <h3>Last probe</h3>
+            </div>
+          </div>
+          <div class="events" id="events-list"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/pages/teddy-house/script.js"></script>
+</body>
+</html>

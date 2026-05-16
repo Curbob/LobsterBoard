@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LobsterBoard — Sign In</title>
+  <title>Teddy House — Sign In</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -102,16 +102,16 @@
 <body>
   <div class="card">
     <div class="header">
-      <span class="icon">&#x1F99E;</span>
-      <h1>LobsterBoard</h1>
-      <p>Enter your password to access the dashboard</p>
+      <span class="icon">TH</span>
+      <h1>Teddy House</h1>
+      <p>Enter the house password.</p>
     </div>
     <form id="form" autocomplete="on" onsubmit="return false;">
       <div class="field">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password" placeholder="Dashboard password" autocomplete="current-password" autofocus>
+        <input type="password" id="password" name="password" placeholder="House password" autocomplete="current-password" autofocus>
       </div>
-      <button type="submit" id="btn">Sign in</button>
+      <button type="submit" id="btn">Open Teddy House</button>
       <div class="error" id="error-msg"></div>
     </form>
   </div>
@@ -143,17 +143,18 @@
         const data = await res.json();
 
         if (res.ok && data.status === 'ok') {
-          window.location.href = data.redirect || '/';
+          const next = new URLSearchParams(window.location.search).get('next');
+          window.location.href = next || data.redirect || '/';
         } else {
           showError(data.error || 'Incorrect password. Please try again.');
           btn.disabled = false;
-          btn.textContent = 'Sign in';
+          btn.textContent = 'Open Teddy House';
           document.getElementById('password').select();
         }
       } catch (e) {
         showError('Connection error. Please try again.');
         btn.disabled = false;
-        btn.textContent = 'Sign in';
+        btn.textContent = 'Open Teddy House';
       }
     }
 

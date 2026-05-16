@@ -69,7 +69,8 @@ const server = http.createServer(async (req, res) => {
       if (pathname.startsWith('/api/')) {
         sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
       } else {
-        res.writeHead(302, { 'Location': '/login' });
+        const next = encodeURIComponent(`${pathname}${parsedUrl.search}`);
+        res.writeHead(302, { 'Location': `/login?next=${next}` });
         res.end();
       }
       return;

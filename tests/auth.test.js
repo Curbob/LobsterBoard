@@ -16,10 +16,10 @@ describe('Password auth', () => {
   });
   afterAll(async () => { if (srv) await srv.kill(); });
 
-  it('redirects unauthenticated browser requests to /login', async () => {
+  it('redirects unauthenticated browser requests to /login with return path', async () => {
     const res = await fetch(`${srv.baseUrl}/`, { redirect: 'manual' });
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('/login');
+    expect(res.headers.get('location')).toBe('/login?next=%2F');
   });
 
   it('returns 401 for unauthenticated API requests', async () => {
