@@ -25,7 +25,7 @@
         </div>
       </div>
       <nav id="page-nav" class="lobster-page-nav" aria-label="LobsterBoard pages"></nav>
-      <nav class="side-nav" aria-label="Teddy House sections">
+      <nav class="side-nav" aria-label="Dashboard sections">
         <a class="active" href="#overview">Overview</a>
         <a href="#signals">Signals</a>
         <a href="#network">Network</a>
@@ -43,8 +43,8 @@
           <span class="nose"></span>
         </div>
         <div>
-          <div class="tiny-label">Teddy checked</div>
-          <div id="teddy-line">Checking the house.</div>
+          <div class="tiny-label">Status</div>
+          <div id="teddy-line">Checking.</div>
         </div>
       </div>
     </aside>
@@ -52,7 +52,7 @@
     <main class="dashboard">
       <header class="toolbar">
         <div class="toolbar-title">
-          <p class="eyebrow">Live Mac mini status</p>
+          <p class="eyebrow">Mac mini</p>
           <h1>Teddy House</h1>
         </div>
         <div class="toolbar-actions">
@@ -64,35 +64,35 @@
 
       <section class="status-band" id="overview">
         <div class="status-copy">
-          <p class="eyebrow">House status</p>
-          <h2 id="summary-title">Checking the systems that matter.</h2>
-          <p id="summary-copy">Teddy is probing DNS, Homebridge, network reachability, OpenClaw, and the Mac mini itself.</p>
+          <p class="eyebrow">Status</p>
+          <h2 id="summary-title">Checking systems.</h2>
+          <p id="summary-copy">DNS, Homebridge, Tailscale, OpenClaw, and host health.</p>
         </div>
         <div class="score-card">
           <div class="score-ring" id="score-ring">
             <span id="health-score">--</span>
           </div>
           <div>
-            <div class="tiny-label">Readiness score</div>
-            <div id="next-action" class="next-action">Waiting on first check.</div>
+            <div class="tiny-label">Readiness</div>
+            <div id="next-action" class="next-action">Waiting.</div>
           </div>
         </div>
       </section>
 
       <section class="needs-lane" aria-labelledby="needs-title">
         <div>
-          <p class="eyebrow">Needs Dan</p>
-          <h3 id="needs-title">No action needed right now.</h3>
+          <p class="eyebrow">Action</p>
+          <h3 id="needs-title">Clear.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
       </section>
 
       <section class="insight-band" aria-labelledby="teddy-says-title">
         <div class="teddy-says">
-          <p class="eyebrow">Teddy says</p>
-          <h3 id="teddy-says-title">Waiting on the first read.</h3>
+          <p class="eyebrow">Readout</p>
+          <h3 id="teddy-says-title">Waiting.</h3>
         </div>
-        <div class="insight-grid" id="insight-grid" aria-label="Useful signals"></div>
+        <div class="insight-grid" id="insight-grid" aria-label="Signals"></div>
       </section>
 
       <section class="grid service-grid" id="service-grid" aria-label="Service health"></section>
@@ -100,10 +100,10 @@
       <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Deep signals</p>
-            <h3 id="signals-title">House intelligence</h3>
+            <p class="eyebrow">Signals</p>
+            <h3 id="signals-title">Details</h3>
           </div>
-          <span class="state-pill">Safe probes only</span>
+          <span class="state-pill">Verified</span>
         </div>
         <div class="signal-grid" id="signal-grid"></div>
       </section>
@@ -123,8 +123,8 @@
         <article class="panel map-panel" id="network">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Dependency map</p>
-              <h3>Signal path</h3>
+              <p class="eyebrow">Map</p>
+              <h3>Path</h3>
             </div>
           </div>
           <div class="dependency-map">
@@ -144,8 +144,8 @@
         <article class="panel events-panel" id="timeline">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Persistent truth</p>
-              <h3>House timeline</h3>
+              <p class="eyebrow">Timeline</p>
+              <h3>History</h3>
             </div>
           </div>
           <div class="events" id="events-list"></div>

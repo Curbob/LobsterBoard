@@ -95,8 +95,8 @@ describe('Teddy House health API', () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
 
     expect(html).toContain('id="signals"');
-    expect(html).toContain('House intelligence');
-    expect(html).toContain('House timeline');
+    expect(html).toContain('Details');
+    expect(html).toContain('History');
     expect(script).toContain('function renderSignals');
     expect(script).toContain('renderSignals(data.intelligence)');
     expect(script).toContain('Software updates');
@@ -114,6 +114,19 @@ describe('Teddy House health API', () => {
     expect(css).not.toContain('--honey');
     expect(css).not.toContain('.teddy-hero');
     expect(css).not.toContain('.teddy-says-top');
+  });
+
+  it('keeps dashboard copy quiet and direct', () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+
+    expect(html).toContain('Checking systems.');
+    expect(html).toContain('Verified');
+    expect(html).not.toContain('Deep signals');
+    expect(html).not.toContain('Persistent truth');
+    expect(script).toContain('Systems online.');
+    expect(script).toContain('No action.');
+    expect(script).not.toContain('Teddy could not finish the check.');
   });
 
   it('logs visual evidence for rendered score, cards, signals, and timeline', async () => {

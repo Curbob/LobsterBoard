@@ -59,7 +59,7 @@ function renderServices(data) {
   const services = data.services || {};
   clear(grid);
   SERVICES.forEach(([key, name]) => {
-    const item = services[key] || { state: "warn", detail: "No data yet.", metric: "--" };
+    const item = services[key] || { state: "warn", detail: "No data.", metric: "--" };
     const card = document.createElement("article");
     card.className = "service-card";
 
@@ -68,11 +68,11 @@ function renderServices(data) {
     copy.append(div("service-name", name), div("tiny-label", stateLabel(item.state)));
     top.append(copy, span(`status-dot ${stateClass(item.state)}`));
 
-    const detail = div("service-detail", item.detail || "No detail available.");
+    const detail = div("service-detail", item.detail || "No detail.");
     const metric = div("metric-row");
     const strong = document.createElement("strong");
     strong.textContent = item.metric || "--";
-    metric.append(span("", item.check || "Last check"), strong);
+    metric.append(span("", item.check || "Check"), strong);
 
     card.append(top, detail, metric);
     grid.append(card);
@@ -102,11 +102,11 @@ function renderNeeds(needs) {
   const list = document.getElementById("needs-list");
   clear(list);
   if (!needs || needs.length === 0) {
-    title.textContent = "No action needed right now.";
+    title.textContent = "Clear.";
     list.append(span("badge", "Clear"));
     return;
   }
-  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} need attention.`;
+  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"}.`;
   needs.forEach(item => list.append(span("need-chip", item)));
 }
 
@@ -114,7 +114,7 @@ function renderInsights(insights) {
   const title = document.getElementById("teddy-says-title");
   const grid = document.getElementById("insight-grid");
   const data = insights || {};
-  title.textContent = data.teddySays || "No read yet.";
+  title.textContent = data.teddySays || "Waiting.";
   clear(grid);
   (data.cards || []).forEach(card => {
     const item = document.createElement("article");
@@ -126,7 +126,7 @@ function renderInsights(insights) {
     metric.append(div("tiny-label", card.title || "Signal"), value);
     top.append(metric, span(`status-dot ${stateClass(card.state || "warn")}`));
     const detail = document.createElement("p");
-    detail.textContent = card.detail || "No detail available.";
+    detail.textContent = card.detail || "No detail.";
     item.append(top, div("insight-label", card.label || "Current"), detail);
     grid.append(item);
   });
@@ -155,7 +155,7 @@ function renderSignalCard(grid, title, signal, label, detailOverride) {
   top.append(copy, span(`status-dot ${stateClass(signalState(signal))}`));
   item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Current"));
   const detail = document.createElement("p");
-  detail.textContent = detailOverride || (signal && signal.detail) || "No detail available.";
+  detail.textContent = detailOverride || (signal && signal.detail) || "No detail.";
   item.append(detail);
   grid.append(item);
 }
@@ -179,10 +179,10 @@ function renderSignals(intelligence) {
     ? weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ")
     : weirdItems.length
       ? weirdItems[0].detail
-    : "No change detector read yet.";
+    : "Waiting.";
 
   renderSignalCard(grid, "AdGuard blocks", data.adguard, data.adguard && data.adguard.label);
-  renderSignalCard(grid, "Homebridge accessories", homebridge.accessories, "cached accessories");
+  renderSignalCard(grid, "Homebridge accessories", homebridge.accessories, "known accessories");
   renderSignalCard(grid, "Homebridge logs", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
   renderSignalCard(grid, "Public Funnel", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
   renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
@@ -197,7 +197,7 @@ function renderEvents(events) {
     const item = div("event");
     const title = document.createElement("strong");
     title.textContent = event.title || "Event";
-    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail available."));
+    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail."));
     list.append(item);
   });
 }
@@ -217,20 +217,20 @@ function renderSummary(data) {
   last.textContent = `Checked ${new Date(data.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 
   if (score >= 90) {
-    title.textContent = "House systems are online.";
-    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac mini are passing the checks that matter.";
-    next.textContent = "Next action: none.";
-    teddyLine.textContent = "All quiet. House looks good.";
+    title.textContent = "Systems online.";
+    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and host checks are passing.";
+    next.textContent = "No action.";
+    teddyLine.textContent = "All quiet.";
   } else if (score >= 70) {
-    title.textContent = "House systems are mostly online.";
-    copy.textContent = "The core path is up, but one check is asking for attention.";
-    next.textContent = "Next action: check Needs Dan.";
-    teddyLine.textContent = "Mostly good. One item needs eyes.";
+    title.textContent = "Systems mostly online.";
+    copy.textContent = "Core path is up. One check needs attention.";
+    next.textContent = "Review action.";
+    teddyLine.textContent = "Needs review.";
   } else {
-    title.textContent = "A core system needs attention.";
-    copy.textContent = "One or more checks failed from the Mac mini. Start with Needs Dan.";
-    next.textContent = "Next action: fix the first red item.";
-    teddyLine.textContent = "I found something real.";
+    title.textContent = "Action needed.";
+    copy.textContent = "One or more checks failed from the Mac mini.";
+    next.textContent = "Fix first red item.";
+    teddyLine.textContent = "Issue found.";
   }
 }
 
@@ -250,7 +250,7 @@ async function loadHealth() {
     renderSignals(data.intelligence);
     renderEvents(data.timeline || data.events || []);
   } catch (err) {
-    document.getElementById("summary-title").textContent = "Teddy could not finish the check.";
+    document.getElementById("summary-title").textContent = "Check failed.";
     const copy = document.getElementById("summary-copy");
     clear(copy);
     copy.append(span("error-box", err.message));
