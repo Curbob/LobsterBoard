@@ -640,6 +640,10 @@ function formatAgeFromDate(date) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function stripAnsi(text) {
+  return String(text || '').replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 async function vitals() {
   const total = os.totalmem();
   const free = os.freemem();
@@ -708,7 +712,8 @@ async function homebridgeAccessorySummary() {
 
 function newestLogTimestamp(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
-    const match = lines[i].match(/^\[(\d{1,2})\/(\d{1,2})\/(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\]/);
+    const cleanLine = stripAnsi(lines[i]);
+    const match = cleanLine.match(/^\[(\d{1,2})\/(\d{1,2})\/(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\]/);
     if (!match) continue;
     const [, month, day, year, hourRaw, minute, second, ampm] = match;
     let hour = Number(hourRaw);
@@ -719,11 +724,29 @@ function newestLogTimestamp(lines) {
   return null;
 }
 
+async function freshestHomebridgeLog() {
+  const candidates = [
+    '/Users/teddyclaw/.homebridge/homebridge.log',
+    '/Users/teddyclaw/.homebridge/logs/homebridge.log'
+  ];
+  const readable = [];
+  for (const filePath of candidates) {
+    try {
+      const stat = await fs.stat(filePath);
+      if (stat.isFile()) readable.push({ filePath, mtimeMs: stat.mtimeMs });
+    } catch (_) {}
+  }
+  readable.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return readable[0] ? readable[0].filePath : candidates[0];
+}
+
 async function homebridgeLogHealth() {
   try {
-    const log = await fs.readFile('/Users/teddyclaw/.homebridge/logs/homebridge.log', 'utf8');
+    const logPath = await freshestHomebridgeLog();
+    const log = await fs.readFile(logPath, 'utf8');
     const lines = log.split('\n').slice(-500);
-    const issueLines = lines.filter(line => /\b(error|warn|warning|failed|uncaught|exception)\b/i.test(line));
+    const cleanLines = lines.map(stripAnsi);
+    const issueLines = cleanLines.filter(line => /\b(error|warn|warning|failed|uncaught|exception)\b/i.test(line));
     const newest = newestLogTimestamp(lines);
     const stale = newest ? Date.now() - newest.getTime() > 24 * HOUR_MS : true;
     if (stale) {
