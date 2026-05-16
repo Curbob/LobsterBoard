@@ -103,6 +103,19 @@ describe('Teddy House health API', () => {
     expect(script).toContain('renderEvents(data.timeline || data.events || [])');
   });
 
+  it('keeps Teddy personality in the dashboard shell', () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+    const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
+
+    expect(html).toContain('Warm house cockpit');
+    expect(html).toContain('class="teddy-mode"');
+    expect(html).toContain('class="teddy-hero"');
+    expect(html).toContain('class="teddy-says-face teddy-face"');
+    expect(css).toContain('--honey');
+    expect(css).toContain('.teddy-hero');
+    expect(css).toContain('.teddy-says-top');
+  });
+
   it('logs visual evidence for rendered score, cards, signals, and timeline', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);
