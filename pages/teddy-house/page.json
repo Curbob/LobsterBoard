@@ -2,7 +2,7 @@
   "id": "teddy-house",
   "title": "Teddy Homebase",
   "icon": "HB",
-  "description": "Local Mac mini systems cockpit",
+  "description": "Mac mini, network, and home automation status",
   "order": 1,
   "enabled": true,
   "nav": true,

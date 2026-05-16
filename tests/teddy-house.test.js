@@ -137,7 +137,7 @@ describe('Teddy Homebase health API', () => {
     const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
 
     expect(html).toContain('Teddy Homebase');
-    expect(html).toContain('Mac mini cockpit');
+    expect(html).toContain('Mac mini watch');
     expect(html).toContain('class="teddy-card"');
     expect(html).not.toContain('class="teddy-mode"');
     expect(html).not.toContain('class="teddy-hero"');
@@ -150,12 +150,12 @@ describe('Teddy Homebase health API', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
 
-    expect(html).toContain('Checking systems.');
-    expect(html).toContain('Verified');
+    expect(html).toContain('Running checks.');
+    expect(html).toContain('Real data');
     expect(html).not.toContain('Deep signals');
     expect(html).not.toContain('Persistent truth');
-    expect(script).toContain('Systems online.');
-    expect(script).toContain('No action.');
+    expect(script).toContain('Everything important is up.');
+    expect(script).toContain('Nothing to do.');
     expect(script).not.toContain('Teddy could not finish the check.');
   });
 
@@ -169,7 +169,7 @@ describe('Teddy Homebase health API', () => {
     const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
     expect(Array.isArray(evidence.entries)).toBe(true);
     expect(evidence.entries.length).toBeGreaterThan(0);
-    expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service probes');
+    expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service checks');
     expect(evidence.entries[0].visuals.serviceGrid.hiddenKeys).toContain('backups');
     expect(evidence.entries[0].visuals.signalGrid.hiddenKeys).toContain('weirdThings');
     expect(evidence.entries[0].visuals.timeline.source).toBe('data/teddy-house/timeline.json');

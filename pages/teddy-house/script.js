@@ -1,9 +1,9 @@
 const SERVICES = [
-  ["adguard", "AdGuard DNS"],
+  ["adguard", "DNS"],
   ["homebridge", "Homebridge"],
   ["tailscale", "Tailscale"],
   ["internet", "Internet"],
-  ["openclaw", "OpenClaw / Teddy"]
+  ["openclaw", "OpenClaw"]
 ];
 
 const REFRESH_MS = 420000;
@@ -16,8 +16,8 @@ function stateClass(state) {
 }
 
 function stateLabel(state) {
-  if (state === "ok") return "Healthy";
-  if (state === "info") return "Parked";
+  if (state === "ok") return "Good";
+  if (state === "info") return "Paused";
   if (state === "warn") return "Watch";
   return "Fix";
 }
@@ -58,7 +58,7 @@ function renderServices(data) {
   const services = data.services || {};
   clear(grid);
   SERVICES.forEach(([key, name]) => {
-    const item = services[key] || { state: "warn", detail: "No data.", metric: "--" };
+    const item = services[key] || { state: "warn", detail: "No reading yet.", metric: "--" };
     const card = document.createElement("article");
     card.className = "service-card";
 
@@ -67,11 +67,11 @@ function renderServices(data) {
     copy.append(div("service-name", name), div("tiny-label", stateLabel(item.state)));
     top.append(copy, span(`status-dot ${stateClass(item.state)}`));
 
-    const detail = div("service-detail", item.detail || "No detail.");
+    const detail = div("service-detail", item.detail || "No detail yet.");
     const metric = div("metric-row");
     const strong = document.createElement("strong");
     strong.textContent = item.metric || "--";
-    metric.append(span("", item.check || "Check"), strong);
+    metric.append(span("", item.check || "Reading"), strong);
 
     card.append(top, detail, metric);
     grid.append(card);
@@ -81,7 +81,7 @@ function renderServices(data) {
 function renderVitals(vitals) {
   const grid = document.getElementById("vitals-grid");
   const rows = [
-    ["CPU load", vitals.cpu || "--"],
+    ["CPU", vitals.cpu || "--"],
     ["Memory", vitals.memory || "--"],
     ["Disk", vitals.disk || "--"],
     ["Uptime", vitals.uptime || "--"],
@@ -101,11 +101,11 @@ function renderNeeds(needs) {
   const list = document.getElementById("needs-list");
   clear(list);
   if (!needs || needs.length === 0) {
-    title.textContent = "Clear.";
+    title.textContent = "Nothing right now.";
     list.append(span("badge", "Clear"));
     return;
   }
-  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"}.`;
+  title.textContent = `${needs.length} thing${needs.length === 1 ? "" : "s"} need eyes.`;
   needs.forEach(item => list.append(span("need-chip", item)));
 }
 
@@ -130,9 +130,9 @@ function renderSignalCard(grid, title, signal, label, detailOverride) {
   value.textContent = signalValue(signal);
   copy.append(div("tiny-label", title), value);
   top.append(copy, span(`status-dot ${stateClass(signalState(signal))}`));
-  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Current"));
+  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Reading"));
   const detail = document.createElement("p");
-  detail.textContent = detailOverride || (signal && signal.detail) || "No detail.";
+  detail.textContent = detailOverride || (signal && signal.detail) || "No detail yet.";
   item.append(detail);
   grid.append(item);
 }
@@ -144,14 +144,14 @@ function renderSignals(intelligence) {
   const data = intelligence || {};
   const homebridge = data.homebridge || {};
   const weirdItems = Array.isArray(data.weirdThings) ? data.weirdThings : [];
-  const weirdFindings = weirdItems.filter(item => item.title !== "No new weird thing");
+  const weirdFindings = weirdItems.filter(item => item.title !== "No drift" && item.title !== "No new weird thing");
 
-  renderSignalCard(grid, "AdGuard blocks", data.adguard, data.adguard && data.adguard.label);
-  renderSignalCard(grid, "Homebridge accessories", homebridge.accessories, "known accessories");
-  renderSignalCard(grid, "Homebridge logs", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
-  renderSignalCard(grid, "Public Funnel", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
-  renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
-  renderSignalCard(grid, "Software updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
+  renderSignalCard(grid, "Blocked DNS", data.adguard, data.adguard && data.adguard.label);
+  renderSignalCard(grid, "Accessories", homebridge.accessories, "Homebridge");
+  renderSignalCard(grid, "Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
+  renderSignalCard(grid, "Public access", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
+  renderSignalCard(grid, "WAN", data.wanQuality, data.wanQuality && data.wanQuality.check);
+  renderSignalCard(grid, "Updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
   if (weirdFindings.length > 0) {
     const weirdState = weirdFindings.some(item => item.state === "bad")
       ? "bad"
@@ -159,7 +159,7 @@ function renderSignals(intelligence) {
         ? "warn"
         : "info";
     const weirdDetail = weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ");
-    renderSignalCard(grid, "Weird detector", { state: weirdState, value: weirdFindings.length }, "change detector", weirdDetail);
+    renderSignalCard(grid, "Drift", { state: weirdState, value: weirdFindings.length }, "change watch", weirdDetail);
   }
 }
 
@@ -169,8 +169,8 @@ function renderEvents(events) {
   (events || []).forEach(event => {
     const item = div("event");
     const title = document.createElement("strong");
-    title.textContent = event.title || "Event";
-    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail."));
+    title.textContent = event.title || "Change";
+    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail yet."));
     list.append(item);
   });
 }
@@ -190,20 +190,20 @@ function renderSummary(data) {
   last.textContent = `Checked ${new Date(data.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 
   if (score >= 90) {
-    title.textContent = "Systems online.";
-    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and host checks are passing.";
-    next.textContent = "No action.";
-    teddyLine.textContent = "All quiet.";
+    title.textContent = "Everything important is up.";
+    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac are answering.";
+    next.textContent = "Nothing to do.";
+    teddyLine.textContent = "Quiet right now.";
   } else if (score >= 70) {
-    title.textContent = "Systems mostly online.";
-    copy.textContent = "Core path is up. One check needs attention.";
-    next.textContent = "Review action.";
-    teddyLine.textContent = "Needs review.";
+    title.textContent = "Mostly healthy.";
+    copy.textContent = "Core services are up. One signal needs a look.";
+    next.textContent = "Check the watch item.";
+    teddyLine.textContent = "One thing needs eyes.";
   } else {
-    title.textContent = "Action needed.";
-    copy.textContent = "One or more checks failed from the Mac mini.";
-    next.textContent = "Fix first red item.";
-    teddyLine.textContent = "Issue found.";
+    title.textContent = "Something needs attention.";
+    copy.textContent = "A core check failed from the Mac mini.";
+    next.textContent = "Start with the red item.";
+    teddyLine.textContent = "I found a real issue.";
   }
 }
 
@@ -222,13 +222,13 @@ async function loadHealth() {
     renderSignals(data.intelligence);
     renderEvents(data.timeline || data.events || []);
   } catch (err) {
-    document.getElementById("summary-title").textContent = "Check failed.";
+    document.getElementById("summary-title").textContent = "Could not check Homebase.";
     const copy = document.getElementById("summary-copy");
     clear(copy);
     copy.append(span("error-box", err.message));
   } finally {
     button.disabled = false;
-    button.textContent = "Refresh";
+    button.textContent = "Check now";
   }
 }
 

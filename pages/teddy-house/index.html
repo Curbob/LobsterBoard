@@ -21,16 +21,16 @@
         </div>
         <div>
           <div class="brand-title">Teddy Homebase</div>
-          <div class="brand-subtitle">Mac mini cockpit</div>
+          <div class="brand-subtitle">Mac mini watch</div>
         </div>
       </div>
       <nav id="page-nav" class="lobster-page-nav" aria-label="LobsterBoard pages"></nav>
-      <nav class="side-nav" aria-label="Dashboard sections">
-        <a class="active" href="#overview">Overview</a>
+      <nav class="side-nav" aria-label="Homebase sections">
+        <a class="active" href="#overview">Home</a>
         <a href="#signals">Signals</a>
         <a href="#service-grid">Network</a>
-        <a href="#server">Server</a>
-        <a href="#timeline">Timeline</a>
+        <a href="#server">Mac</a>
+        <a href="#timeline">Log</a>
       </nav>
       <div class="teddy-card">
         <div class="teddy-face" aria-hidden="true">
@@ -41,8 +41,8 @@
           <span class="nose"></span>
         </div>
         <div>
-          <div class="tiny-label">Status</div>
-          <div id="teddy-line">Checking.</div>
+          <div class="tiny-label">Teddy</div>
+          <div id="teddy-line">Running checks.</div>
         </div>
       </div>
     </aside>
@@ -50,37 +50,37 @@
     <main class="dashboard">
       <header class="toolbar">
         <div class="toolbar-title">
-          <p class="eyebrow">Mac mini</p>
+          <p class="eyebrow">Homebase</p>
           <h1>Teddy Homebase</h1>
         </div>
         <div class="toolbar-actions">
-          <span class="badge" id="privacy-badge">Password protected</span>
-          <span class="last-check" id="last-check">Checking...</span>
-          <button id="refresh-button" type="button">Refresh</button>
+          <span class="badge" id="privacy-badge">Protected</span>
+          <span class="last-check" id="last-check">Checking</span>
+          <button id="refresh-button" type="button">Check now</button>
         </div>
       </header>
 
       <section class="status-band" id="overview">
         <div class="status-copy">
-          <p class="eyebrow">Status</p>
-          <h2 id="summary-title">Checking systems.</h2>
-          <p id="summary-copy">DNS, Homebridge, Tailscale, OpenClaw, and host health.</p>
+          <p class="eyebrow">Now</p>
+          <h2 id="summary-title">Running checks.</h2>
+          <p id="summary-copy">DNS, Homebridge, Tailscale, OpenClaw, and Mac health.</p>
         </div>
         <div class="score-card">
           <div class="score-ring" id="score-ring">
             <span id="health-score">--</span>
           </div>
           <div>
-            <div class="tiny-label">Readiness</div>
-            <div id="next-action" class="next-action">Waiting.</div>
+            <div class="tiny-label">Health</div>
+            <div id="next-action" class="next-action">Waiting for data.</div>
           </div>
         </div>
       </section>
 
       <section class="needs-lane" aria-labelledby="needs-title">
         <div>
-          <p class="eyebrow">Action</p>
-          <h3 id="needs-title">Clear.</h3>
+          <p class="eyebrow">Needs You</p>
+          <h3 id="needs-title">Nothing right now.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
       </section>
@@ -91,9 +91,9 @@
         <div class="panel-head">
           <div>
             <p class="eyebrow">Signals</p>
-            <h3 id="signals-title">Details</h3>
+            <h3 id="signals-title">Live reads</h3>
           </div>
-          <span class="state-pill">Verified</span>
+          <span class="state-pill">Real data</span>
         </div>
         <div class="signal-grid" id="signal-grid"></div>
       </section>
@@ -102,10 +102,10 @@
         <article class="panel vitals-panel" id="server">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Mac mini</p>
-              <h3>Vitals</h3>
+              <p class="eyebrow">Mac</p>
+              <h3>Load</h3>
             </div>
-            <span class="state-pill" id="vitals-pill">Live</span>
+            <span class="state-pill" id="vitals-pill">Now</span>
           </div>
           <div class="vitals-grid" id="vitals-grid"></div>
         </article>
@@ -113,8 +113,8 @@
         <article class="panel events-panel" id="timeline">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Timeline</p>
-              <h3>History</h3>
+              <p class="eyebrow">Log</p>
+              <h3>Recent changes</h3>
             </div>
           </div>
           <div class="events" id="events-list"></div>

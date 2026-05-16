@@ -186,14 +186,14 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         count: DEFAULT_SERVICE_KEYS.length,
         defaultKeys: DEFAULT_SERVICE_KEYS,
         hiddenKeys: HIDDEN_BY_DEFAULT.services,
-        source: 'live service probes',
+        source: 'live service checks',
         inputs: Object.fromEntries(DEFAULT_SERVICE_KEYS.map(key => [key, serviceStates[key]]))
       },
       insightGrid: {
         type: 'metric-cards',
         count: Array.isArray(insights.cards) ? insights.cards.length : 0,
         defaultVisible: false,
-        source: 'derived from live probes and local logs',
+        source: 'live checks and local logs',
         inputs: (insights.cards || []).map(stripSignal)
       },
       signalGrid: {
@@ -201,7 +201,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         count: DEFAULT_SIGNAL_KEYS.length,
         defaultKeys: DEFAULT_SIGNAL_KEYS,
         hiddenKeys: HIDDEN_BY_DEFAULT.signals,
-        source: 'AdGuard, Homebridge, Tailscale, WAN, npm, git, and change-detector probes',
+        source: 'AdGuard, Homebridge, Tailscale, WAN, npm, git, and drift checks',
         inputs: {
           adguardBlocks: stripSignal(intelligence.adguard),
           homebridgeAccessories: stripSignal(intelligence.homebridge.accessories),
@@ -210,7 +210,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
           wanQuality: stripSignal(intelligence.wanQuality),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
           weirdThings: Array.isArray(intelligence.weirdThings)
-            ? intelligence.weirdThings.filter(item => item.title !== 'No new weird thing').length
+            ? intelligence.weirdThings.filter(item => item.title !== 'No drift' && item.title !== 'No new weird thing').length
             : 0
         }
       },
@@ -265,18 +265,18 @@ async function checkAdGuard() {
     } catch (_) {
       admin = 'DNS works; admin UI not checked';
     }
-    return ok(`Local DNS is answering through AdGuard; ${admin}.`, `${dnsMs} ms`, 'DNS probe');
+    return ok(`DNS is resolving locally. ${admin === 'admin locked' ? 'Admin stats are locked.' : 'Admin is reachable.'}`, `${dnsMs} ms`, 'DNS');
   } catch (err) {
-    return bad(`Local DNS through 127.0.0.1 failed: ${err.message}.`, 'failed', 'DNS probe');
+    return bad(`Local DNS failed: ${err.message}.`, 'failed', 'DNS');
   }
 }
 
 async function checkHomebridge() {
   try {
     await tcpCheck('127.0.0.1', 8581);
-    return ok('Homebridge is reachable from the Mac mini.', '8581', 'TCP probe');
+    return ok('Homebridge is reachable from the Mac mini.', '8581', 'Port');
   } catch (err) {
-    return bad(`Homebridge did not answer on 127.0.0.1:8581: ${err.message}.`, 'offline', 'TCP probe');
+    return bad(`Homebridge did not answer: ${err.message}.`, 'offline', 'Port');
   }
 }
 
@@ -286,35 +286,35 @@ async function checkTailscale() {
     const data = JSON.parse(stdout);
     const ip = (data.Self && data.Self.TailscaleIPs && data.Self.TailscaleIPs[0]) || 'connected';
     const online = data.Self && data.Self.Online !== false;
-    if (!online) return warn('Tailscale is installed but this node reports offline.', ip, 'CLI status');
-    return ok('This Mac mini is online on Tailscale.', ip, 'CLI status');
+    if (!online) return warn('This Mac mini looks offline on Tailscale.', ip, 'Tailscale');
+    return ok('This Mac mini is online on Tailscale.', ip, 'Tailscale');
   } catch (err) {
-    return warn(`Tailscale status was not available to the dashboard: ${err.message}.`, 'unknown', 'CLI status');
+    return warn(`Could not read Tailscale status: ${err.message}.`, 'unknown', 'Tailscale');
   }
 }
 
 async function checkTailscaleFunnel() {
   const status = await tryRun('tailscale', ['funnel', 'status']);
   if (!status.ok) {
-    return info('Funnel status was not readable from the dashboard process.', 'unknown', 'tailscale funnel');
+    return info('Could not read public access status.', 'unknown', 'Public access');
   }
 
   const ports = [...status.stdout.matchAll(/https:\/\/[^\s:]+(?::(\d+))?\s+\(Funnel on\)/g)]
     .map(match => match[1] || '443');
   const uniquePorts = [...new Set(ports)].sort((a, b) => Number(a) - Number(b));
   if (uniquePorts.length === 0) {
-    return ok('No public Funnel routes are on.', 'off', 'tailscale funnel');
+    return ok('Public access is off.', 'off', 'Public access');
   }
 
   const hasHouse = uniquePorts.includes('10000');
   const extras = uniquePorts.filter(port => port !== '10000');
   if (hasHouse && extras.length === 0) {
-    return ok('Public access is on for Teddy Homebase only.', '10000', 'tailscale funnel');
+    return ok('Only Teddy Homebase is public.', '10000', 'Public access');
   }
   if (hasHouse) {
-    return warn(`Teddy Homebase is public, plus ${extras.length} extra public port${extras.length === 1 ? '' : 's'}: ${extras.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+    return warn(`Teddy Homebase is public. Extra public port${extras.length === 1 ? '' : 's'}: ${extras.join(', ')}.`, uniquePorts.join(', '), 'Public access');
   }
-  return warn(`Public access is on, but Teddy Homebase is not the listed port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+  return warn(`Public access is on, but not on the Homebase port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'Public access');
 }
 
 async function checkInternet() {
@@ -324,19 +324,19 @@ async function checkInternet() {
     const dnsMs = Date.now() - started;
     try {
       const res = await fetchCheck('https://www.gstatic.com/generate_204');
-      return ok('Internet checks are answering.', `${Math.max(dnsMs, res.ms)} ms`, 'WAN probe');
+      return ok('Internet checks are answering.', `${Math.max(dnsMs, res.ms)} ms`, 'WAN');
     } catch (_) {
-      return warn('System DNS works, but the public HTTP probe did not complete.', `${dnsMs} ms`, 'WAN probe');
+      return warn('DNS works, but the web check did not finish.', `${dnsMs} ms`, 'WAN');
     }
   } catch (err) {
-    return bad(`System internet DNS failed: ${err.message}.`, 'failed', 'WAN probe');
+    return bad(`Internet DNS failed: ${err.message}.`, 'failed', 'WAN');
   }
 }
 
 async function checkWanQuality() {
   const ping = await tryRun('ping', ['-c', '4', '-W', '1000', '1.1.1.1'], 5500);
   if (!ping.ok) {
-    return info('Packet-loss probe was not available from the dashboard process.', 'unknown', 'ping');
+    return info('Could not run the packet-loss check.', 'unknown', 'WAN');
   }
 
   const lossMatch = ping.stdout.match(/([\d.]+)% packet loss/);
@@ -346,12 +346,12 @@ async function checkWanQuality() {
   const max = rttMatch ? Number(rttMatch[3]) : null;
   const metric = loss === null ? 'unknown' : `${loss}% loss`;
   const detail = avg === null
-    ? 'Ping completed, but latency summary was not parseable.'
+    ? 'Ping finished, but latency was not readable.'
     : `Ping average ${avg.toFixed(1)} ms; max ${max.toFixed(1)} ms.`;
 
-  if (loss !== null && loss > 0) return warn(`${detail} Packet loss is above zero.`, metric, 'packet probe');
-  if (avg !== null && avg > 80) return warn(`${detail} Latency is elevated.`, `${avg.toFixed(0)} ms`, 'packet probe');
-  return ok(detail, avg === null ? metric : `${avg.toFixed(0)} ms`, 'packet probe');
+  if (loss !== null && loss > 0) return warn(`${detail} Packet loss is above zero.`, metric, 'WAN');
+  if (avg !== null && avg > 80) return warn(`${detail} Latency is high.`, `${avg.toFixed(0)} ms`, 'WAN');
+  return ok(detail, avg === null ? metric : `${avg.toFixed(0)} ms`, 'WAN');
 }
 
 async function checkOpenClaw() {
@@ -380,7 +380,7 @@ async function checkOpenClaw() {
       return ok(
         pid ? `OpenClaw gateway is running and reachable.` : `OpenClaw gateway is reachable.`,
         host,
-        'gateway'
+        'Gateway'
       );
     } catch (_) {}
   }
@@ -390,25 +390,25 @@ async function checkOpenClaw() {
     return ok(
       pid ? `OpenClaw gateway is running and reachable.` : 'OpenClaw gateway is reachable.',
       pid || '18789',
-      'gateway'
+      'Gateway'
     );
   } catch (err) {
     if (pid) {
       return bad(
-        `OpenClaw gateway is loaded as PID ${pid}, but port 18789 is not accepting connections: ${err.message}.`,
-        'loaded, closed',
-        'gateway'
+        `OpenClaw is running, but the gateway port is closed: ${err.message}.`,
+        'closed',
+        'Gateway'
       );
     }
     if (gateway.ok) {
-      return bad('OpenClaw gateway LaunchAgent is loaded but has no active PID.', 'no PID', 'launchd');
+      return bad('OpenClaw is loaded but not running.', 'not running', 'Gateway');
     }
-    return warn('OpenClaw gateway launchd status was unavailable to the dashboard.', 'unknown', 'launchd');
+    return warn('Could not read OpenClaw service status.', 'unknown', 'Gateway');
   }
 }
 
 async function checkBackups() {
-  return info('Time Machine is intentionally ignored for now.', 'ignored', 'Dan setting');
+  return info('Backups are parked for now.', 'paused', 'Dan setting');
 }
 
 async function npmLatestVersion(packageName) {
@@ -440,7 +440,7 @@ async function lobsterBoardVersion() {
 
 async function gitFreshness(repoPath) {
   const status = await tryRun('git', ['-C', repoPath, 'status', '-sb']);
-  if (!status.ok) return { state: 'info', detail: 'Git status was not readable.' };
+  if (!status.ok) return { state: 'info', detail: 'Could not read repo status.' };
   const first = status.stdout.split('\n')[0] || '';
   const ahead = first.match(/ahead\s+(\d+)/);
   const behind = first.match(/behind\s+(\d+)/);
@@ -448,12 +448,12 @@ async function gitFreshness(repoPath) {
   if (behind) return { state: 'warn', detail: `Code is ${behind[1]} commit${behind[1] === '1' ? '' : 's'} behind origin.` };
   if (ahead) return { state: 'info', detail: `${ahead[1]} local commit${ahead[1] === '1' ? '' : 's'} not pushed.` };
   if (dirty) return { state: 'info', detail: `${dirty} local change${dirty === 1 ? '' : 's'}.` };
-  return { state: 'ok', detail: 'Code is clean locally.' };
+  return { state: 'ok', detail: 'Repo is clean.' };
 }
 
 function normalizeSoftwareUpdateCopy(result) {
   if (!result || typeof result !== 'object') return result;
-  const next = { ...result, label: 'updates' };
+  const next = { ...result, label: 'version check' };
   if (Array.isArray(next.items)) {
     next.items = next.items.map(item => {
       const itemCopy = { ...item };
@@ -492,7 +492,7 @@ function normalizeGitCopy(detail) {
     .replace(/Git branch is behind origin by (\d+ commit[s]?)\./, 'Code is $1 behind origin.')
     .replace(/Git branch has (\d+ local commit[s]?) not pushed\./, '$1 not pushed.')
     .replace(/Git branch has (\d+ local change[s]?)\./, '$1.')
-    .replace('Git branch is clean locally.', 'Code is clean locally.');
+    .replace('Git branch is clean locally.', 'Repo is clean.');
 }
 
 async function checkSoftwareUpdates(ctx) {
@@ -551,7 +551,7 @@ async function checkSoftwareUpdates(ctx) {
     checkedAt: nowIso(),
     state: updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok',
     value: updatesAvailable > 0 ? `${updatesAvailable}` : 'current',
-    label: 'updates',
+    label: 'version check',
     detail: updatesAvailable > 0
       ? `${updatesAvailable} update${updatesAvailable === 1 ? '' : 's'} available. ${gitState.detail}`
       : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
@@ -570,8 +570,8 @@ async function adGuardStats() {
       return {
         state: 'info',
         value: 'locked',
-        label: 'auth needed',
-        detail: 'Blocked-query stats need local AdGuard auth.',
+        label: 'locked',
+        detail: 'Blocked-query stats need the local AdGuard login.',
         topBlocked: []
       };
     }
@@ -579,8 +579,8 @@ async function adGuardStats() {
       return {
         state: 'warn',
         value: `HTTP ${res.status}`,
-        label: 'stats API',
-        detail: 'AdGuard stats endpoint answered unexpectedly.',
+        label: 'stats',
+        detail: 'AdGuard stats returned an unexpected response.',
         topBlocked: []
       };
     }
@@ -594,7 +594,7 @@ async function adGuardStats() {
       state: 'ok',
       value: `${blocked}`,
       label: 'blocked queries',
-      detail: `${queries} queries; ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
+      detail: `${queries} queries; ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top blocked: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
       topBlocked
     };
   } catch (err) {
@@ -602,7 +602,7 @@ async function adGuardStats() {
       state: 'info',
       value: '--',
       label: 'stats unavailable',
-      detail: `AdGuard stats were not readable: ${err.message}.`,
+      detail: `Could not read AdGuard stats: ${err.message}.`,
       topBlocked: []
     };
   }
@@ -671,7 +671,7 @@ async function homebridgePlugins() {
   return {
     count: names.length,
     names: names.slice(0, 3),
-    detail: names.length > 0 ? `${names.length} background helper${names.length === 1 ? '' : 's'} running.` : 'Homebridge is up.'
+    detail: names.length > 0 ? `${names.length} Homebridge helper${names.length === 1 ? '' : 's'} running.` : 'Homebridge is up.'
   };
 }
 
@@ -699,10 +699,10 @@ async function homebridgeAccessorySummary() {
     return {
       state: 'ok',
       count: seen.size,
-      detail: `${seen.size} Homebridge accessor${seen.size === 1 ? 'y' : 'ies'} found.`
+      detail: `${seen.size} Homebridge accessor${seen.size === 1 ? 'y' : 'ies'} loaded.`
     };
   } catch (err) {
-    return { state: 'info', count: null, detail: `Accessory cache was not readable: ${err.message}.` };
+    return { state: 'info', count: null, detail: `Could not read Homebridge accessories: ${err.message}.` };
   }
 }
 
@@ -730,8 +730,8 @@ async function homebridgeLogHealth() {
       return {
         state: 'info',
         value: 'stale',
-        label: 'log age',
-        detail: newest ? `No fresh Homebridge log entries; newest is ${formatAgeFromDate(newest)}.` : 'Homebridge log age is unknown.'
+        label: 'last log',
+        detail: newest ? `Newest visible entry is ${formatAgeFromDate(newest)}.` : 'No readable Homebridge log time.'
       };
     }
     if (issueLines.length > 20) {
@@ -739,21 +739,21 @@ async function homebridgeLogHealth() {
         state: 'warn',
         value: `${issueLines.length}`,
         label: 'recent issues',
-        detail: `${issueLines.length} recent warning/error lines.`
+        detail: `${issueLines.length} recent warnings or errors.`
       };
     }
     return {
       state: 'ok',
       value: `${issueLines.length}`,
       label: 'recent issues',
-      detail: `Recent log is quiet: ${issueLines.length} warning/error lines.`
+      detail: `Recent log is quiet: ${issueLines.length} warnings or errors.`
     };
   } catch (err) {
     return {
       state: 'info',
       value: '--',
       label: 'log unavailable',
-      detail: `Homebridge log was not readable: ${err.message}.`
+      detail: `Could not read Homebridge log: ${err.message}.`
     };
   }
 }
@@ -769,7 +769,7 @@ async function openClawReadyAge() {
     const stamp = ready.slice(0, 29);
     return { age: formatAgeFromDate(new Date(stamp)), detail: `Last ready signal was ${formatAgeFromDate(new Date(stamp))}.` };
   } catch (_) {
-    return { age: 'unknown', detail: 'OpenClaw gateway log was not readable.' };
+    return { age: 'unknown', detail: 'Could not read OpenClaw log.' };
   }
 }
 
@@ -796,28 +796,28 @@ async function buildInsights(services, systemVitals, intelligence) {
       {
         title: 'AdGuard',
         value: services.adguard.metric || '--',
-        label: 'DNS response',
+        label: 'DNS',
         state: services.adguard.state,
         detail: services.adguard.detail
       },
       {
         title: 'Homebridge',
         value: intelligence.homebridge.accessories.count === null ? '--' : `${intelligence.homebridge.accessories.count}`,
-        label: 'accessories',
+        label: 'devices',
         state: services.homebridge.state,
         detail: `${intelligence.homebridge.accessories.detail} ${plugins.detail}`
       },
       {
         title: 'OpenClaw',
         value: openclawReady.age,
-        label: 'last ready',
+        label: 'ready',
         state: services.openclaw.state,
         detail: openclawReady.detail
       },
       {
         title: 'WAN',
         value: intelligence.wanQuality.metric || '--',
-        label: intelligence.wanQuality.check || 'packet probe',
+        label: intelligence.wanQuality.check || 'WAN',
         state: intelligence.wanQuality.state,
         detail: intelligence.wanQuality.detail
       }
@@ -861,7 +861,7 @@ function snapshotFor(services, intelligence, score) {
 
 function buildWeirdThings(previous, current) {
   if (!previous) {
-    return [{ state: 'info', title: 'Baseline captured', detail: 'Teddy has a starting point for change detection.' }];
+    return [{ state: 'info', title: 'Baseline saved', detail: 'Homebase has a starting point for drift checks.' }];
   }
 
   const items = [];
@@ -872,20 +872,20 @@ function buildWeirdThings(previous, current) {
   }
 
   if (previous.funnelMetric !== current.funnelMetric) {
-    items.push({ state: 'warn', title: 'Funnel changed', detail: `${previous.funnelMetric || 'none'} -> ${current.funnelMetric || 'none'}` });
+    items.push({ state: 'warn', title: 'Public access changed', detail: `${previous.funnelMetric || 'none'} -> ${current.funnelMetric || 'none'}` });
   }
   if (previous.accessoryCount !== current.accessoryCount && previous.accessoryCount !== null && current.accessoryCount !== null) {
-    items.push({ state: 'warn', title: 'Accessory count changed', detail: `${previous.accessoryCount} -> ${current.accessoryCount}` });
+    items.push({ state: 'warn', title: 'Accessories changed', detail: `${previous.accessoryCount} -> ${current.accessoryCount}` });
   }
   if (current.wanState === 'warn' || current.wanState === 'bad') {
-    items.push({ state: current.wanState, title: 'WAN quality', detail: 'Packet-loss or latency probe needs attention.' });
+    items.push({ state: current.wanState, title: 'WAN', detail: 'Packet loss or latency needs attention.' });
   }
   if (current.softwareUpdateState === 'warn' && previous.softwareUpdateValue !== current.softwareUpdateValue) {
-    items.push({ state: 'warn', title: 'Software update', detail: `${current.softwareUpdateValue} update signal changed.` });
+    items.push({ state: 'warn', title: 'Updates changed', detail: `${current.softwareUpdateValue} update signal changed.` });
   }
 
   if (items.length === 0) {
-    return [{ state: 'ok', title: 'No new weird thing', detail: 'No state, Funnel, accessory, or WAN quality drift since the last check.' }];
+    return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, accessory, or WAN changes since the last check.' }];
   }
   return items.slice(0, 5);
 }
@@ -909,11 +909,11 @@ function updateTimeline(ctx, services, intelligence, score) {
 
   const last = events[0];
   const shouldHeartbeat = !last || Date.now() - new Date(last.at || 0).getTime() > HOUR_MS;
-  const meaningful = weirdThings.filter(item => item.title !== 'No new weird thing');
+  const meaningful = weirdThings.filter(item => item.title !== 'No drift' && item.title !== 'No new weird thing');
   const additions = meaningful.length
     ? meaningful.map(eventFromWeird)
     : shouldHeartbeat
-      ? [eventFromWeird({ state: 'ok', title: 'System check', detail: `Score ${score}; no new weird thing.` })]
+      ? [eventFromWeird({ state: 'ok', title: 'System check', detail: `Health ${score}; no drift.` })]
       : [];
 
   const nextEvents = [...additions, ...events].slice(0, TIMELINE_LIMIT);
@@ -939,11 +939,11 @@ function needsDan(services) {
     .filter(([, service]) => service.state !== 'ok' && service.state !== 'info')
     .map(([key, service]) => {
       const names = {
-        adguard: 'AdGuard DNS',
+        adguard: 'DNS',
         homebridge: 'Homebridge',
         tailscale: 'Tailscale',
         internet: 'Internet',
-        openclaw: 'OpenClaw/Teddy',
+        openclaw: 'OpenClaw',
         backups: 'Backups'
       };
       return `${names[key]}: ${service.metric}`;
@@ -955,7 +955,7 @@ function eventsFromServices(services) {
   return Object.entries(services).map(([key, service]) => ({
     time,
     title: key.replace(/^\w/, c => c.toUpperCase()),
-    detail: service.state === 'ok' ? 'passed' : service.detail
+    detail: service.state === 'ok' ? 'Passed' : service.detail
   }));
 }
 
