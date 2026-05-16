@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startServer } from '../helpers/server.js';
 
@@ -62,6 +62,12 @@ describe('Teddy House health API', () => {
     expect(data.intelligence.softwareUpdates).toHaveProperty('items');
     expect(Array.isArray(data.intelligence.softwareUpdates.items)).toBe(true);
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
+    expect(data).toHaveProperty('visualEvidence');
+    expect(data.visualEvidence).toHaveProperty('latest');
+    expect(data.visualEvidence.latest.visuals.readinessScore.type).toBe('computed-ring');
+    expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
+    expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
+    expect(data.visualEvidence.latest.visuals.dependencyMap.type).toBe('static-topology');
     expect(data.vitals).toHaveProperty('memory');
     expect(Array.isArray(data.events)).toBe(true);
     expect(Array.isArray(data.timeline)).toBe(true);
@@ -95,6 +101,28 @@ describe('Teddy House health API', () => {
     expect(script).toContain('renderSignals(data.intelligence)');
     expect(script).toContain('Software updates');
     expect(script).toContain('renderEvents(data.timeline || data.events || [])');
+  });
+
+  it('logs visual evidence for rendered score, cards, signals, and timeline', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    await res.json();
+
+    const evidencePath = join(srv.cwd, 'data', 'teddy-house', 'visual-evidence.json');
+    expect(existsSync(evidencePath)).toBe(true);
+    const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
+    expect(Array.isArray(evidence.entries)).toBe(true);
+    expect(evidence.entries.length).toBeGreaterThan(0);
+    expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service probes');
+    expect(evidence.entries[0].visuals.timeline.source).toBe('data/teddy-house/timeline.json');
+  }, 12000);
+
+  it('does not render fake trend or sparkline charts', () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
+
+    expect(script).not.toMatch(/sparkline|SPARKS|trend/i);
+    expect(css).not.toMatch(/sparkline/i);
   });
 
   it('keeps Time Machine parked out of the Dan action lane', async () => {

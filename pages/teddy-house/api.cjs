@@ -9,6 +9,7 @@ const TIMEOUT_MS = 2200;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
+const EVIDENCE_LIMIT = 120;
 
 function nowIso() {
   return new Date().toISOString();
@@ -137,6 +138,87 @@ function writeDataSafe(ctx, filename, obj) {
     if (!ctx || typeof ctx.writeData !== 'function') return;
     ctx.writeData(filename, obj);
   } catch (_) {}
+}
+
+function stripSignal(signal) {
+  if (!signal || typeof signal !== 'object') return null;
+  return {
+    state: signal.state || 'info',
+    metric: signal.metric ?? signal.value ?? signal.count ?? null,
+    label: signal.label || signal.check || null,
+    detail: signal.detail || null
+  };
+}
+
+function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score) {
+  const serviceStates = Object.fromEntries(
+    Object.entries(services).map(([key, service]) => [key, {
+      state: service.state,
+      metric: service.metric,
+      check: service.check
+    }])
+  );
+  return {
+    at: nowIso(),
+    visuals: {
+      readinessScore: {
+        type: 'computed-ring',
+        value: score,
+        source: 'scoreServices(service states)',
+        inputs: serviceStates
+      },
+      serviceGrid: {
+        type: 'probe-cards',
+        count: Object.keys(services).length,
+        source: 'live service probes',
+        inputs: serviceStates
+      },
+      insightGrid: {
+        type: 'metric-cards',
+        count: Array.isArray(insights.cards) ? insights.cards.length : 0,
+        source: 'derived from live probes and local logs',
+        inputs: (insights.cards || []).map(stripSignal)
+      },
+      signalGrid: {
+        type: 'metric-cards',
+        count: 7,
+        source: 'AdGuard, Homebridge, Tailscale, WAN, npm, git, and change-detector probes',
+        inputs: {
+          adguardBlocks: stripSignal(intelligence.adguard),
+          homebridgeAccessories: stripSignal(intelligence.homebridge.accessories),
+          homebridgeLogs: stripSignal(intelligence.homebridge.logHealth),
+          publicFunnel: stripSignal(intelligence.tailscaleFunnel),
+          wanQuality: stripSignal(intelligence.wanQuality),
+          softwareUpdates: stripSignal(intelligence.softwareUpdates),
+          weirdThings: Array.isArray(intelligence.weirdThings) ? intelligence.weirdThings.length : 0
+        }
+      },
+      vitalsGrid: {
+        type: 'host-metrics',
+        source: 'os and df probes',
+        inputs: vitalsData
+      },
+      dependencyMap: {
+        type: 'static-topology',
+        source: 'declared Teddy House architecture',
+        inputs: ['Internet', 'Tailscale', 'Mac mini', 'AdGuard DNS', 'Homebridge', 'OpenClaw / Teddy']
+      },
+      timeline: {
+        type: 'persistent-events',
+        count: timeline.length,
+        source: 'data/teddy-house/timeline.json',
+        latest: timeline[0] || null
+      }
+    }
+  };
+}
+
+function updateVisualEvidenceLog(ctx, evidence) {
+  const existing = readDataSafe(ctx, 'visual-evidence.json', { entries: [] });
+  const entries = Array.isArray(existing.entries) ? existing.entries : [];
+  const next = [evidence, ...entries].slice(0, EVIDENCE_LIMIT);
+  writeDataSafe(ctx, 'visual-evidence.json', { entries: next });
+  return { latest: evidence, count: next.length };
 }
 
 async function checkAdGuard() {
@@ -810,6 +892,10 @@ module.exports = function(ctx = {}) {
         const score = scoreServices(services);
         const timeline = updateTimeline(ctx, services, intelligence, score);
         const insights = await buildInsights(services, systemVitals, intelligence);
+        const visualEvidence = updateVisualEvidenceLog(
+          ctx,
+          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score)
+        );
         return {
           checkedAt: nowIso(),
           score,
@@ -817,6 +903,7 @@ module.exports = function(ctx = {}) {
           services,
           insights,
           intelligence,
+          visualEvidence,
           vitals: systemVitals,
           events: timeline.length ? timeline : eventsFromServices(services),
           timeline
