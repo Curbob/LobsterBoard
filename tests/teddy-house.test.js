@@ -58,6 +58,9 @@ describe('Teddy House health API', () => {
     expect(data.intelligence.homebridge).toHaveProperty('logHealth');
     expect(data.intelligence).toHaveProperty('tailscaleFunnel');
     expect(data.intelligence).toHaveProperty('wanQuality');
+    expect(data.intelligence).toHaveProperty('softwareUpdates');
+    expect(data.intelligence.softwareUpdates).toHaveProperty('items');
+    expect(Array.isArray(data.intelligence.softwareUpdates.items)).toBe(true);
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data.vitals).toHaveProperty('memory');
     expect(Array.isArray(data.events)).toBe(true);
@@ -90,6 +93,7 @@ describe('Teddy House health API', () => {
     expect(html).toContain('House timeline');
     expect(script).toContain('function renderSignals');
     expect(script).toContain('renderSignals(data.intelligence)');
+    expect(script).toContain('Software updates');
     expect(script).toContain('renderEvents(data.timeline || data.events || [])');
   });
 

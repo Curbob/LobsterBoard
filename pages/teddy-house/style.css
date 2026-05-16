@@ -457,7 +457,7 @@ h3 {
 }
 
 .service-card {
-  min-height: 158px;
+  min-height: 132px;
   padding: 16px;
 }
 
@@ -497,7 +497,9 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
   color: var(--faint);
   font-size: 12px;
 }
@@ -505,21 +507,6 @@ h3 {
 .metric-row strong {
   color: var(--text);
   font-size: 13px;
-}
-
-.sparkline {
-  display: flex;
-  align-items: end;
-  gap: 3px;
-  height: 28px;
-  margin-top: 14px;
-}
-
-.sparkline span {
-  flex: 1;
-  min-width: 4px;
-  border-radius: 999px;
-  background: rgba(102, 217, 208, 0.28);
 }
 
 .lower-grid {

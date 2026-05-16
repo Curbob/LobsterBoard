@@ -8,6 +8,7 @@ const { execFile } = require('child_process');
 const TIMEOUT_MS = 2200;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
+const UPDATE_CACHE_MS = 12 * HOUR_MS;
 
 function nowIso() {
   return new Date().toISOString();
@@ -108,6 +109,20 @@ function pickObjectEntries(obj, limit = 3) {
     .map(([name, value]) => ({ name, value }));
 }
 
+function compareVersions(current, latest) {
+  if (!current || !latest || current === latest) return 0;
+  const currentParts = String(current).split(/[.-]/).map(part => Number.parseInt(part, 10));
+  const latestParts = String(latest).split(/[.-]/).map(part => Number.parseInt(part, 10));
+  const length = Math.max(currentParts.length, latestParts.length);
+  for (let i = 0; i < length; i++) {
+    const a = Number.isFinite(currentParts[i]) ? currentParts[i] : 0;
+    const b = Number.isFinite(latestParts[i]) ? latestParts[i] : 0;
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+  return 0;
+}
+
 function readDataSafe(ctx, filename, fallback) {
   try {
     if (!ctx || typeof ctx.readData !== 'function') return fallback;
@@ -174,7 +189,7 @@ async function checkTailscaleFunnel() {
 
   const ports = [...status.stdout.matchAll(/https:\/\/[^\s:]+(?::(\d+))?\s+\(Funnel on\)/g)]
     .map(match => match[1] || '443');
-  const uniquePorts = [...new Set(ports)];
+  const uniquePorts = [...new Set(ports)].sort((a, b) => Number(a) - Number(b));
   if (uniquePorts.length === 0) {
     return ok('No public Funnel routes are currently advertised.', 'off', 'tailscale funnel');
   }
@@ -283,6 +298,101 @@ async function checkOpenClaw() {
 
 async function checkBackups() {
   return info('Time Machine is intentionally ignored for now.', 'ignored', 'Dan setting');
+}
+
+async function npmLatestVersion(packageName) {
+  const stdout = await run('npm', ['view', packageName, 'version', '--json'], 6500);
+  try {
+    return JSON.parse(stdout);
+  } catch (_) {
+    return stdout.trim().replace(/^"|"$/g, '');
+  }
+}
+
+async function openClawVersion() {
+  const result = await tryRun('openclaw', ['--version']);
+  if (!result.ok) {
+    return { name: 'OpenClaw', installed: 'unknown', latest: null, state: 'info', detail: 'OpenClaw version command was not readable.' };
+  }
+  const match = result.stdout.match(/OpenClaw\s+([^\s]+)/);
+  return { name: 'OpenClaw', installed: match ? match[1] : result.stdout.trim(), latest: null };
+}
+
+async function lobsterBoardVersion() {
+  try {
+    const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
+    return { name: 'Teddy House', installed: pkg.version || 'unknown', latest: null };
+  } catch (_) {
+    return { name: 'Teddy House', installed: 'unknown', latest: null, state: 'info', detail: 'Teddy House package version was not readable.' };
+  }
+}
+
+async function gitFreshness(repoPath) {
+  const status = await tryRun('git', ['-C', repoPath, 'status', '-sb']);
+  if (!status.ok) return { state: 'info', detail: 'Git status was not readable.' };
+  const first = status.stdout.split('\n')[0] || '';
+  const ahead = first.match(/ahead\s+(\d+)/);
+  const behind = first.match(/behind\s+(\d+)/);
+  const dirty = status.stdout.split('\n').slice(1).filter(Boolean).length;
+  if (behind) return { state: 'warn', detail: `Git branch is behind origin by ${behind[1]} commit${behind[1] === '1' ? '' : 's'}.` };
+  if (ahead) return { state: 'info', detail: `Git branch has ${ahead[1]} local commit${ahead[1] === '1' ? '' : 's'} not pushed.` };
+  if (dirty) return { state: 'info', detail: `Git branch has ${dirty} local change${dirty === 1 ? '' : 's'}.` };
+  return { state: 'ok', detail: 'Git branch is clean locally.' };
+}
+
+async function checkSoftwareUpdates(ctx) {
+  const cached = readDataSafe(ctx, 'software-updates.json', null);
+  if (cached && cached.checkedAt && Date.now() - new Date(cached.checkedAt).getTime() < UPDATE_CACHE_MS) {
+    return cached;
+  }
+
+  const [openclaw, lobsterboard] = await Promise.all([
+    openClawVersion(),
+    lobsterBoardVersion()
+  ]);
+
+  const [openclawLatest, lobsterLatest, gitState] = await Promise.all([
+    npmLatestVersion('openclaw').catch(() => null),
+    npmLatestVersion('lobsterboard').catch(() => null),
+    gitFreshness(path.resolve(__dirname, '..', '..'))
+  ]);
+
+  const items = [
+    { ...openclaw, latest: openclawLatest },
+    { ...lobsterboard, latest: lobsterLatest }
+  ].map(item => {
+    if (item.state) return item;
+    if (!item.latest) {
+      return {
+        ...item,
+        state: 'info',
+        detail: `${item.name} is installed at ${item.installed}; latest version check was unavailable.`
+      };
+    }
+    const cmp = compareVersions(item.installed, item.latest);
+    return {
+      ...item,
+      state: cmp < 0 ? 'warn' : 'ok',
+      detail: cmp < 0
+        ? `${item.name} can update from ${item.installed} to ${item.latest}.`
+        : `${item.name} is current at ${item.installed}.`
+    };
+  });
+
+  const updatesAvailable = items.filter(item => item.state === 'warn').length;
+  const result = {
+    checkedAt: nowIso(),
+    state: updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok',
+    value: updatesAvailable > 0 ? `${updatesAvailable}` : 'current',
+    label: 'available updates',
+    detail: updatesAvailable > 0
+      ? `${updatesAvailable} software update${updatesAvailable === 1 ? '' : 's'} available. ${gitState.detail}`
+      : `OpenClaw and Teddy House package checks are current. ${gitState.detail}`,
+    items,
+    git: gitState
+  };
+  writeDataSafe(ctx, 'software-updates.json', result);
+  return result;
 }
 
 async function adGuardStats() {
@@ -547,13 +657,14 @@ async function buildInsights(services, systemVitals, intelligence) {
   };
 }
 
-async function buildIntelligence() {
-  const [adguard, accessories, logHealth, funnel, wanQuality] = await Promise.all([
+async function buildIntelligence(ctx) {
+  const [adguard, accessories, logHealth, funnel, wanQuality, softwareUpdates] = await Promise.all([
     adGuardStats(),
     homebridgeAccessorySummary(),
     homebridgeLogHealth(),
     checkTailscaleFunnel(),
-    checkWanQuality()
+    checkWanQuality(),
+    checkSoftwareUpdates(ctx)
   ]);
 
   return {
@@ -561,6 +672,7 @@ async function buildIntelligence() {
     homebridge: { accessories, logHealth },
     tailscaleFunnel: funnel,
     wanQuality,
+    softwareUpdates,
     weirdThings: []
   };
 }
@@ -573,7 +685,9 @@ function snapshotFor(services, intelligence, score) {
     accessoryCount: intelligence.homebridge.accessories.count,
     homebridgeLogState: intelligence.homebridge.logHealth.state,
     wanState: intelligence.wanQuality.state,
-    adguardStatsState: intelligence.adguard.state
+    adguardStatsState: intelligence.adguard.state,
+    softwareUpdateState: intelligence.softwareUpdates.state,
+    softwareUpdateValue: intelligence.softwareUpdates.value
   };
 }
 
@@ -597,6 +711,9 @@ function buildWeirdThings(previous, current) {
   }
   if (current.wanState === 'warn' || current.wanState === 'bad') {
     items.push({ state: current.wanState, title: 'WAN quality', detail: 'Packet-loss or latency probe needs attention.' });
+  }
+  if (current.softwareUpdateState === 'warn' && previous.softwareUpdateValue !== current.softwareUpdateValue) {
+    items.push({ state: 'warn', title: 'Software update', detail: `${current.softwareUpdateValue} update signal changed.` });
   }
 
   if (items.length === 0) {
@@ -686,7 +803,7 @@ module.exports = function(ctx = {}) {
           checkOpenClaw(),
           checkBackups(),
           vitals(),
-          buildIntelligence()
+          buildIntelligence(ctx)
         ]);
 
         const services = { adguard, homebridge, tailscale, internet, openclaw, backups };

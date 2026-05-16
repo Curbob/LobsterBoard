@@ -7,13 +7,6 @@ const SERVICES = [
   ["backups", "Backups"]
 ];
 
-const SPARKS = {
-  ok: [45, 52, 38, 61, 49, 58, 43, 64],
-  info: [42, 46, 44, 48, 43, 47, 45, 49],
-  warn: [36, 62, 50, 72, 44, 70, 48, 66],
-  bad: [76, 32, 18, 48, 22, 15, 38, 20]
-};
-
 const REFRESH_MS = 420000;
 
 function stateClass(state) {
@@ -61,18 +54,6 @@ function span(className, text) {
   return el;
 }
 
-function renderSparkline(state) {
-  const values = SPARKS[state] || SPARKS.warn;
-  const sparkline = div("sparkline");
-  sparkline.setAttribute("aria-hidden", "true");
-  values.forEach(value => {
-    const bar = document.createElement("span");
-    bar.style.height = `${value}%`;
-    sparkline.append(bar);
-  });
-  return sparkline;
-}
-
 function renderServices(data) {
   const grid = document.getElementById("service-grid");
   const services = data.services || {};
@@ -93,7 +74,7 @@ function renderServices(data) {
     strong.textContent = item.metric || "--";
     metric.append(span("", item.check || "Last check"), strong);
 
-    card.append(top, detail, renderSparkline(item.state), metric);
+    card.append(top, detail, metric);
     grid.append(card);
   });
 }
@@ -205,6 +186,7 @@ function renderSignals(intelligence) {
   renderSignalCard(grid, "Homebridge logs", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
   renderSignalCard(grid, "Public Funnel", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
   renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
+  renderSignalCard(grid, "Software updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
   renderSignalCard(grid, "Weird detector", { state: weirdState, value: weirdFindings.length }, "change detector", weirdDetail);
 }
 
