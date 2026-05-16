@@ -5,6 +5,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { startServer, postJson } from './helpers/server.js';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ─── Password / Session Auth ───────────────────────────
 
@@ -42,6 +44,15 @@ describe('Password auth', () => {
     const cookie = res.headers.get('set-cookie');
     expect(cookie).toContain('lb_session=');
     expect(cookie).toContain('HttpOnly');
+  });
+
+  it('login page only redirects to same-origin relative paths', async () => {
+    const html = readFileSync(join(process.cwd(), 'login.html'), 'utf8');
+    expect(html).toContain('function safeRedirectTarget');
+    expect(html).toContain("candidate.startsWith('/')");
+    expect(html).toContain("candidate.startsWith('//')");
+    expect(html).toContain('url.origin !== window.location.origin');
+    expect(html).toContain("'/pages/teddy-house/'");
   });
 
   it('POST /api/auth/login with wrong password returns 401', async () => {
@@ -219,6 +230,20 @@ describe('Public mode', () => {
   it('blocks secrets API in public mode', async () => {
     const res = await postJson(srv.baseUrl, '/api/secrets/w-1', { apiKey: 'test' });
     expect(res.status).toBe(403);
+  });
+
+  it('blocks all non-read dashboard writes in public mode', async () => {
+    const cases = [
+      ['/api/servers', { name: 'Remote', url: 'http://127.0.0.1:9', apiKey: 'test' }],
+      ['/api/todos', []],
+      ['/api/notes', {}],
+      ['/config', {}]
+    ];
+
+    for (const [path, body] of cases) {
+      const res = await postJson(srv.baseUrl, path, body);
+      expect(res.status, path).toBe(403);
+    }
   });
 
   it('read-only APIs still work in public mode', async () => {

@@ -17,7 +17,7 @@ function stateClass(state) {
 
 function stateLabel(state) {
   if (state === "ok") return "Good";
-  if (state === "info") return "Paused";
+  if (state === "info") return "Info";
   if (state === "warn") return "Watch";
   return "Fix";
 }
@@ -110,7 +110,7 @@ function renderNeeds(needs) {
     list.append(span("badge", "Clear"));
     return;
   }
-  title.textContent = `${needs.length} thing${needs.length === 1 ? "" : "s"} need eyes.`;
+  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} need review.`;
   needs.forEach(item => list.append(span("need-chip", item)));
 }
 
@@ -204,14 +204,16 @@ function renderSummary(data) {
     teddyLine.textContent = "Quiet right now.";
   } else if (score >= 90) {
     title.textContent = "Core systems are up.";
-    copy.textContent = needCount === 1 ? "One useful signal needs a look." : `${needCount} useful signals need a look.`;
-    next.textContent = "Check the watch item.";
-    teddyLine.textContent = "Not broken. Worth eyes.";
+    copy.textContent = needCount === 1 ? "1 useful signal needs review." : `${needCount} useful signals need review.`;
+    next.textContent = "Review the watch item.";
+    teddyLine.textContent = "Review queued.";
   } else if (score >= 70) {
     title.textContent = "Mostly healthy.";
-    copy.textContent = "Core services are up. One signal needs a look.";
-    next.textContent = "Check the watch item.";
-    teddyLine.textContent = "One thing needs eyes.";
+    copy.textContent = needCount === 1
+      ? "Core services are up. 1 signal needs review."
+      : `Core services are up. ${needCount} signals need review.`;
+    next.textContent = "Review the watch item.";
+    teddyLine.textContent = needCount === 1 ? "1 item for review." : `${needCount} items for review.`;
   } else {
     title.textContent = "Something needs attention.";
     copy.textContent = "A core check failed from the Mac mini.";

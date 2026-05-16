@@ -120,6 +120,17 @@
     document.getElementById('form').addEventListener('submit', login);
     document.getElementById('btn').addEventListener('click', login);
 
+    function safeRedirectTarget(candidate, fallback) {
+      if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return fallback;
+      try {
+        const url = new URL(candidate, window.location.origin);
+        if (url.origin !== window.location.origin) return fallback;
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch (_) {
+        return fallback;
+      }
+    }
+
     async function login() {
       const password = document.getElementById('password').value;
       const btn = document.getElementById('btn');
@@ -144,7 +155,7 @@
 
         if (res.ok && data.status === 'ok') {
           const next = new URLSearchParams(window.location.search).get('next');
-          window.location.href = next || data.redirect || '/';
+          window.location.href = safeRedirectTarget(next, data.redirect || '/pages/teddy-house/');
         } else {
           showError(data.error || 'Incorrect password. Please try again.');
           btn.disabled = false;

@@ -50,6 +50,7 @@ describe('Teddy Homebase page', () => {
       name: 'Teddy Homebase',
       short_name: 'Homebase',
       start_url: '/pages/teddy-house/',
+      scope: '/',
       display: 'standalone'
     }));
     expect(manifest.icons.map(icon => icon.sizes)).toEqual(expect.arrayContaining(['192x192', '512x512']));
@@ -223,7 +224,7 @@ describe('Teddy Homebase health API', () => {
     const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
 
     expect(css).toContain('min-height: 100dvh');
-    expect(css).toContain('@media (max-width: 1120px)');
+    expect(css).toContain('@media (max-width: 1240px)');
     expect(css).toContain('@media (max-width: 860px)');
     expect(css).toContain('@media (max-width: 720px)');
     expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
@@ -237,12 +238,16 @@ describe('Teddy Homebase health API', () => {
 
     expect(html).toContain('Running checks.');
     expect(html).toContain('Real data');
+    expect(html).toContain('Homebase');
     expect(html).not.toContain('Deep signals');
     expect(html).not.toContain('Persistent truth');
+    expect(html).not.toContain('Protected');
     expect(script).toContain('Everything important is up.');
     expect(script).toContain('Nothing to do.');
+    expect(script).toContain('need review');
     expect(script).toContain('macOS updates');
     expect(script).toContain('System log');
+    expect(script).not.toMatch(/needs eyes|worth eyes/i);
     expect(script).not.toContain('Teddy could not finish the check.');
   });
 

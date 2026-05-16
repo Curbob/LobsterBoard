@@ -3,7 +3,7 @@
   "short_name": "Homebase",
   "description": "Mac mini, network, and home automation status.",
   "start_url": "/pages/teddy-house/",
-  "scope": "/pages/teddy-house/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#081314",
   "theme_color": "#0b1d1f",

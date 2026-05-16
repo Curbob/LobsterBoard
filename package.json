@@ -66,6 +66,8 @@
     "prebuild": "rm -rf dist",
     "start": "node server.cjs",
     "dev": "node server.cjs",
+    "lint": "node tests/static-lint.mjs",
+    "check": "npm run lint && npm test",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

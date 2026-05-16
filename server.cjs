@@ -63,6 +63,10 @@ function servePublicInstallAsset(pathname, res) {
   return true;
 }
 
+function isReadMethod(method) {
+  return method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
@@ -117,16 +121,10 @@ const server = http.createServer(async (req, res) => {
   // Auth-related routes (PIN, mode, secrets)
   if (authRoutes.handle(req, res, pathname, parsedUrl)) return;
 
-  // Public mode guard: block edit-related APIs
-  if (isPublicMode()) {
-    const editPaths = ['/config'];
-    const isEditApi = (req.method === 'POST' && editPaths.includes(pathname)) ||
-                      (req.method === 'POST' && pathname.startsWith('/api/templates/')) ||
-                      (req.method === 'DELETE' && pathname.startsWith('/api/templates/'));
-    if (isEditApi) {
-      sendJson(res, 403, { error: 'Dashboard is in public mode. Editing is disabled.' });
-      return;
-    }
+  // Public mode guard: read-only means read-only across the dashboard APIs.
+  if (isPublicMode() && !isReadMethod(req.method)) {
+    sendJson(res, 403, { error: 'Dashboard is in public mode. Editing is disabled.' });
+    return;
   }
 
   // Config routes

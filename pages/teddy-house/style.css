@@ -403,6 +403,7 @@ h3 {
 .service-card {
   min-height: 132px;
   padding: 16px;
+  min-width: 0;
 }
 
 .service-top {
@@ -435,6 +436,7 @@ h3 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .metric-row {
@@ -446,11 +448,15 @@ h3 {
   border-top: 1px solid var(--border-soft);
   color: var(--faint);
   font-size: 12px;
+  min-width: 0;
 }
 
 .metric-row strong {
   color: var(--text);
   font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .lower-grid {
@@ -474,6 +480,7 @@ h3 {
 .signal-card {
   min-height: 126px;
   padding: 13px;
+  min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
@@ -483,6 +490,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .signal-top strong {
@@ -490,6 +498,7 @@ h3 {
   margin-top: 5px;
   font-size: 21px;
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .signal-label {
@@ -504,6 +513,7 @@ h3 {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .panel {
@@ -520,6 +530,7 @@ h3 {
 .vital {
   min-height: 82px;
   padding: 12px;
+  min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
@@ -535,6 +546,7 @@ h3 {
   margin-top: 8px;
   font-size: 22px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .events {
@@ -552,6 +564,12 @@ h3 {
   border-top: 1px solid var(--border-soft);
   color: var(--muted);
   font-size: 13px;
+  min-width: 0;
+}
+
+.event > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .event:first-child {
@@ -567,7 +585,7 @@ h3 {
   color: var(--red);
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1240px) {
   .window-shell {
     grid-template-columns: 1fr;
     min-height: calc(100dvh - 20px);
@@ -614,6 +632,14 @@ h3 {
 
   .next-action {
     max-width: none;
+  }
+
+  .event {
+    grid-template-columns: 76px 1fr;
+  }
+
+  .event span:last-child {
+    grid-column: 2;
   }
 }
 
