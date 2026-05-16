@@ -1,8 +1,8 @@
 {
   "id": "teddy-house",
-  "title": "Teddy House",
-  "icon": "TH",
-  "description": "Local Mac mini house systems cockpit",
+  "title": "Teddy Homebase",
+  "icon": "HB",
+  "description": "Local Mac mini systems cockpit",
   "order": 1,
   "enabled": true,
   "nav": true,

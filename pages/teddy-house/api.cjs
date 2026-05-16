@@ -220,7 +220,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
       dependencyMap: {
         type: 'static-topology',
         defaultVisible: false,
-        source: 'declared Teddy House architecture',
+        source: 'declared Teddy Homebase architecture',
         inputs: ['Internet', 'Tailscale', 'Mac mini', 'AdGuard DNS', 'Homebridge', 'OpenClaw / Teddy']
       },
       timeline: {
@@ -307,12 +307,12 @@ async function checkTailscaleFunnel() {
   const hasHouse = uniquePorts.includes('10000');
   const extras = uniquePorts.filter(port => port !== '10000');
   if (hasHouse && extras.length === 0) {
-    return ok('Public access is on for Teddy House only.', '10000', 'tailscale funnel');
+    return ok('Public access is on for Teddy Homebase only.', '10000', 'tailscale funnel');
   }
   if (hasHouse) {
-    return warn(`Teddy House is public, plus ${extras.length} extra public port${extras.length === 1 ? '' : 's'}: ${extras.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+    return warn(`Teddy Homebase is public, plus ${extras.length} extra public port${extras.length === 1 ? '' : 's'}: ${extras.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
   }
-  return warn(`Public access is on, but Teddy House is not the listed port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+  return warn(`Public access is on, but Teddy Homebase is not the listed port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
 }
 
 async function checkInternet() {
@@ -430,9 +430,9 @@ async function openClawVersion() {
 async function lobsterBoardVersion() {
   try {
     const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '..', '..', 'package.json'), 'utf8'));
-    return { name: 'Teddy House', installed: pkg.version || 'unknown', latest: null };
+    return { name: 'Teddy Homebase', installed: pkg.version || 'unknown', latest: null };
   } catch (_) {
-    return { name: 'Teddy House', installed: 'unknown', latest: null, state: 'info', detail: 'Teddy House package version was not readable.' };
+    return { name: 'Teddy Homebase', installed: 'unknown', latest: null, state: 'info', detail: 'Teddy Homebase package version was not readable.' };
   }
 }
 
@@ -456,7 +456,8 @@ function normalizeSoftwareUpdateCopy(result) {
     next.detail = next.detail
       .replace('software update', 'update')
       .replace('software updates', 'updates')
-      .replace('OpenClaw and Teddy House package checks are current.', 'OpenClaw and Teddy House are current.')
+      .replace('OpenClaw and Teddy House package checks are current.', 'OpenClaw and Teddy Homebase are current.')
+      .replace('OpenClaw and Teddy House are current.', 'OpenClaw and Teddy Homebase are current.')
       .replace(/Git branch is behind origin by (\d+ commit[s]?)\./, 'Code is $1 behind origin.')
       .replace(/Git branch has (\d+ local commit[s]?) not pushed\./, '$1 not pushed.')
       .replace(/Git branch has (\d+ local change[s]?)\./, '$1.')
@@ -512,7 +513,7 @@ async function checkSoftwareUpdates(ctx) {
     label: 'updates',
     detail: updatesAvailable > 0
       ? `${updatesAvailable} update${updatesAvailable === 1 ? '' : 's'} available. ${gitState.detail}`
-      : `OpenClaw and Teddy House are current. ${gitState.detail}`,
+      : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
     items,
     git: gitState
   };
@@ -871,7 +872,7 @@ function updateTimeline(ctx, services, intelligence, score) {
   const additions = meaningful.length
     ? meaningful.map(eventFromWeird)
     : shouldHeartbeat
-      ? [eventFromWeird({ state: 'ok', title: 'House check', detail: `Score ${score}; no new weird thing.` })]
+      ? [eventFromWeird({ state: 'ok', title: 'System check', detail: `Score ${score}; no new weird thing.` })]
       : [];
 
   const nextEvents = [...additions, ...events].slice(0, TIMELINE_LIMIT);

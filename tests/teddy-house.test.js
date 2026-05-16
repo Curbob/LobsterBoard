@@ -1,5 +1,5 @@
 /**
- * Teddy House custom page tests.
+ * Teddy Homebase custom page tests.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -15,7 +15,7 @@ beforeAll(async () => {
 
 afterAll(async () => { if (srv) await srv.kill(); });
 
-describe('Teddy House page', () => {
+describe('Teddy Homebase page', () => {
   it('serves the custom page with LobsterBoard shared nav and custom icon', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
@@ -32,7 +32,7 @@ describe('Teddy House page', () => {
   });
 });
 
-describe('Teddy House health API', () => {
+describe('Teddy Homebase health API', () => {
   it('returns the dashboard health contract', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);
@@ -136,7 +136,8 @@ describe('Teddy House health API', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
 
-    expect(html).toContain('House systems');
+    expect(html).toContain('Teddy Homebase');
+    expect(html).toContain('Mac mini cockpit');
     expect(html).toContain('class="teddy-card"');
     expect(html).not.toContain('class="teddy-mode"');
     expect(html).not.toContain('class="teddy-hero"');
