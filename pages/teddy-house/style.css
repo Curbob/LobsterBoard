@@ -529,6 +529,52 @@ h3 {
   margin-top: 14px;
 }
 
+.signals-panel {
+  margin-top: 14px;
+}
+
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.signal-card {
+  min-height: 126px;
+  padding: 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.signal-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.signal-top strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.signal-label {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signal-card p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .events-panel {
   grid-column: 1 / -1;
 }
@@ -639,7 +685,8 @@ h3 {
   .service-grid,
   .lower-grid,
   .insight-band,
-  .insight-grid {
+  .insight-grid,
+  .signal-grid {
     grid-template-columns: 1fr;
   }
 

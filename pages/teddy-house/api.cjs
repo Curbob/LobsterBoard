@@ -2,9 +2,12 @@ const dns = require('dns').promises;
 const fs = require('fs').promises;
 const net = require('net');
 const os = require('os');
+const path = require('path');
 const { execFile } = require('child_process');
 
 const TIMEOUT_MS = 2200;
+const TIMELINE_LIMIT = 80;
+const HOUR_MS = 60 * 60 * 1000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -45,9 +48,24 @@ async function fetchCheck(url) {
   }
 }
 
-function run(command, args) {
+async function fetchJson(url) {
+  const started = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const text = await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (_) {}
+    return { status: res.status, ms: Date.now() - started, json };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function run(command, args, ms = TIMEOUT_MS) {
   return withTimeout(new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: TIMEOUT_MS, maxBuffer: 1024 * 512 }, (err, stdout, stderr) => {
+    execFile(command, args, { timeout: ms, maxBuffer: 1024 * 512 }, (err, stdout, stderr) => {
       if (err) {
         err.stderr = stderr;
         reject(err);
@@ -55,12 +73,12 @@ function run(command, args) {
       }
       resolve(stdout);
     });
-  }));
+  }), ms);
 }
 
-async function tryRun(command, args) {
+async function tryRun(command, args, ms = TIMEOUT_MS) {
   try {
-    return { ok: true, stdout: await run(command, args), stderr: '' };
+    return { ok: true, stdout: await run(command, args, ms), stderr: '' };
   } catch (err) {
     return { ok: false, stdout: err.stdout || '', stderr: err.stderr || err.message };
   }
@@ -80,6 +98,30 @@ function info(detail, metric, check) {
 
 function bad(detail, metric, check) {
   return { state: 'bad', detail, metric, check };
+}
+
+function pickObjectEntries(obj, limit = 3) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return [];
+  return Object.entries(obj)
+    .sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0))
+    .slice(0, limit)
+    .map(([name, value]) => ({ name, value }));
+}
+
+function readDataSafe(ctx, filename, fallback) {
+  try {
+    if (!ctx || typeof ctx.readData !== 'function') return fallback;
+    return ctx.readData(filename);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeDataSafe(ctx, filename, obj) {
+  try {
+    if (!ctx || typeof ctx.writeData !== 'function') return;
+    ctx.writeData(filename, obj);
+  } catch (_) {}
 }
 
 async function checkAdGuard() {
@@ -124,6 +166,30 @@ async function checkTailscale() {
   }
 }
 
+async function checkTailscaleFunnel() {
+  const status = await tryRun('tailscale', ['funnel', 'status']);
+  if (!status.ok) {
+    return info('Funnel status was not readable from the dashboard process.', 'unknown', 'tailscale funnel');
+  }
+
+  const ports = [...status.stdout.matchAll(/https:\/\/[^\s:]+(?::(\d+))?\s+\(Funnel on\)/g)]
+    .map(match => match[1] || '443');
+  const uniquePorts = [...new Set(ports)];
+  if (uniquePorts.length === 0) {
+    return ok('No public Funnel routes are currently advertised.', 'off', 'tailscale funnel');
+  }
+
+  const hasHouse = uniquePorts.includes('10000');
+  const extras = uniquePorts.filter(port => port !== '10000');
+  if (hasHouse && extras.length === 0) {
+    return ok('Public Funnel is on for Teddy House only.', '10000', 'tailscale funnel');
+  }
+  if (hasHouse) {
+    return warn(`Teddy House Funnel is on, and ${extras.length} other public Funnel port${extras.length === 1 ? ' is' : 's are'} also on: ${extras.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+  }
+  return warn(`Public Funnel is on, but not for the expected Teddy House port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'tailscale funnel');
+}
+
 async function checkInternet() {
   const started = Date.now();
   try {
@@ -138,6 +204,27 @@ async function checkInternet() {
   } catch (err) {
     return bad(`System internet DNS failed: ${err.message}.`, 'failed', 'WAN probe');
   }
+}
+
+async function checkWanQuality() {
+  const ping = await tryRun('ping', ['-c', '4', '-W', '1000', '1.1.1.1'], 5500);
+  if (!ping.ok) {
+    return info('Packet-loss probe was not available from the dashboard process.', 'unknown', 'ping');
+  }
+
+  const lossMatch = ping.stdout.match(/([\d.]+)% packet loss/);
+  const rttMatch = ping.stdout.match(/round-trip min\/avg\/max\/stddev = ([\d.]+)\/([\d.]+)\/([\d.]+)\/([\d.]+) ms/);
+  const loss = lossMatch ? Number(lossMatch[1]) : null;
+  const avg = rttMatch ? Number(rttMatch[2]) : null;
+  const max = rttMatch ? Number(rttMatch[3]) : null;
+  const metric = loss === null ? 'unknown' : `${loss}% loss`;
+  const detail = avg === null
+    ? 'Ping completed, but latency summary was not parseable.'
+    : `Cloudflare ping average ${avg.toFixed(1)} ms, max ${max.toFixed(1)} ms.`;
+
+  if (loss !== null && loss > 0) return warn(`${detail} Packet loss is above zero.`, metric, 'packet probe');
+  if (avg !== null && avg > 80) return warn(`${detail} Latency is elevated.`, `${avg.toFixed(0)} ms`, 'packet probe');
+  return ok(detail, avg === null ? metric : `${avg.toFixed(0)} ms`, 'packet probe');
 }
 
 async function checkOpenClaw() {
@@ -196,6 +283,51 @@ async function checkOpenClaw() {
 
 async function checkBackups() {
   return info('Time Machine is intentionally ignored for now.', 'ignored', 'Dan setting');
+}
+
+async function adGuardStats() {
+  try {
+    const res = await fetchJson('http://127.0.0.1:3001/control/stats');
+    if (res.status === 401 || res.status === 403) {
+      return {
+        state: 'info',
+        value: 'locked',
+        label: 'stats auth',
+        detail: 'AdGuard DNS is working, but blocked-query stats require local AdGuard auth.',
+        topBlocked: []
+      };
+    }
+    if (res.status !== 200 || !res.json) {
+      return {
+        state: 'warn',
+        value: `HTTP ${res.status}`,
+        label: 'stats API',
+        detail: 'AdGuard stats endpoint answered unexpectedly.',
+        topBlocked: []
+      };
+    }
+
+    const data = res.json;
+    const queries = Number(data.num_dns_queries ?? data.dns_queries ?? 0);
+    const blocked = Number(data.num_blocked_filtering ?? data.blocked_filtering ?? 0);
+    const pct = queries > 0 ? Math.round((blocked / queries) * 100) : 0;
+    const topBlocked = pickObjectEntries(data.top_blocked_domains || data.top_blocked || data.blocked_domains, 3);
+    return {
+      state: 'ok',
+      value: `${blocked}`,
+      label: 'blocked queries',
+      detail: `${queries} queries, ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top blocked: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
+      topBlocked
+    };
+  } catch (err) {
+    return {
+      state: 'info',
+      value: '--',
+      label: 'stats unavailable',
+      detail: `AdGuard stats were not readable: ${err.message}.`,
+      topBlocked: []
+    };
+  }
 }
 
 async function diskUsage() {
@@ -265,6 +397,89 @@ async function homebridgePlugins() {
   };
 }
 
+async function homebridgeAccessorySummary() {
+  const dir = '/Users/teddyclaw/.homebridge/accessories';
+  try {
+    const files = await fs.readdir(dir);
+    const cacheFiles = files
+      .filter(file => file.startsWith('cachedAccessories'))
+      .filter(file => !file.includes('.bak') && !file.includes('pre-') && !file.startsWith('.'));
+
+    const seen = new Set();
+    for (const file of cacheFiles) {
+      try {
+        const raw = await fs.readFile(path.join(dir, file), 'utf8');
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) continue;
+        for (const item of parsed) {
+          const id = item.UUID || `${item.plugin || 'unknown'}:${item.displayName || item.context?.device?.displayName || ''}`;
+          if (id) seen.add(id);
+        }
+      } catch (_) {}
+    }
+
+    return {
+      state: 'ok',
+      count: seen.size,
+      detail: `${seen.size} cached Homebridge accessor${seen.size === 1 ? 'y' : 'ies'} found across ${cacheFiles.length} active cache file${cacheFiles.length === 1 ? '' : 's'}.`
+    };
+  } catch (err) {
+    return { state: 'info', count: null, detail: `Accessory cache was not readable: ${err.message}.` };
+  }
+}
+
+function newestLogTimestamp(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const match = lines[i].match(/^\[(\d{1,2})\/(\d{1,2})\/(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\]/);
+    if (!match) continue;
+    const [, month, day, year, hourRaw, minute, second, ampm] = match;
+    let hour = Number(hourRaw);
+    if (ampm === 'PM' && hour < 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    return new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
+  }
+  return null;
+}
+
+async function homebridgeLogHealth() {
+  try {
+    const log = await fs.readFile('/Users/teddyclaw/.homebridge/logs/homebridge.log', 'utf8');
+    const lines = log.split('\n').slice(-500);
+    const issueLines = lines.filter(line => /\b(error|warn|warning|failed|uncaught|exception)\b/i.test(line));
+    const newest = newestLogTimestamp(lines);
+    const stale = newest ? Date.now() - newest.getTime() > 24 * HOUR_MS : true;
+    if (stale) {
+      return {
+        state: 'info',
+        value: 'stale',
+        label: 'log freshness',
+        detail: newest ? `Homebridge log has no fresh entries; newest visible line is ${formatAgeFromDate(newest)}.` : 'Homebridge log has no parseable timestamp.'
+      };
+    }
+    if (issueLines.length > 20) {
+      return {
+        state: 'warn',
+        value: `${issueLines.length}`,
+        label: 'recent issues',
+        detail: `Homebridge log has ${issueLines.length} warning/error-style lines in the recent tail.`
+      };
+    }
+    return {
+      state: 'ok',
+      value: `${issueLines.length}`,
+      label: 'recent issues',
+      detail: `Homebridge log tail is quiet: ${issueLines.length} warning/error-style lines.`
+    };
+  } catch (err) {
+    return {
+      state: 'info',
+      value: '--',
+      label: 'log unavailable',
+      detail: `Homebridge log was not readable: ${err.message}.`
+    };
+  }
+}
+
 async function openClawReadyAge() {
   try {
     const log = await fs.readFile('/Users/teddyclaw/.openclaw/logs/gateway.log', 'utf8');
@@ -280,7 +495,7 @@ async function openClawReadyAge() {
   }
 }
 
-async function buildInsights(services, systemVitals) {
+async function buildInsights(services, systemVitals, intelligence) {
   const [plugins, openclawReady] = await Promise.all([
     homebridgePlugins(),
     openClawReadyAge()
@@ -309,10 +524,10 @@ async function buildInsights(services, systemVitals) {
       },
       {
         title: 'Homebridge',
-        value: plugins.count === null ? '--' : `${plugins.count}`,
-        label: 'plugin processes',
+        value: intelligence.homebridge.accessories.count === null ? '--' : `${intelligence.homebridge.accessories.count}`,
+        label: 'accessories',
         state: services.homebridge.state,
-        detail: plugins.names.length ? `${plugins.detail} First: ${plugins.names.join(', ')}.` : plugins.detail
+        detail: `${intelligence.homebridge.accessories.detail} ${plugins.names.length ? `Plugin processes: ${plugins.count}. First: ${plugins.names.join(', ')}.` : plugins.detail}`
       },
       {
         title: 'OpenClaw',
@@ -322,14 +537,105 @@ async function buildInsights(services, systemVitals) {
         detail: openclawReady.detail
       },
       {
-        title: 'Mac mini',
-        value: systemVitals.disk || '--',
-        label: 'disk used',
-        state: 'ok',
-        detail: `Memory ${systemVitals.memory || '--'}, CPU load ${systemVitals.cpu || '--'}, uptime ${systemVitals.uptime || '--'}.`
+        title: 'WAN',
+        value: intelligence.wanQuality.metric || '--',
+        label: intelligence.wanQuality.check || 'packet probe',
+        state: intelligence.wanQuality.state,
+        detail: intelligence.wanQuality.detail
       }
     ]
   };
+}
+
+async function buildIntelligence() {
+  const [adguard, accessories, logHealth, funnel, wanQuality] = await Promise.all([
+    adGuardStats(),
+    homebridgeAccessorySummary(),
+    homebridgeLogHealth(),
+    checkTailscaleFunnel(),
+    checkWanQuality()
+  ]);
+
+  return {
+    adguard,
+    homebridge: { accessories, logHealth },
+    tailscaleFunnel: funnel,
+    wanQuality,
+    weirdThings: []
+  };
+}
+
+function snapshotFor(services, intelligence, score) {
+  return {
+    score,
+    services: Object.fromEntries(Object.entries(services).map(([key, service]) => [key, service.state])),
+    funnelMetric: intelligence.tailscaleFunnel.metric,
+    accessoryCount: intelligence.homebridge.accessories.count,
+    homebridgeLogState: intelligence.homebridge.logHealth.state,
+    wanState: intelligence.wanQuality.state,
+    adguardStatsState: intelligence.adguard.state
+  };
+}
+
+function buildWeirdThings(previous, current) {
+  if (!previous) {
+    return [{ state: 'info', title: 'Baseline captured', detail: 'Teddy has a starting point for change detection.' }];
+  }
+
+  const items = [];
+  for (const [key, state] of Object.entries(current.services)) {
+    if (previous.services && previous.services[key] && previous.services[key] !== state) {
+      items.push({ state: state === 'bad' ? 'bad' : 'warn', title: `${key} changed`, detail: `${previous.services[key]} -> ${state}` });
+    }
+  }
+
+  if (previous.funnelMetric !== current.funnelMetric) {
+    items.push({ state: 'warn', title: 'Funnel changed', detail: `${previous.funnelMetric || 'none'} -> ${current.funnelMetric || 'none'}` });
+  }
+  if (previous.accessoryCount !== current.accessoryCount && previous.accessoryCount !== null && current.accessoryCount !== null) {
+    items.push({ state: 'warn', title: 'Accessory count changed', detail: `${previous.accessoryCount} -> ${current.accessoryCount}` });
+  }
+  if (current.wanState === 'warn' || current.wanState === 'bad') {
+    items.push({ state: current.wanState, title: 'WAN quality', detail: 'Packet-loss or latency probe needs attention.' });
+  }
+
+  if (items.length === 0) {
+    return [{ state: 'ok', title: 'No new weird thing', detail: 'No state, Funnel, accessory, or WAN quality drift since the last check.' }];
+  }
+  return items.slice(0, 5);
+}
+
+function eventFromWeird(item) {
+  return {
+    at: nowIso(),
+    time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    title: item.title,
+    detail: item.detail,
+    state: item.state
+  };
+}
+
+function updateTimeline(ctx, services, intelligence, score) {
+  const previous = readDataSafe(ctx, 'snapshot.json', null);
+  const current = snapshotFor(services, intelligence, score);
+  const weirdThings = buildWeirdThings(previous, current);
+  const timelineData = readDataSafe(ctx, 'timeline.json', { events: [] });
+  const events = Array.isArray(timelineData.events) ? timelineData.events : [];
+
+  const last = events[0];
+  const shouldHeartbeat = !last || Date.now() - new Date(last.at || 0).getTime() > HOUR_MS;
+  const meaningful = weirdThings.filter(item => item.title !== 'No new weird thing');
+  const additions = meaningful.length
+    ? meaningful.map(eventFromWeird)
+    : shouldHeartbeat
+      ? [eventFromWeird({ state: 'ok', title: 'House check', detail: `Score ${score}; no new weird thing.` })]
+      : [];
+
+  const nextEvents = [...additions, ...events].slice(0, TIMELINE_LIMIT);
+  writeDataSafe(ctx, 'timeline.json', { events: nextEvents });
+  writeDataSafe(ctx, 'snapshot.json', current);
+  intelligence.weirdThings = weirdThings;
+  return nextEvents.length ? nextEvents : additions;
 }
 
 function scoreServices(services) {
@@ -368,30 +674,35 @@ function eventsFromServices(services) {
   }));
 }
 
-module.exports = function() {
+module.exports = function(ctx = {}) {
   return {
     routes: {
       'GET /health': async () => {
-        const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals] = await Promise.all([
+        const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence] = await Promise.all([
           checkAdGuard(),
           checkHomebridge(),
           checkTailscale(),
           checkInternet(),
           checkOpenClaw(),
           checkBackups(),
-          vitals()
+          vitals(),
+          buildIntelligence()
         ]);
 
         const services = { adguard, homebridge, tailscale, internet, openclaw, backups };
-        const insights = await buildInsights(services, systemVitals);
+        const score = scoreServices(services);
+        const timeline = updateTimeline(ctx, services, intelligence, score);
+        const insights = await buildInsights(services, systemVitals, intelligence);
         return {
           checkedAt: nowIso(),
-          score: scoreServices(services),
+          score,
           needsDan: needsDan(services),
           services,
           insights,
+          intelligence,
           vitals: systemVitals,
-          events: eventsFromServices(services)
+          events: timeline.length ? timeline : eventsFromServices(services),
+          timeline
         };
       }
     }

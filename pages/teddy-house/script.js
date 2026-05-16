@@ -151,6 +151,63 @@ function renderInsights(insights) {
   });
 }
 
+function signalValue(signal, fallback = "--") {
+  if (!signal) return fallback;
+  if (signal.value !== undefined && signal.value !== null) return String(signal.value);
+  if (signal.metric !== undefined && signal.metric !== null) return String(signal.metric);
+  if (signal.count !== undefined && signal.count !== null) return String(signal.count);
+  return fallback;
+}
+
+function signalState(signal) {
+  return (signal && signal.state) || "info";
+}
+
+function renderSignalCard(grid, title, signal, label, detailOverride) {
+  const item = document.createElement("article");
+  item.className = "signal-card";
+  const top = div("signal-top");
+  const copy = div();
+  const value = document.createElement("strong");
+  value.textContent = signalValue(signal);
+  copy.append(div("tiny-label", title), value);
+  top.append(copy, span(`status-dot ${stateClass(signalState(signal))}`));
+  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Current"));
+  const detail = document.createElement("p");
+  detail.textContent = detailOverride || (signal && signal.detail) || "No detail available.";
+  item.append(detail);
+  grid.append(item);
+}
+
+function renderSignals(intelligence) {
+  const grid = document.getElementById("signal-grid");
+  if (!grid) return;
+  clear(grid);
+  const data = intelligence || {};
+  const homebridge = data.homebridge || {};
+  const weirdItems = Array.isArray(data.weirdThings) ? data.weirdThings : [];
+  const weirdFindings = weirdItems.filter(item => item.title !== "No new weird thing");
+  const weirdState = weirdFindings.some(item => item.state === "bad")
+    ? "bad"
+    : weirdFindings.some(item => item.state === "warn")
+      ? "warn"
+      : weirdFindings.some(item => item.state === "info")
+        ? "info"
+        : "ok";
+  const weirdDetail = weirdFindings.length
+    ? weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ")
+    : weirdItems.length
+      ? weirdItems[0].detail
+    : "No change detector read yet.";
+
+  renderSignalCard(grid, "AdGuard blocks", data.adguard, data.adguard && data.adguard.label);
+  renderSignalCard(grid, "Homebridge accessories", homebridge.accessories, "cached accessories");
+  renderSignalCard(grid, "Homebridge logs", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
+  renderSignalCard(grid, "Public Funnel", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
+  renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
+  renderSignalCard(grid, "Weird detector", { state: weirdState, value: weirdFindings.length }, "change detector", weirdDetail);
+}
+
 function renderEvents(events) {
   const list = document.getElementById("events-list");
   clear(list);
@@ -158,7 +215,7 @@ function renderEvents(events) {
     const item = div("event");
     const title = document.createElement("strong");
     title.textContent = event.title || "Event";
-    item.append(span("", event.time || "--"), title, span("", event.detail || "No detail available."));
+    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail available."));
     list.append(item);
   });
 }
@@ -208,7 +265,8 @@ async function loadHealth() {
     renderInsights(data.insights);
     renderServices(data);
     renderVitals(data.vitals || {});
-    renderEvents(data.events || []);
+    renderSignals(data.intelligence);
+    renderEvents(data.timeline || data.events || []);
   } catch (err) {
     document.getElementById("summary-title").textContent = "Teddy could not finish the check.";
     const copy = document.getElementById("summary-copy");

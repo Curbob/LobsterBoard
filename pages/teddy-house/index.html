@@ -27,11 +27,12 @@
       <nav id="page-nav" class="lobster-page-nav" aria-label="LobsterBoard pages"></nav>
       <nav class="side-nav" aria-label="Teddy House sections">
         <a class="active" href="#overview">Overview</a>
+        <a href="#signals">Signals</a>
         <a href="#network">Network</a>
         <a href="#home">Home</a>
         <a href="#server">Server</a>
         <a href="#agents">Agents</a>
-        <a href="#logs">Logs</a>
+        <a href="#timeline">Timeline</a>
       </nav>
       <div class="teddy-card">
         <div class="teddy-face" aria-hidden="true">
@@ -96,6 +97,17 @@
 
       <section class="grid service-grid" id="service-grid" aria-label="Service health"></section>
 
+      <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Deep signals</p>
+            <h3 id="signals-title">House intelligence</h3>
+          </div>
+          <span class="state-pill">Safe probes only</span>
+        </div>
+        <div class="signal-grid" id="signal-grid"></div>
+      </section>
+
       <section class="lower-grid">
         <article class="panel vitals-panel" id="server">
           <div class="panel-head">
@@ -129,11 +141,11 @@
           </div>
         </article>
 
-        <article class="panel events-panel" id="logs">
+        <article class="panel events-panel" id="timeline">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Recent truth</p>
-              <h3>Last probe</h3>
+              <p class="eyebrow">Persistent truth</p>
+              <h3>House timeline</h3>
             </div>
           </div>
           <div class="events" id="events-list"></div>
