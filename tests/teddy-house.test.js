@@ -211,7 +211,7 @@ describe('Teddy Homebase health API', () => {
     const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
 
     expect(html).toContain('Teddy Homebase');
-    expect(html).toContain('Mac mini watch');
+    expect(html).toContain('Private status');
     expect(html).toContain('class="teddy-card"');
     expect(html).not.toContain('class="teddy-mode"');
     expect(html).not.toContain('class="teddy-hero"');
@@ -235,19 +235,26 @@ describe('Teddy Homebase health API', () => {
   it('keeps dashboard copy quiet and direct', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 
-    expect(html).toContain('Running checks.');
-    expect(html).toContain('Real data');
-    expect(html).toContain('Homebase');
+    expect(html).toContain('Checking status.');
+    expect(html).toContain('Core service health');
+    expect(html).toContain('Readiness');
+    expect(html).toContain('No action needed.');
+    expect(html).toContain('Private');
     expect(html).not.toContain('Deep signals');
     expect(html).not.toContain('Persistent truth');
     expect(html).not.toContain('Protected');
-    expect(script).toContain('Everything important is up.');
-    expect(script).toContain('Nothing to do.');
-    expect(script).toContain('need review');
-    expect(script).toContain('macOS updates');
-    expect(script).toContain('System log');
+    expect(script).toContain('All core systems are online.');
+    expect(script).toContain('No action needed.');
+    expect(script).toContain('to review');
+    expect(script).toContain('DNS blocks');
+    expect(script).toContain('External access');
+    expect(script).toContain('App versions');
+    expect(script).toContain('System logs');
     expect(script).not.toMatch(/needs eyes|worth eyes/i);
+    expect(script).not.toMatch(/Everything important|Nothing to do|Live reads|Real data/i);
+    expect(api).not.toContain('Openclaw');
     expect(script).not.toContain('Teddy could not finish the check.');
   });
 

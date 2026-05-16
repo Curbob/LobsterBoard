@@ -51,8 +51,9 @@ expect(!css.includes('letter-spacing: -'), 'negative letter spacing is banned fo
 expect(script.includes('const REFRESH_MS = 420000'), 'manual/auto refresh interval must stay at 420 seconds');
 expect(!script.match(/sparkline|SPARKS|trend/i), 'fake trend or sparkline language must stay out');
 expect(!script.includes('Teddy House'), 'visible script copy should use Teddy Homebase');
-expect(!script.match(/needs eyes|worth eyes/i), 'dashboard copy should use direct review language');
-expect(script.includes('need review'), 'dashboard copy should keep direct review language');
+expect(!script.match(/needs eyes|worth eyes|Everything important|Nothing to do|Live reads|Real data/i), 'dashboard copy should stay polished and direct');
+expect(script.includes('to review'), 'dashboard copy should keep direct review language');
+expect(script.includes('All core systems are online.'), 'summary copy should use polished status language');
 
 expect(server.includes('PUBLIC_INSTALL_ASSETS'), 'server must keep explicit public install asset allowlist');
 expect(server.includes("'/pages/teddy-house/manifest.webmanifest'"), 'manifest must be in public install asset allowlist');

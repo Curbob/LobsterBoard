@@ -17,9 +17,9 @@ function stateClass(state) {
 
 function stateLabel(state) {
   if (state === "ok") return "Good";
-  if (state === "info") return "Info";
-  if (state === "warn") return "Watch";
-  return "Fix";
+  if (state === "info") return "Notice";
+  if (state === "warn") return "Review";
+  return "Issue";
 }
 
 function fmtAge(iso) {
@@ -58,7 +58,7 @@ function renderServices(data) {
   const services = data.services || {};
   clear(grid);
   SERVICES.forEach(([key, name]) => {
-    const item = services[key] || { state: "warn", detail: "No reading yet.", metric: "--" };
+    const item = services[key] || { state: "warn", detail: "No reading available.", metric: "--" };
     const card = document.createElement("article");
     card.className = "service-card";
 
@@ -67,11 +67,11 @@ function renderServices(data) {
     copy.append(div("service-name", name), div("tiny-label", stateLabel(item.state)));
     top.append(copy, span(`status-dot ${stateClass(item.state)}`));
 
-    const detail = div("service-detail", item.detail || "No detail yet.");
+    const detail = div("service-detail", item.detail || "No detail available.");
     const metric = div("metric-row");
     const strong = document.createElement("strong");
     strong.textContent = item.metric || "--";
-    metric.append(span("", item.check || "Reading"), strong);
+    metric.append(span("", item.check || "Checking"), strong);
 
     card.append(top, detail, metric);
     grid.append(card);
@@ -106,11 +106,11 @@ function renderNeeds(needs) {
   const list = document.getElementById("needs-list");
   clear(list);
   if (!needs || needs.length === 0) {
-    title.textContent = "Nothing right now.";
+    title.textContent = "No action needed.";
     list.append(span("badge", "Clear"));
     return;
   }
-  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} need review.`;
+  title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} to review.`;
   needs.forEach(item => list.append(span("need-chip", item)));
 }
 
@@ -135,9 +135,9 @@ function renderSignalCard(grid, title, signal, label, detailOverride) {
   value.textContent = signalValue(signal);
   copy.append(div("tiny-label", title), value);
   top.append(copy, span(`status-dot ${stateClass(signalState(signal))}`));
-  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Reading"));
+  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Checking"));
   const detail = document.createElement("p");
-  detail.textContent = detailOverride || (signal && signal.detail) || "No detail yet.";
+  detail.textContent = detailOverride || (signal && signal.detail) || "No detail available.";
   item.append(detail);
   grid.append(item);
 }
@@ -151,14 +151,14 @@ function renderSignals(intelligence) {
   const weirdItems = Array.isArray(data.weirdThings) ? data.weirdThings : [];
   const weirdFindings = weirdItems.filter(item => item.title !== "No drift" && item.title !== "No new weird thing");
 
-  renderSignalCard(grid, "Blocked DNS", data.adguard, data.adguard && data.adguard.label);
+  renderSignalCard(grid, "DNS blocks", data.adguard, data.adguard && data.adguard.label);
   renderSignalCard(grid, "Accessories", homebridge.accessories, "Homebridge");
   renderSignalCard(grid, "Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
-  renderSignalCard(grid, "Public access", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
-  renderSignalCard(grid, "WAN", data.wanQuality, data.wanQuality && data.wanQuality.check);
-  renderSignalCard(grid, "App updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
-  renderSignalCard(grid, "macOS updates", data.macUpdates, data.macUpdates && data.macUpdates.check);
-  renderSignalCard(grid, "System log", data.systemLogs, data.systemLogs && data.systemLogs.check);
+  renderSignalCard(grid, "External access", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
+  renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
+  renderSignalCard(grid, "App versions", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
+  renderSignalCard(grid, "macOS", data.macUpdates, data.macUpdates && data.macUpdates.check);
+  renderSignalCard(grid, "System logs", data.systemLogs, data.systemLogs && data.systemLogs.check);
   if (weirdFindings.length > 0) {
     const weirdState = weirdFindings.some(item => item.state === "bad")
       ? "bad"
@@ -166,7 +166,7 @@ function renderSignals(intelligence) {
         ? "warn"
         : "info";
     const weirdDetail = weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ");
-    renderSignalCard(grid, "Drift", { state: weirdState, value: weirdFindings.length }, "change watch", weirdDetail);
+    renderSignalCard(grid, "Changes", { state: weirdState, value: weirdFindings.length }, "Change detection", weirdDetail);
   }
 }
 
@@ -176,8 +176,8 @@ function renderEvents(events) {
   (events || []).forEach(event => {
     const item = div("event");
     const title = document.createElement("strong");
-    title.textContent = event.title || "Change";
-    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail yet."));
+    title.textContent = event.title || "Update";
+    item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail available."));
     list.append(item);
   });
 }
@@ -198,34 +198,34 @@ function renderSummary(data) {
   last.textContent = `Checked ${new Date(data.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 
   if (score >= 90 && needCount === 0) {
-    title.textContent = "Everything important is up.";
-    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac are answering.";
-    next.textContent = "Nothing to do.";
-    teddyLine.textContent = "Quiet right now.";
+    title.textContent = "All core systems are online.";
+    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac mini responded.";
+    next.textContent = "No action needed.";
+    teddyLine.textContent = "No action needed.";
   } else if (score >= 90) {
-    title.textContent = "Core systems are up.";
-    copy.textContent = needCount === 1 ? "1 useful signal needs review." : `${needCount} useful signals need review.`;
-    next.textContent = "Review the watch item.";
-    teddyLine.textContent = "Review queued.";
+    title.textContent = "Core systems are online.";
+    copy.textContent = needCount === 1 ? "1 signal needs review." : `${needCount} signals need review.`;
+    next.textContent = "Review the flagged item.";
+    teddyLine.textContent = "Review recommended.";
   } else if (score >= 70) {
-    title.textContent = "Mostly healthy.";
+    title.textContent = "Mostly online.";
     copy.textContent = needCount === 1
-      ? "Core services are up. 1 signal needs review."
-      : `Core services are up. ${needCount} signals need review.`;
-    next.textContent = "Review the watch item.";
-    teddyLine.textContent = needCount === 1 ? "1 item for review." : `${needCount} items for review.`;
+      ? "Core services are online. 1 signal needs review."
+      : `Core services are online. ${needCount} signals need review.`;
+    next.textContent = "Review the flagged item.";
+    teddyLine.textContent = needCount === 1 ? "1 item to review." : `${needCount} items to review.`;
   } else {
-    title.textContent = "Something needs attention.";
+    title.textContent = "A core check needs attention.";
     copy.textContent = "A core check failed from the Mac mini.";
-    next.textContent = "Start with the red item.";
-    teddyLine.textContent = "I found a real issue.";
+    next.textContent = "Start with the issue.";
+    teddyLine.textContent = "Issue detected.";
   }
 }
 
 async function loadHealth() {
   const button = document.getElementById("refresh-button");
   button.disabled = true;
-  button.textContent = "Checking";
+  button.textContent = "Refreshing";
   try {
     const res = await fetch("/api/pages/teddy-house/health", { cache: "no-store" });
     if (!res.ok) throw new Error(`Health API returned ${res.status}`);
@@ -237,13 +237,13 @@ async function loadHealth() {
     renderSignals(data.intelligence);
     renderEvents(data.timeline || data.events || []);
   } catch (err) {
-    document.getElementById("summary-title").textContent = "Could not check Homebase.";
+    document.getElementById("summary-title").textContent = "Could not refresh status.";
     const copy = document.getElementById("summary-copy");
     clear(copy);
     copy.append(span("error-box", err.message));
   } finally {
     button.disabled = false;
-    button.textContent = "Check now";
+    button.textContent = "Refresh";
   }
 }
 

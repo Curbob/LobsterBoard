@@ -25,6 +25,14 @@ const DEFAULT_SIGNAL_KEYS = [
   'macUpdates',
   'systemLogs'
 ];
+const SERVICE_NAMES = {
+  adguard: 'DNS',
+  homebridge: 'Homebridge',
+  tailscale: 'Tailscale',
+  internet: 'Internet',
+  openclaw: 'OpenClaw',
+  backups: 'Backups'
+};
 const HIDDEN_BY_DEFAULT = {
   services: ['backups'],
   signals: ['weirdThings'],
@@ -296,18 +304,18 @@ async function checkAdGuard() {
     } catch (_) {
       admin = 'DNS works; admin UI not checked';
     }
-    return ok(`DNS is resolving locally. ${admin === 'admin locked' ? 'Admin stats are locked.' : 'Admin is reachable.'}`, `${dnsMs} ms`, 'DNS');
+    return ok(`Local DNS responded. ${admin === 'admin locked' ? 'AdGuard stats are locked.' : 'AdGuard is reachable.'}`, `${dnsMs} ms`, 'DNS');
   } catch (err) {
-    return bad(`Local DNS failed: ${err.message}.`, 'failed', 'DNS');
+    return bad(`Local DNS did not respond: ${err.message}.`, 'failed', 'DNS');
   }
 }
 
 async function checkHomebridge() {
   try {
     await tcpCheck('127.0.0.1', 8581);
-    return ok('Homebridge is reachable from the Mac mini.', '8581', 'Port');
+    return ok('Homebridge responded from the Mac mini.', '8581', 'Port');
   } catch (err) {
-    return bad(`Homebridge did not answer: ${err.message}.`, 'offline', 'Port');
+    return bad(`Homebridge did not respond: ${err.message}.`, 'offline', 'Port');
   }
 }
 
@@ -317,35 +325,35 @@ async function checkTailscale() {
     const data = JSON.parse(stdout);
     const ip = (data.Self && data.Self.TailscaleIPs && data.Self.TailscaleIPs[0]) || 'connected';
     const online = data.Self && data.Self.Online !== false;
-    if (!online) return warn('This Mac mini looks offline on Tailscale.', ip, 'Tailscale');
-    return ok('This Mac mini is online on Tailscale.', ip, 'Tailscale');
+    if (!online) return warn('The Mac mini is not reporting online in Tailscale.', ip, 'Tailscale');
+    return ok('The Mac mini is online in Tailscale.', ip, 'Tailscale');
   } catch (err) {
-    return warn(`Could not read Tailscale status: ${err.message}.`, 'unknown', 'Tailscale');
+    return warn(`Tailscale status is unavailable: ${err.message}.`, 'unknown', 'Tailscale');
   }
 }
 
 async function checkTailscaleFunnel() {
   const status = await tryRun('tailscale', ['funnel', 'status']);
   if (!status.ok) {
-    return info('Could not read public access status.', 'unknown', 'Public access');
+    return info('External access status is unavailable.', 'unknown', 'External access');
   }
 
   const ports = [...status.stdout.matchAll(/https:\/\/[^\s:]+(?::(\d+))?\s+\(Funnel on\)/g)]
     .map(match => match[1] || '443');
   const uniquePorts = [...new Set(ports)].sort((a, b) => Number(a) - Number(b));
   if (uniquePorts.length === 0) {
-    return ok('Public access is off.', 'off', 'Public access');
+    return ok('External access is off.', 'off', 'External access');
   }
 
   const hasHouse = uniquePorts.includes('10000');
   const extras = uniquePorts.filter(port => port !== '10000');
   if (hasHouse && extras.length === 0) {
-    return ok('Only Teddy Homebase is public.', '10000', 'Public access');
+    return ok('Only Teddy Homebase is externally available.', '10000', 'External access');
   }
   if (hasHouse) {
-    return warn(`Teddy Homebase is public. Extra public port${extras.length === 1 ? '' : 's'}: ${extras.join(', ')}.`, uniquePorts.join(', '), 'Public access');
+    return warn(`Teddy Homebase is external. Extra port${extras.length === 1 ? '' : 's'} detected: ${extras.join(', ')}.`, uniquePorts.join(', '), 'External access');
   }
-  return warn(`Public access is on, but not on the Homebase port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'Public access');
+  return warn(`External access is on outside the Homebase port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'External access');
 }
 
 async function checkInternet() {
@@ -355,19 +363,19 @@ async function checkInternet() {
     const dnsMs = Date.now() - started;
     try {
       const res = await fetchCheck('https://www.gstatic.com/generate_204');
-      return ok('Internet checks are answering.', `${Math.max(dnsMs, res.ms)} ms`, 'WAN');
+      return ok('WAN checks completed.', `${Math.max(dnsMs, res.ms)} ms`, 'WAN');
     } catch (_) {
-      return warn('DNS works, but the web check did not finish.', `${dnsMs} ms`, 'WAN');
+      return warn('DNS responded, but the web check did not finish.', `${dnsMs} ms`, 'WAN');
     }
   } catch (err) {
-    return bad(`Internet DNS failed: ${err.message}.`, 'failed', 'WAN');
+    return bad(`WAN DNS failed: ${err.message}.`, 'failed', 'WAN');
   }
 }
 
 async function checkWanQuality() {
   const ping = await tryRun('ping', ['-c', '4', '-W', '1000', '1.1.1.1'], 5500);
   if (!ping.ok) {
-    return info('Could not run the packet-loss check.', 'unknown', 'WAN');
+    return info('Packet-loss check is unavailable.', 'unknown', 'WAN');
   }
 
   const lossMatch = ping.stdout.match(/([\d.]+)% packet loss/);
@@ -687,7 +695,7 @@ async function checkSystemLogs(ctx) {
     const signal = warn(
       `${reports.matches} critical diagnostic report${reports.matches === 1 ? '' : 's'} in the last 24 hours.`,
       `${reports.matches}`,
-      'System log'
+      'System logs'
     );
     const record = { checkedAt: nowIso(), schema: SYSTEM_LOG_CACHE_SCHEMA, ...signal };
     writeDataSafe(ctx, 'system-logs.json', record);
@@ -703,15 +711,15 @@ async function checkSystemLogs(ctx) {
         ? 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports. Unified log scan timed out.'
         : 'No critical diagnostic reports were readable. Unified log scan timed out.',
       '0',
-      'System log'
+      'System logs'
     );
   } else {
     const lines = systemLogLines(result.stdout);
     const critical = lines.filter(line => /panic|kernel panic|shutdown cause|thermal pressure|I\/O error|media error|corrupt/i.test(line)).length;
     if (critical > 0) {
-      signal = warn(`${critical} critical-pattern system log event${critical === 1 ? '' : 's'} in the last 24 hours.`, `${critical}`, 'System log');
+      signal = warn(`${critical} critical system event${critical === 1 ? '' : 's'} in the last 24 hours.`, `${critical}`, 'System logs');
     } else {
-      signal = ok('No panic, shutdown, thermal-pressure, I/O, media-error, or corruption patterns in the recent system checks.', '0', 'System log');
+      signal = ok('No recent panic, shutdown, thermal, I/O, media, or corruption events.', '0', 'System logs');
     }
   }
 
@@ -1115,7 +1123,7 @@ function buildWeirdThings(previous, current) {
   }
 
   if (previous.funnelMetric !== current.funnelMetric) {
-    items.push({ state: 'warn', title: 'Public access changed', detail: `${previous.funnelMetric || 'none'} -> ${current.funnelMetric || 'none'}` });
+    items.push({ state: 'warn', title: 'External access changed', detail: `${previous.funnelMetric || 'none'} -> ${current.funnelMetric || 'none'}` });
   }
   if (previous.accessoryCount !== current.accessoryCount && previous.accessoryCount !== null && current.accessoryCount !== null) {
     items.push({ state: 'warn', title: 'Accessories changed', detail: `${previous.accessoryCount} -> ${current.accessoryCount}` });
@@ -1127,10 +1135,10 @@ function buildWeirdThings(previous, current) {
     items.push({ state: 'warn', title: 'Updates changed', detail: `${current.softwareUpdateValue} update signal changed.` });
   }
   if (current.macUpdateState === 'warn' && previous.macUpdateMetric !== current.macUpdateMetric) {
-    items.push({ state: 'warn', title: 'macOS updates', detail: `${current.macUpdateMetric} macOS update signal changed.` });
+    items.push({ state: 'warn', title: 'macOS', detail: `${current.macUpdateMetric} macOS update signal changed.` });
   }
   if (current.systemLogState === 'bad' || current.systemLogState === 'warn') {
-    items.push({ state: current.systemLogState, title: 'System log', detail: 'Recent Mac logs need attention.' });
+    items.push({ state: current.systemLogState, title: 'System logs', detail: 'Recent Mac logs need attention.' });
   }
 
   if (items.length === 0) {
@@ -1162,7 +1170,7 @@ function updateTimeline(ctx, services, intelligence, score) {
   const additions = meaningful.length
     ? meaningful.map(eventFromWeird)
     : shouldHeartbeat
-      ? [eventFromWeird({ state: 'ok', title: 'System check', detail: `Health ${score}; no drift.` })]
+      ? [eventFromWeird({ state: 'ok', title: 'Status check', detail: `Readiness ${score}; no changes.` })]
       : [];
 
   const nextEvents = [...additions, ...events].slice(0, TIMELINE_LIMIT);
@@ -1186,12 +1194,12 @@ function scoreServices(services) {
 function usefulSignals(intelligence) {
   if (!intelligence) return [];
   return [
-    ['Public access', intelligence.tailscaleFunnel],
+    ['External access', intelligence.tailscaleFunnel],
     ['WAN', intelligence.wanQuality],
-    ['Homebridge log', intelligence.homebridge && intelligence.homebridge.logHealth],
-    ['App updates', intelligence.softwareUpdates],
-    ['macOS updates', intelligence.macUpdates],
-    ['System log', intelligence.systemLogs]
+    ['Homebridge Log', intelligence.homebridge && intelligence.homebridge.logHealth],
+    ['App Versions', intelligence.softwareUpdates],
+    ['macOS', intelligence.macUpdates],
+    ['System Logs', intelligence.systemLogs]
   ]
     .filter(([, signal]) => signal && (signal.state === 'warn' || signal.state === 'bad'))
     .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch' }));
@@ -1212,15 +1220,7 @@ function needsDan(services, intelligence, systemVitals) {
   const serviceItems = Object.entries(services)
     .filter(([, service]) => service.state !== 'ok' && service.state !== 'info')
     .map(([key, service]) => {
-      const names = {
-        adguard: 'DNS',
-        homebridge: 'Homebridge',
-        tailscale: 'Tailscale',
-        internet: 'Internet',
-        openclaw: 'OpenClaw',
-        backups: 'Backups'
-      };
-      return `${names[key]}: ${service.metric}`;
+      return `${SERVICE_NAMES[key] || key}: ${service.metric}`;
     });
   const signalItems = usefulSignals(intelligence).map(item => `${item.name}: ${item.metric}`);
   const vitalItems = usefulVitals(systemVitals).map(item => `${item.name}: ${item.metric}`);
@@ -1231,7 +1231,7 @@ function eventsFromServices(services) {
   const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return Object.entries(services).map(([key, service]) => ({
     time,
-    title: key.replace(/^\w/, c => c.toUpperCase()),
+    title: SERVICE_NAMES[key] || key.replace(/^\w/, c => c.toUpperCase()),
     detail: service.state === 'ok' ? 'Passed' : service.detail
   }));
 }

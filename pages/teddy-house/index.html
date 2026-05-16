@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Teddy Homebase watches the Mac mini, network, and home automation stack.">
+  <meta name="description" content="A private status surface for the Mac mini, network, and home automation stack.">
   <meta name="theme-color" content="#0b1d1f">
   <meta name="color-scheme" content="dark">
   <meta name="mobile-web-app-capable" content="yes">
@@ -31,16 +31,16 @@
         </div>
         <div>
           <div class="brand-title">Teddy Homebase</div>
-          <div class="brand-subtitle">Mac mini watch</div>
+          <div class="brand-subtitle">Private status</div>
         </div>
       </div>
-      <nav id="page-nav" class="lobster-page-nav" aria-label="LobsterBoard pages"></nav>
-      <nav class="side-nav" aria-label="Homebase sections">
-        <a class="active" href="#overview">Home</a>
+      <nav id="page-nav" class="lobster-page-nav" aria-label="Pages"></nav>
+      <nav class="side-nav" aria-label="Sections">
+        <a class="active" href="#overview">Status</a>
         <a href="#signals">Signals</a>
-        <a href="#service-grid">Network</a>
+        <a href="#service-grid">Services</a>
         <a href="#server">Mac</a>
-        <a href="#timeline">Log</a>
+        <a href="#timeline">Timeline</a>
       </nav>
       <div class="teddy-card">
         <div class="teddy-face" aria-hidden="true">
@@ -52,7 +52,7 @@
         </div>
         <div>
           <div class="tiny-label">Teddy</div>
-          <div id="teddy-line">Running checks.</div>
+          <div id="teddy-line">Checking status.</div>
         </div>
       </div>
     </aside>
@@ -60,29 +60,29 @@
     <main class="dashboard">
       <header class="toolbar">
         <div class="toolbar-title">
-          <p class="eyebrow">Homebase</p>
+          <p class="eyebrow">Mac mini</p>
           <h1>Teddy Homebase</h1>
         </div>
         <div class="toolbar-actions">
-          <span class="badge" id="privacy-badge">Homebase</span>
-          <span class="last-check" id="last-check">Checking</span>
-          <button id="refresh-button" type="button">Check now</button>
+          <span class="badge" id="privacy-badge">Private</span>
+          <span class="last-check" id="last-check">Not checked yet</span>
+          <button id="refresh-button" type="button">Refresh</button>
         </div>
       </header>
 
       <section class="status-band" id="overview">
         <div class="status-copy">
-          <p class="eyebrow">Now</p>
-          <h2 id="summary-title">Running checks.</h2>
-          <p id="summary-copy">DNS, Homebridge, Tailscale, OpenClaw, and Mac health.</p>
+          <p class="eyebrow">Status</p>
+          <h2 id="summary-title">Checking status.</h2>
+          <p id="summary-copy">Network, automation, and Mac mini signals.</p>
         </div>
         <div class="score-card">
           <div class="score-ring" id="score-ring">
             <span id="health-score">--</span>
           </div>
           <div>
-            <div class="tiny-label">Health</div>
-            <div id="next-action" class="next-action">Waiting for data.</div>
+            <div class="tiny-label">Readiness</div>
+            <div id="next-action" class="next-action">Preparing report.</div>
           </div>
         </div>
       </section>
@@ -90,20 +90,20 @@
       <section class="needs-lane" aria-labelledby="needs-title">
         <div>
           <p class="eyebrow">Review</p>
-          <h3 id="needs-title">Nothing right now.</h3>
+          <h3 id="needs-title">No action needed.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
       </section>
 
-      <section class="grid service-grid" id="service-grid" aria-label="Service health"></section>
+      <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
 
       <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Signals</p>
-            <h3 id="signals-title">Live reads</h3>
+            <h3 id="signals-title">Current</h3>
           </div>
-          <span class="state-pill">Real data</span>
+          <span class="state-pill">Live</span>
         </div>
         <div class="signal-grid" id="signal-grid"></div>
       </section>
@@ -112,8 +112,8 @@
         <article class="panel vitals-panel" id="server">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Mac</p>
-              <h3>Load</h3>
+              <p class="eyebrow">Mac mini</p>
+              <h3>Vitals</h3>
             </div>
             <span class="state-pill" id="vitals-pill">Now</span>
           </div>
@@ -123,8 +123,8 @@
         <article class="panel events-panel" id="timeline">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Log</p>
-              <h3>Recent changes</h3>
+              <p class="eyebrow">Timeline</p>
+              <h3>Recent activity</h3>
             </div>
           </div>
           <div class="events" id="events-list"></div>
