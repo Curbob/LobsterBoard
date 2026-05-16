@@ -219,6 +219,18 @@ describe('Teddy Homebase health API', () => {
     expect(css).not.toContain('.teddy-says-top');
   });
 
+  it('keeps the pinned dashboard responsive for iPad and iPhone', () => {
+    const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
+
+    expect(css).toContain('min-height: 100dvh');
+    expect(css).toContain('@media (max-width: 1120px)');
+    expect(css).toContain('@media (max-width: 860px)');
+    expect(css).toContain('@media (max-width: 720px)');
+    expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
+    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*\.service-grid,[\s\S]*\.signal-grid,[\s\S]*\.vitals-grid[\s\S]*grid-template-columns: 1fr;/);
+  });
+
   it('keeps dashboard copy quiet and direct', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
