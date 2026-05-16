@@ -3,8 +3,7 @@ const SERVICES = [
   ["homebridge", "Homebridge"],
   ["tailscale", "Tailscale"],
   ["internet", "Internet"],
-  ["openclaw", "OpenClaw / Teddy"],
-  ["backups", "Backups"]
+  ["openclaw", "OpenClaw / Teddy"]
 ];
 
 const REFRESH_MS = 420000;
@@ -110,28 +109,6 @@ function renderNeeds(needs) {
   needs.forEach(item => list.append(span("need-chip", item)));
 }
 
-function renderInsights(insights) {
-  const title = document.getElementById("teddy-says-title");
-  const grid = document.getElementById("insight-grid");
-  const data = insights || {};
-  title.textContent = data.teddySays || "Waiting.";
-  clear(grid);
-  (data.cards || []).forEach(card => {
-    const item = document.createElement("article");
-    item.className = "insight-card";
-    const top = div("insight-top");
-    const metric = div();
-    const value = document.createElement("strong");
-    value.textContent = card.value || "--";
-    metric.append(div("tiny-label", card.title || "Signal"), value);
-    top.append(metric, span(`status-dot ${stateClass(card.state || "warn")}`));
-    const detail = document.createElement("p");
-    detail.textContent = card.detail || "No detail.";
-    item.append(top, div("insight-label", card.label || "Current"), detail);
-    grid.append(item);
-  });
-}
-
 function signalValue(signal, fallback = "--") {
   if (!signal) return fallback;
   if (signal.value !== undefined && signal.value !== null) return String(signal.value);
@@ -168,18 +145,6 @@ function renderSignals(intelligence) {
   const homebridge = data.homebridge || {};
   const weirdItems = Array.isArray(data.weirdThings) ? data.weirdThings : [];
   const weirdFindings = weirdItems.filter(item => item.title !== "No new weird thing");
-  const weirdState = weirdFindings.some(item => item.state === "bad")
-    ? "bad"
-    : weirdFindings.some(item => item.state === "warn")
-      ? "warn"
-      : weirdFindings.some(item => item.state === "info")
-        ? "info"
-        : "ok";
-  const weirdDetail = weirdFindings.length
-    ? weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ")
-    : weirdItems.length
-      ? weirdItems[0].detail
-    : "Waiting.";
 
   renderSignalCard(grid, "AdGuard blocks", data.adguard, data.adguard && data.adguard.label);
   renderSignalCard(grid, "Homebridge accessories", homebridge.accessories, "known accessories");
@@ -187,7 +152,15 @@ function renderSignals(intelligence) {
   renderSignalCard(grid, "Public Funnel", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
   renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
   renderSignalCard(grid, "Software updates", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
-  renderSignalCard(grid, "Weird detector", { state: weirdState, value: weirdFindings.length }, "change detector", weirdDetail);
+  if (weirdFindings.length > 0) {
+    const weirdState = weirdFindings.some(item => item.state === "bad")
+      ? "bad"
+      : weirdFindings.some(item => item.state === "warn")
+        ? "warn"
+        : "info";
+    const weirdDetail = weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ");
+    renderSignalCard(grid, "Weird detector", { state: weirdState, value: weirdFindings.length }, "change detector", weirdDetail);
+  }
 }
 
 function renderEvents(events) {
@@ -244,7 +217,6 @@ async function loadHealth() {
     const data = await res.json();
     renderSummary(data);
     renderNeeds(data.needsDan);
-    renderInsights(data.insights);
     renderServices(data);
     renderVitals(data.vitals || {});
     renderSignals(data.intelligence);

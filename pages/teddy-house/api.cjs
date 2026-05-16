@@ -10,6 +10,20 @@ const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
 const EVIDENCE_LIMIT = 120;
+const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
+const DEFAULT_SIGNAL_KEYS = [
+  'adguardBlocks',
+  'homebridgeAccessories',
+  'homebridgeLogs',
+  'publicFunnel',
+  'wanQuality',
+  'softwareUpdates'
+];
+const HIDDEN_BY_DEFAULT = {
+  services: ['backups'],
+  signals: ['weirdThings'],
+  sections: ['readout', 'dependencyMap']
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -169,19 +183,24 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
       },
       serviceGrid: {
         type: 'probe-cards',
-        count: Object.keys(services).length,
+        count: DEFAULT_SERVICE_KEYS.length,
+        defaultKeys: DEFAULT_SERVICE_KEYS,
+        hiddenKeys: HIDDEN_BY_DEFAULT.services,
         source: 'live service probes',
-        inputs: serviceStates
+        inputs: Object.fromEntries(DEFAULT_SERVICE_KEYS.map(key => [key, serviceStates[key]]))
       },
       insightGrid: {
         type: 'metric-cards',
         count: Array.isArray(insights.cards) ? insights.cards.length : 0,
+        defaultVisible: false,
         source: 'derived from live probes and local logs',
         inputs: (insights.cards || []).map(stripSignal)
       },
       signalGrid: {
         type: 'metric-cards',
-        count: 7,
+        count: DEFAULT_SIGNAL_KEYS.length,
+        defaultKeys: DEFAULT_SIGNAL_KEYS,
+        hiddenKeys: HIDDEN_BY_DEFAULT.signals,
         source: 'AdGuard, Homebridge, Tailscale, WAN, npm, git, and change-detector probes',
         inputs: {
           adguardBlocks: stripSignal(intelligence.adguard),
@@ -200,6 +219,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
       },
       dependencyMap: {
         type: 'static-topology',
+        defaultVisible: false,
         source: 'declared Teddy House architecture',
         inputs: ['Internet', 'Tailscale', 'Mac mini', 'AdGuard DNS', 'Homebridge', 'OpenClaw / Teddy']
       },
@@ -210,6 +230,14 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         latest: timeline[0] || null
       }
     }
+  };
+}
+
+function buildPresentationContract() {
+  return {
+    defaultServiceKeys: DEFAULT_SERVICE_KEYS,
+    defaultSignalKeys: DEFAULT_SIGNAL_KEYS,
+    hiddenByDefault: HIDDEN_BY_DEFAULT
   };
 }
 
@@ -920,6 +948,7 @@ module.exports = function(ctx = {}) {
           insights,
           intelligence,
           visualEvidence,
+          presentation: buildPresentationContract(),
           vitals: systemVitals,
           events: timeline.length ? timeline : eventsFromServices(services),
           timeline

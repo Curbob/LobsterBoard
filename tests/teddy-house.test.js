@@ -68,6 +68,11 @@ describe('Teddy House health API', () => {
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
     expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
     expect(data.visualEvidence.latest.visuals.dependencyMap.type).toBe('static-topology');
+    expect(data).toHaveProperty('presentation');
+    expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw']);
+    expect(data.presentation.hiddenByDefault.services).toContain('backups');
+    expect(data.presentation.hiddenByDefault.signals).toContain('weirdThings');
+    expect(data.presentation.hiddenByDefault.sections).toEqual(expect.arrayContaining(['readout', 'dependencyMap']));
     expect(data.vitals).toHaveProperty('memory');
     expect(Array.isArray(data.events)).toBe(true);
     expect(Array.isArray(data.timeline)).toBe(true);
@@ -90,17 +95,41 @@ describe('Teddy House health API', () => {
     expect(secondData.timeline.length).toBeGreaterThanOrEqual(firstData.timeline.length);
   }, 16000);
 
-  it('renders the deep signals and timeline surfaces', () => {
+  it('keeps default graphs backed by real health signals', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const visuals = data.visualEvidence.latest.visuals;
+
+    expect(visuals.serviceGrid.type).toBe('probe-cards');
+    expect(visuals.serviceGrid.defaultKeys).toEqual(data.presentation.defaultServiceKeys);
+    expect(Object.keys(visuals.serviceGrid.inputs)).toEqual(data.presentation.defaultServiceKeys);
+    for (const key of data.presentation.defaultServiceKeys) {
+      expect(visuals.serviceGrid.inputs[key]).toEqual(expect.objectContaining({
+        state: expect.any(String),
+        check: expect.any(String)
+      }));
+    }
+
+    expect(visuals.signalGrid.type).toBe('metric-cards');
+    expect(visuals.signalGrid.defaultKeys).toEqual(data.presentation.defaultSignalKeys);
+    for (const key of data.presentation.defaultSignalKeys) {
+      expect(visuals.signalGrid.inputs[key]).toBeTruthy();
+    }
+    expect(visuals.signalGrid.inputs.weirdThings).toEqual(expect.any(Number));
+    expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
+  }, 12000);
+
+  it('keeps the default dashboard view quiet', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
 
-    expect(html).toContain('id="signals"');
-    expect(html).toContain('Details');
-    expect(html).toContain('History');
-    expect(script).toContain('function renderSignals');
-    expect(script).toContain('renderSignals(data.intelligence)');
-    expect(script).toContain('Software updates');
-    expect(script).toContain('renderEvents(data.timeline || data.events || [])');
+    expect(html).not.toContain('class="insight-band"');
+    expect(html).not.toContain('Readout');
+    expect(html).not.toContain('class="panel map-panel"');
+    expect(script).not.toContain('["backups", "Backups"]');
+    expect(script).not.toContain('renderInsights(data.insights)');
+    expect(script).toContain('if (weirdFindings.length > 0)');
   });
 
   it('keeps Teddy personality restrained in the dashboard shell', () => {
@@ -140,6 +169,8 @@ describe('Teddy House health API', () => {
     expect(Array.isArray(evidence.entries)).toBe(true);
     expect(evidence.entries.length).toBeGreaterThan(0);
     expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service probes');
+    expect(evidence.entries[0].visuals.serviceGrid.hiddenKeys).toContain('backups');
+    expect(evidence.entries[0].visuals.signalGrid.hiddenKeys).toContain('weirdThings');
     expect(evidence.entries[0].visuals.timeline.source).toBe('data/teddy-house/timeline.json');
   }, 12000);
 
@@ -156,6 +187,28 @@ describe('Teddy House health API', () => {
     const data = await res.json();
 
     expect(data.services.backups.state).toBe('info');
+    expect(data.presentation.defaultServiceKeys).not.toContain('backups');
     expect(data.needsDan.join(' ')).not.toMatch(/backup|time machine/i);
+  }, 12000);
+
+  it('keeps hidden widgets available without making them default UI requirements', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const visuals = data.visualEvidence.latest.visuals;
+
+    expect(data.services).toHaveProperty('backups');
+    expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
+    expect(data.insights).toHaveProperty('cards');
+    expect(visuals.dependencyMap.inputs.length).toBeGreaterThan(0);
+
+    expect(visuals.serviceGrid.inputs).not.toHaveProperty('backups');
+    expect(visuals.insightGrid.defaultVisible).toBe(false);
+    expect(visuals.dependencyMap.defaultVisible).toBe(false);
+    expect(data.presentation.hiddenByDefault).toEqual({
+      services: ['backups'],
+      signals: ['weirdThings'],
+      sections: ['readout', 'dependencyMap']
+    });
   }, 12000);
 });

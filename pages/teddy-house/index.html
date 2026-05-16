@@ -28,10 +28,8 @@
       <nav class="side-nav" aria-label="Dashboard sections">
         <a class="active" href="#overview">Overview</a>
         <a href="#signals">Signals</a>
-        <a href="#network">Network</a>
-        <a href="#home">Home</a>
+        <a href="#service-grid">Network</a>
         <a href="#server">Server</a>
-        <a href="#agents">Agents</a>
         <a href="#timeline">Timeline</a>
       </nav>
       <div class="teddy-card">
@@ -87,14 +85,6 @@
         <div class="needs-list" id="needs-list"></div>
       </section>
 
-      <section class="insight-band" aria-labelledby="teddy-says-title">
-        <div class="teddy-says">
-          <p class="eyebrow">Readout</p>
-          <h3 id="teddy-says-title">Waiting.</h3>
-        </div>
-        <div class="insight-grid" id="insight-grid" aria-label="Signals"></div>
-      </section>
-
       <section class="grid service-grid" id="service-grid" aria-label="Service health"></section>
 
       <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">
@@ -118,27 +108,6 @@
             <span class="state-pill" id="vitals-pill">Live</span>
           </div>
           <div class="vitals-grid" id="vitals-grid"></div>
-        </article>
-
-        <article class="panel map-panel" id="network">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Map</p>
-              <h3>Path</h3>
-            </div>
-          </div>
-          <div class="dependency-map">
-            <div class="node">Internet</div>
-            <div class="line"></div>
-            <div class="node">Tailscale</div>
-            <div class="line"></div>
-            <div class="node primary">Mac mini</div>
-            <div class="branches">
-              <div>AdGuard DNS</div>
-              <div>Homebridge</div>
-              <div>OpenClaw / Teddy</div>
-            </div>
-          </div>
         </article>
 
         <article class="panel events-panel" id="timeline">
