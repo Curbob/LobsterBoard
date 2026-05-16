@@ -15,8 +15,6 @@
   --teal: #66d9d0;
   --blue: #75a7ff;
   --warm: #e9c89a;
-  --honey: #f4b767;
-  --cocoa: #8b5b37;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
 }
 
@@ -28,9 +26,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 17% 12%, rgba(244, 183, 103, 0.12), transparent 26%),
     linear-gradient(135deg, rgba(102, 217, 208, 0.08), transparent 34%),
-    linear-gradient(180deg, #111815, #06090a 58%, #040607);
+    linear-gradient(180deg, #101716, #06090a 58%, #040607);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   letter-spacing: 0;
@@ -54,7 +51,6 @@ button {
 }
 
 .sidebar {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -62,21 +58,6 @@ button {
   border-right: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
   backdrop-filter: blur(30px) saturate(155%);
-}
-
-.sidebar::before {
-  content: "";
-  position: absolute;
-  inset: auto 18px 116px auto;
-  width: 62px;
-  height: 62px;
-  opacity: 0.16;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 70%, var(--honey) 0 13px, transparent 14px),
-    radial-gradient(circle at 20% 34%, var(--honey) 0 8px, transparent 9px),
-    radial-gradient(circle at 50% 20%, var(--honey) 0 8px, transparent 9px),
-    radial-gradient(circle at 80% 34%, var(--honey) 0 8px, transparent 9px);
 }
 
 .traffic-lights {
@@ -96,7 +77,6 @@ button {
 .light.green { background: #00ca4e; }
 
 .brand-block {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -109,11 +89,8 @@ button {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 13px;
-  background:
-    linear-gradient(180deg, rgba(244, 183, 103, 0.14), rgba(102, 217, 208, 0.08)),
-    rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.07);
   overflow: hidden;
-  box-shadow: 0 0 24px rgba(244, 183, 103, 0.12);
 }
 
 .brand-mark img {
@@ -192,11 +169,9 @@ button {
   align-items: center;
   margin-top: auto;
   padding: 12px;
-  border: 1px solid rgba(244, 183, 103, 0.22);
+  border: 1px solid var(--border-soft);
   border-radius: 12px;
-  background:
-    linear-gradient(135deg, rgba(244, 183, 103, 0.10), rgba(102, 217, 208, 0.05)),
-    rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
@@ -208,7 +183,6 @@ button {
   height: 34px;
   border-radius: 44% 44% 48% 48%;
   background: linear-gradient(180deg, #d9b27f, #a6784d);
-  box-shadow: inset 0 -5px 10px rgba(67, 40, 24, 0.28), 0 10px 24px rgba(0, 0, 0, 0.20);
 }
 
 .teddy-face .ear {
@@ -279,20 +253,6 @@ h1 {
   letter-spacing: 0;
 }
 
-.teddy-mode {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  margin-top: 10px;
-  padding: 0 10px;
-  border: 1px solid rgba(244, 183, 103, 0.26);
-  border-radius: 999px;
-  background: rgba(244, 183, 103, 0.08);
-  color: #f4d5a4;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 h2 {
   max-width: 760px;
   font-size: 34px;
@@ -348,7 +308,6 @@ h3 {
 }
 
 .status-band {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -356,73 +315,13 @@ h3 {
   min-height: 164px;
   padding: 24px;
   background:
-    radial-gradient(circle at 82% 12%, rgba(244, 183, 103, 0.18), transparent 24%),
-    linear-gradient(135deg, rgba(102, 217, 208, 0.13), rgba(233, 200, 154, 0.08)),
+    linear-gradient(135deg, rgba(102, 217, 208, 0.13), rgba(233, 200, 154, 0.06)),
     var(--panel-strong);
 }
 
 .status-copy {
   min-width: 0;
   flex: 1 1 auto;
-}
-
-.teddy-hero {
-  position: relative;
-  display: grid;
-  flex: 0 0 108px;
-  width: 108px;
-  height: 108px;
-  place-items: center;
-  border: 1px solid rgba(244, 183, 103, 0.22);
-  border-radius: 22px;
-  background:
-    linear-gradient(180deg, rgba(244, 183, 103, 0.12), rgba(102, 217, 208, 0.06)),
-    rgba(0, 0, 0, 0.12);
-}
-
-.teddy-hero-face {
-  width: 62px;
-  height: 56px;
-  transform: translateY(-7px);
-}
-
-.teddy-hero-face .ear {
-  width: 21px;
-  height: 21px;
-}
-
-.teddy-hero-face .eye {
-  top: 21px;
-  width: 6px;
-  height: 6px;
-}
-
-.teddy-hero-face .eye.left { left: 20px; }
-.teddy-hero-face .eye.right { right: 20px; }
-
-.teddy-hero-face .nose {
-  left: 27px;
-  top: 33px;
-  width: 10px;
-  height: 7px;
-}
-
-.teddy-console {
-  position: absolute;
-  left: 19px;
-  right: 19px;
-  bottom: 15px;
-  display: flex;
-  gap: 5px;
-  justify-content: center;
-}
-
-.teddy-console span {
-  width: 13px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(244, 183, 103, 0.72);
-  box-shadow: 0 0 12px rgba(244, 183, 103, 0.32);
 }
 
 #summary-copy {
@@ -490,42 +389,7 @@ h3 {
   padding: 14px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 18% 22%, rgba(244, 183, 103, 0.16), transparent 34%),
-    rgba(102, 217, 208, 0.08);
-}
-
-.teddy-says-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.teddy-says-face {
-  width: 34px;
-  height: 30px;
-}
-
-.teddy-says-face .ear {
-  top: -4px;
-  width: 12px;
-  height: 12px;
-}
-
-.teddy-says-face .eye {
-  top: 12px;
-  width: 4px;
-  height: 4px;
-}
-
-.teddy-says-face .eye.left { left: 10px; }
-.teddy-says-face .eye.right { right: 10px; }
-
-.teddy-says-face .nose {
-  left: 14px;
-  top: 19px;
-  width: 6px;
-  height: 5px;
+  background: rgba(102, 217, 208, 0.08);
 }
 
 .teddy-says h3 {
@@ -678,14 +542,6 @@ h3 {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
-}
-
-.insight-card:nth-child(2),
-.signal-card:nth-child(2),
-.vital:nth-child(2) {
-  background:
-    linear-gradient(135deg, rgba(244, 183, 103, 0.07), transparent),
-    rgba(255, 255, 255, 0.05);
 }
 
 .signal-top {
@@ -851,10 +707,6 @@ h3 {
   .needs-lane {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .teddy-hero {
-    display: none;
   }
 
   .score-card {
