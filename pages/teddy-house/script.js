@@ -14,6 +14,8 @@ const SPARKS = {
   bad: [76, 32, 18, 48, 22, 15, 38, 20]
 };
 
+const REFRESH_MS = 420000;
+
 function stateClass(state) {
   if (state === "ok") return "state-ok";
   if (state === "info") return "state-info";
@@ -41,34 +43,59 @@ function fmtAge(iso) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function clear(el) {
+  el.replaceChildren();
+}
+
+function div(className, text) {
+  const el = document.createElement("div");
+  if (className) el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function span(className, text) {
+  const el = document.createElement("span");
+  if (className) el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
 function renderSparkline(state) {
   const values = SPARKS[state] || SPARKS.warn;
-  return `<div class="sparkline" aria-hidden="true">${values.map(v => `<span style="height:${v}%"></span>`).join("")}</div>`;
+  const sparkline = div("sparkline");
+  sparkline.setAttribute("aria-hidden", "true");
+  values.forEach(value => {
+    const bar = document.createElement("span");
+    bar.style.height = `${value}%`;
+    sparkline.append(bar);
+  });
+  return sparkline;
 }
 
 function renderServices(data) {
   const grid = document.getElementById("service-grid");
   const services = data.services || {};
-  grid.innerHTML = SERVICES.map(([key, name]) => {
+  clear(grid);
+  SERVICES.forEach(([key, name]) => {
     const item = services[key] || { state: "warn", detail: "No data yet.", metric: "--" };
-    return `
-      <article class="service-card">
-        <div class="service-top">
-          <div>
-            <div class="service-name">${name}</div>
-            <div class="tiny-label">${stateLabel(item.state)}</div>
-          </div>
-          <span class="status-dot ${stateClass(item.state)}"></span>
-        </div>
-        <div class="service-detail">${item.detail || "No detail available."}</div>
-        ${renderSparkline(item.state)}
-        <div class="metric-row">
-          <span>${item.check || "Last check"}</span>
-          <strong>${item.metric || "--"}</strong>
-        </div>
-      </article>
-    `;
-  }).join("");
+    const card = document.createElement("article");
+    card.className = "service-card";
+
+    const top = div("service-top");
+    const copy = div();
+    copy.append(div("service-name", name), div("tiny-label", stateLabel(item.state)));
+    top.append(copy, span(`status-dot ${stateClass(item.state)}`));
+
+    const detail = div("service-detail", item.detail || "No detail available.");
+    const metric = div("metric-row");
+    const strong = document.createElement("strong");
+    strong.textContent = item.metric || "--";
+    metric.append(span("", item.check || "Last check"), strong);
+
+    card.append(top, detail, renderSparkline(item.state), metric);
+    grid.append(card);
+  });
 }
 
 function renderVitals(vitals) {
@@ -81,24 +108,25 @@ function renderVitals(vitals) {
     ["Network", vitals.network || "--"],
     ["Host", vitals.host || "--"]
   ];
-  grid.innerHTML = rows.map(([label, value]) => `
-    <div class="vital">
-      <div class="tiny-label">${label}</div>
-      <div class="vital-value">${value}</div>
-    </div>
-  `).join("");
+  clear(grid);
+  rows.forEach(([label, value]) => {
+    const item = div("vital");
+    item.append(div("tiny-label", label), div("vital-value", value));
+    grid.append(item);
+  });
 }
 
 function renderNeeds(needs) {
   const title = document.getElementById("needs-title");
   const list = document.getElementById("needs-list");
+  clear(list);
   if (!needs || needs.length === 0) {
     title.textContent = "No action needed right now.";
-    list.innerHTML = `<span class="badge">Clear</span>`;
+    list.append(span("badge", "Clear"));
     return;
   }
   title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} need attention.`;
-  list.innerHTML = needs.map(item => `<span class="need-chip">${item}</span>`).join("");
+  needs.forEach(item => list.append(span("need-chip", item)));
 }
 
 function renderInsights(insights) {
@@ -106,30 +134,33 @@ function renderInsights(insights) {
   const grid = document.getElementById("insight-grid");
   const data = insights || {};
   title.textContent = data.teddySays || "No read yet.";
-  grid.innerHTML = (data.cards || []).map(card => `
-    <article class="insight-card">
-      <div class="insight-top">
-        <div>
-          <div class="tiny-label">${card.title || "Signal"}</div>
-          <strong>${card.value || "--"}</strong>
-        </div>
-        <span class="status-dot ${stateClass(card.state || "warn")}"></span>
-      </div>
-      <div class="insight-label">${card.label || "Current"}</div>
-      <p>${card.detail || "No detail available."}</p>
-    </article>
-  `).join("");
+  clear(grid);
+  (data.cards || []).forEach(card => {
+    const item = document.createElement("article");
+    item.className = "insight-card";
+    const top = div("insight-top");
+    const metric = div();
+    const value = document.createElement("strong");
+    value.textContent = card.value || "--";
+    metric.append(div("tiny-label", card.title || "Signal"), value);
+    top.append(metric, span(`status-dot ${stateClass(card.state || "warn")}`));
+    const detail = document.createElement("p");
+    detail.textContent = card.detail || "No detail available.";
+    item.append(top, div("insight-label", card.label || "Current"), detail);
+    grid.append(item);
+  });
 }
 
 function renderEvents(events) {
   const list = document.getElementById("events-list");
-  list.innerHTML = (events || []).map(event => `
-    <div class="event">
-      <span>${event.time}</span>
-      <strong>${event.title}</strong>
-      <span>${event.detail}</span>
-    </div>
-  `).join("");
+  clear(list);
+  (events || []).forEach(event => {
+    const item = div("event");
+    const title = document.createElement("strong");
+    title.textContent = event.title || "Event";
+    item.append(span("", event.time || "--"), title, span("", event.detail || "No detail available."));
+    list.append(item);
+  });
 }
 
 function renderSummary(data) {
@@ -180,7 +211,9 @@ async function loadHealth() {
     renderEvents(data.events || []);
   } catch (err) {
     document.getElementById("summary-title").textContent = "Teddy could not finish the check.";
-    document.getElementById("summary-copy").innerHTML = `<span class="error-box">${err.message}</span>`;
+    const copy = document.getElementById("summary-copy");
+    clear(copy);
+    copy.append(span("error-box", err.message));
   } finally {
     button.disabled = false;
     button.textContent = "Refresh";
@@ -189,4 +222,4 @@ async function loadHealth() {
 
 document.getElementById("refresh-button").addEventListener("click", loadHealth);
 loadHealth();
-setInterval(loadHealth, 60000);
+setInterval(loadHealth, REFRESH_MS);

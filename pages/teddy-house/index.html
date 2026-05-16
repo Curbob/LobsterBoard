@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teddy House</title>
+  <link rel="icon" href="/pages/teddy-house/teddy-house-icon.png" type="image/png">
   <link rel="stylesheet" href="/pages/teddy-house/style.css">
 </head>
 <body>
@@ -15,12 +16,15 @@
         <span class="light green"></span>
       </div>
       <div class="brand-block">
-        <div class="brand-mark">TH</div>
+        <div class="brand-mark" aria-hidden="true">
+          <img src="/pages/teddy-house/teddy-house-icon.png" alt="">
+        </div>
         <div>
           <div class="brand-title">Teddy House</div>
           <div class="brand-subtitle">House systems cockpit</div>
         </div>
       </div>
+      <nav id="page-nav" class="lobster-page-nav" aria-label="LobsterBoard pages"></nav>
       <nav class="side-nav" aria-label="Teddy House sections">
         <a class="active" href="#overview">Overview</a>
         <a href="#network">Network</a>
@@ -138,6 +142,7 @@
     </main>
   </div>
 
+  <script src="/pages/_shared/nav.js"></script>
   <script src="/pages/teddy-house/script.js"></script>
 </body>
 </html>

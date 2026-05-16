@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Teddy House</title>
+  <desc id="desc">A glassy Mac mini house dashboard icon with a small Teddy face.</desc>
+  <defs>
+    <linearGradient id="bg" x1="96" y1="56" x2="416" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#78e0d6"/>
+      <stop offset="0.48" stop-color="#1b2a2a"/>
+      <stop offset="1" stop-color="#e7c28e"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="112" y1="104" x2="400" y2="408" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.08"/>
+    </linearGradient>
+    <filter id="shadow" x="48" y="48" width="416" height="416" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="#071012"/>
+  <g filter="url(#shadow)">
+    <rect x="72" y="72" width="368" height="368" rx="92" fill="url(#bg)"/>
+    <rect x="91" y="91" width="330" height="330" rx="76" fill="url(#glass)" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
+  </g>
+  <path d="M148 254L256 160L364 254V360C364 374.36 352.36 386 338 386H174C159.64 386 148 374.36 148 360V254Z" fill="#101919" fill-opacity="0.74" stroke="#ffffff" stroke-opacity="0.22" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M128 258L256 146L384 258" fill="none" stroke="#f0d1a2" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="206" cy="300" r="38" fill="#c99662"/>
+  <circle cx="306" cy="300" r="38" fill="#c99662"/>
+  <circle cx="206" cy="300" r="16" fill="#34231b"/>
+  <circle cx="306" cy="300" r="16" fill="#34231b"/>
+  <path d="M218 342C234 356 278 356 294 342" fill="none" stroke="#f0d1a2" stroke-width="12" stroke-linecap="round"/>
+  <rect x="220" y="252" width="72" height="48" rx="18" fill="#f0d1a2"/>
+  <circle cx="244" cy="277" r="7" fill="#34231b"/>
+  <circle cx="268" cy="277" r="7" fill="#34231b"/>
+  <circle cx="256" cy="290" r="8" fill="#34231b"/>
+</svg>
