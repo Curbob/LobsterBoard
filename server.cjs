@@ -40,6 +40,29 @@ const financeRoutes = require('./server/routes/finance.cjs')();
 const templateRoutes = require('./server/routes/templates.cjs')(ctx);
 const fileRoutes = require('./server/routes/files.cjs')(ctx);
 
+const PUBLIC_INSTALL_ASSETS = new Set([
+  '/pages/teddy-house/apple-touch-icon.png',
+  '/pages/teddy-house/icon-192.png',
+  '/pages/teddy-house/icon-512.png',
+  '/pages/teddy-house/manifest.webmanifest'
+]);
+
+function servePublicInstallAsset(pathname, res) {
+  if (!PUBLIC_INSTALL_ASSETS.has(pathname)) return false;
+  const resolved = path.resolve(PAGES_DIR, pathname.replace(/^\/pages\//, ''));
+  if (!resolved.startsWith(path.resolve(PAGES_DIR, 'teddy-house') + path.sep)) {
+    sendResponse(res, 403, 'text/plain', 'Forbidden');
+    return true;
+  }
+  const ext = path.extname(resolved).toLowerCase();
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  fs.readFile(resolved, (err, data) => {
+    if (err) { sendResponse(res, 404, 'text/plain', 'Not Found'); return; }
+    sendResponse(res, 200, contentType, data, { 'Cache-Control': 'public, max-age=3600' });
+  });
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
@@ -61,6 +84,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && pathname === '/api/auth/logout') {
     return authRoutes.handle(req, res, pathname, parsedUrl);
   }
+
+  if ((req.method === 'GET' || req.method === 'HEAD') && servePublicInstallAsset(pathname, res)) return;
 
   // ── Auth: enforce session for all other routes ──
   if (DASHBOARD_PASSWORD) {

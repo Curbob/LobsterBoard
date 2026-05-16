@@ -1,0 +1,25 @@
+{
+  "name": "Teddy Homebase",
+  "short_name": "Homebase",
+  "description": "Mac mini, network, and home automation status.",
+  "start_url": "/pages/teddy-house/",
+  "scope": "/pages/teddy-house/",
+  "display": "standalone",
+  "background_color": "#081314",
+  "theme_color": "#0b1d1f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pages/teddy-house/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pages/teddy-house/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

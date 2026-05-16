@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { startServer } from '../helpers/server.js';
 
@@ -29,6 +29,60 @@ describe('Teddy Homebase page', () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     expect(script).toContain('const REFRESH_MS = 420000');
     expect(script).toContain('setInterval(loadHealth, REFRESH_MS)');
+  });
+
+  it('has iPhone home-screen metadata and install icons', async () => {
+    const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    expect(html).toContain('name="apple-mobile-web-app-capable" content="yes"');
+    expect(html).toContain('name="apple-mobile-web-app-title" content="Teddy Homebase"');
+    expect(html).toContain('name="apple-mobile-web-app-status-bar-style" content="black-translucent"');
+    expect(html).toContain('rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png"');
+    expect(html).toContain('rel="manifest" href="/pages/teddy-house/manifest.webmanifest"');
+
+    const manifestRes = await fetch(`${srv.baseUrl}/pages/teddy-house/manifest.webmanifest`);
+    expect(manifestRes.status).toBe(200);
+    expect(manifestRes.headers.get('content-type')).toContain('application/manifest+json');
+    const manifest = await manifestRes.json();
+    expect(manifest).toEqual(expect.objectContaining({
+      name: 'Teddy Homebase',
+      short_name: 'Homebase',
+      start_url: '/pages/teddy-house/',
+      display: 'standalone'
+    }));
+    expect(manifest.icons.map(icon => icon.sizes)).toEqual(expect.arrayContaining(['192x192', '512x512']));
+
+    for (const file of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png']) {
+      const iconPath = join(process.cwd(), 'pages/teddy-house', file);
+      expect(existsSync(iconPath)).toBe(true);
+      expect(statSync(iconPath).size).toBeGreaterThan(1000);
+    }
+  });
+
+  it('lets iPhone install assets load before login without exposing the dashboard', async () => {
+    const locked = await startServer({ password: 'test-homebase-lock' });
+    try {
+      const page = await fetch(`${locked.baseUrl}/pages/teddy-house/`, { redirect: 'manual' });
+      expect(page.status).toBe(302);
+      expect(page.headers.get('location')).toContain('/login');
+
+      const manifest = await fetch(`${locked.baseUrl}/pages/teddy-house/manifest.webmanifest`);
+      expect(manifest.status).toBe(200);
+      expect(manifest.headers.get('content-type')).toContain('application/manifest+json');
+
+      const icon = await fetch(`${locked.baseUrl}/pages/teddy-house/apple-touch-icon.png`);
+      expect(icon.status).toBe(200);
+      expect(icon.headers.get('content-type')).toContain('image/png');
+      expect((await icon.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+
+      const iconHead = await fetch(`${locked.baseUrl}/pages/teddy-house/apple-touch-icon.png`, { method: 'HEAD' });
+      expect(iconHead.status).toBe(200);
+      expect(iconHead.headers.get('content-type')).toContain('image/png');
+    } finally {
+      await locked.kill();
+    }
   });
 });
 
