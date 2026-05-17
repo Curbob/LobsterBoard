@@ -5,6 +5,7 @@ data/
 *.log
 node_modules/
 .env
+.clawpatch/
 
 # Security - never commit
 auth.json
