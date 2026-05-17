@@ -6,6 +6,8 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const TIMEOUT_MS = 2200;
+const TEDDY_ASK_TIMEOUT_MS = 45000;
+const TEDDY_ASK_MAX_PROMPT = 600;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
@@ -189,6 +191,103 @@ function writeDataSafe(ctx, filename, obj) {
     if (!ctx || typeof ctx.writeData !== 'function') return;
     ctx.writeData(filename, obj);
   } catch (_) {}
+}
+
+function summarizeForTeddy(context) {
+  const data = context && typeof context === 'object' ? context : {};
+  const services = data.services && typeof data.services === 'object' ? data.services : {};
+  const intelligence = data.intelligence && typeof data.intelligence === 'object' ? data.intelligence : {};
+  const serviceSummary = Object.entries(services)
+    .filter(([key]) => DEFAULT_SERVICE_KEYS.includes(key))
+    .map(([key, service]) => `${SERVICE_NAMES[key] || key}: ${service.state || 'unknown'} (${service.metric || '--'})`)
+    .join('; ');
+  const review = Array.isArray(data.needsDan) ? data.needsDan.slice(0, 8).join('; ') : '';
+  return {
+    checkedAt: data.checkedAt || null,
+    score: data.score ?? null,
+    summary: serviceSummary || 'No service summary supplied.',
+    review: review || 'No review items supplied.',
+    signals: {
+      externalAccess: intelligence.tailscaleFunnel ? stripSignal(intelligence.tailscaleFunnel) : null,
+      wanQuality: intelligence.wanQuality ? stripSignal(intelligence.wanQuality) : null,
+      systemLogs: intelligence.systemLogs ? stripSignal(intelligence.systemLogs) : null,
+      macUpdates: intelligence.macUpdates ? stripSignal(intelligence.macUpdates) : null
+    }
+  };
+}
+
+function extractAgentText(stdout) {
+  try {
+    const parsed = JSON.parse(stdout);
+    const payloads = parsed && parsed.result && Array.isArray(parsed.result.payloads)
+      ? parsed.result.payloads
+      : [];
+    const firstText = payloads.map(item => item && item.text).find(Boolean);
+    if (firstText) return firstText;
+    if (parsed.summary) return parsed.summary;
+  } catch (_) {}
+  return stdout.trim();
+}
+
+async function askTeddy(ctx, body) {
+  const prompt = String(body.prompt || '').trim().slice(0, TEDDY_ASK_MAX_PROMPT);
+  const action = String(body.action || 'ask');
+  const clicked = body.clicked && typeof body.clicked === 'object' ? body.clicked : null;
+  const context = summarizeForTeddy(body.context);
+
+  if (!prompt && action !== 'status') {
+    return { status: 'error', message: 'Ask Teddy needs a question or status request.' };
+  }
+
+  const task = [
+    'Teddy Homebase action request.',
+    'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.',
+    'Answer in 3-5 short bullets. If a fix would require action, say what you would check first and what approval would be needed.',
+    '',
+    `Action: ${action}`,
+    `Prompt: ${prompt || 'Summarize current status and review items.'}`,
+    clicked ? `Clicked signal: ${JSON.stringify(clicked)}` : 'Clicked signal: none',
+    `Dashboard context: ${JSON.stringify(context)}`
+  ].join('\n');
+
+  if (body.dryRun || process.env.TEDDY_HOMEBASE_ASK_DRY_RUN === '1') {
+    return {
+      status: 'complete',
+      dryRun: true,
+      answer: 'Dry run ready. Teddy would receive the current dashboard context and answer here.',
+      promptPreview: task.slice(0, 1200),
+      at: nowIso()
+    };
+  }
+
+  const result = await tryRunFull(
+    'openclaw',
+    ['agent', '--agent', 'main', '--json', '--message', task],
+    TEDDY_ASK_TIMEOUT_MS
+  );
+
+  const record = {
+    at: nowIso(),
+    action,
+    prompt: prompt || 'Summarize current status and review items.',
+    clicked,
+    status: result.ok ? 'complete' : 'failed',
+    answer: result.ok ? extractAgentText(result.stdout) : (result.stderr || 'Teddy did not answer.'),
+    run: result.ok ? (() => {
+      try {
+        const parsed = JSON.parse(result.stdout);
+        return parsed.runId || null;
+      } catch (_) {
+        return null;
+      }
+    })() : null
+  };
+
+  const history = readDataSafe(ctx, 'ask-history.json', { entries: [] });
+  const entries = Array.isArray(history.entries) ? history.entries : [];
+  writeDataSafe(ctx, 'ask-history.json', { entries: [record, ...entries].slice(0, 40) });
+
+  return record;
 }
 
 function stripSignal(signal) {
@@ -1239,6 +1338,7 @@ function eventsFromServices(services) {
 module.exports = function(ctx = {}) {
   return {
     routes: {
+      'POST /ask': async (req, res, { body }) => askTeddy(ctx, body || {}),
       'GET /health': async () => {
         const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence] = await Promise.all([
           checkAdGuard(),

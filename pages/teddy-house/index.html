@@ -95,6 +95,25 @@
         <div class="needs-list" id="needs-list"></div>
       </section>
 
+      <section class="panel ask-panel" id="ask-teddy" aria-labelledby="ask-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Ask Teddy</p>
+            <h3 id="ask-title">Bring the dashboard with you.</h3>
+          </div>
+          <span class="state-pill" id="ask-state">Ready</span>
+        </div>
+        <form class="ask-form" id="ask-form">
+          <label class="sr-only" for="ask-input">Ask Teddy about this dashboard</label>
+          <textarea id="ask-input" rows="2" maxlength="600" placeholder="Ask about this Mac mini..."></textarea>
+          <div class="ask-actions">
+            <button class="ask-secondary" id="ask-status-button" type="button">Send status</button>
+            <button id="ask-submit" type="submit">Ask Teddy</button>
+          </div>
+        </form>
+        <div class="ask-response" id="ask-response" aria-live="polite">Ask a question or send the current status.</div>
+      </section>
+
       <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
 
       <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">

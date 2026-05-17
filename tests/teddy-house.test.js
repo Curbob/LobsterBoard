@@ -31,6 +31,21 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('setInterval(loadHealth, REFRESH_MS)');
   });
 
+  it('includes an Ask Teddy command bar for dashboard actions', async () => {
+    const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+
+    expect(html).toContain('id="ask-teddy"');
+    expect(html).toContain('Ask Teddy');
+    expect(html).toContain('id="ask-input"');
+    expect(html).toContain('id="ask-status-button"');
+    expect(script).toContain('async function askTeddy');
+    expect(script).toContain('/api/pages/teddy-house/ask');
+    expect(script).toContain('context: currentHealth');
+  });
+
   it('has iPhone home-screen metadata and install icons', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
@@ -88,6 +103,59 @@ describe('Teddy Homebase page', () => {
 });
 
 describe('Teddy Homebase health API', () => {
+  it('dry-runs Ask Teddy requests with dashboard context', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dryRun: true,
+        action: 'ask',
+        prompt: 'What should I check first?',
+        clicked: { type: 'review', label: 'WAN: 120 ms' },
+        context: {
+          checkedAt: '2026-05-16T23:00:00.000Z',
+          score: 88,
+          needsDan: ['WAN: 120 ms'],
+          services: {
+            adguard: { state: 'ok', metric: '12 ms' },
+            homebridge: { state: 'ok', metric: '8581' },
+            tailscale: { state: 'ok', metric: '100.64.0.1' },
+            internet: { state: 'warn', metric: '120 ms' },
+            openclaw: { state: 'ok', metric: '18789' }
+          },
+          intelligence: {
+            wanQuality: { state: 'warn', metric: '120 ms', detail: 'Latency is high.' },
+            tailscaleFunnel: { state: 'ok', metric: '10000' }
+          }
+        }
+      })
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toEqual(expect.objectContaining({
+      status: 'complete',
+      dryRun: true,
+      answer: expect.stringContaining('Dry run ready')
+    }));
+    expect(data.promptPreview).toContain('What should I check first?');
+    expect(data.promptPreview).toContain('WAN: 120 ms');
+    expect(data.promptPreview).toContain('Dashboard context');
+  });
+
+  it('requires an Ask Teddy prompt unless the action is status', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, action: 'ask', prompt: '' })
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toEqual(expect.objectContaining({
+      status: 'error',
+      message: expect.stringContaining('needs a question')
+    }));
+  });
+
   it('returns the dashboard health contract', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);

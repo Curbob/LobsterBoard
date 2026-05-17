@@ -35,6 +35,7 @@ const manifest = JSON.parse(read('pages/teddy-house/manifest.webmanifest'));
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
 expect(html.includes('rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png"'), 'missing Apple touch icon');
 expect(html.includes('rel="manifest" href="/pages/teddy-house/manifest.webmanifest"'), 'missing web app manifest');
+expect(html.includes('id="ask-teddy"'), 'missing Ask Teddy command bar');
 expect(manifest.display === 'standalone', 'manifest display must be standalone');
 expect(manifest.start_url === '/pages/teddy-house/', 'manifest start_url must stay on Teddy Homebase');
 expect(manifest.scope === '/', 'manifest scope must include /login after auth redirects');
@@ -49,6 +50,8 @@ expect(css.includes('grid-template-columns: repeat(3, minmax(0, 1fr));'), 'table
 expect(!css.includes('letter-spacing: -'), 'negative letter spacing is banned for this UI');
 
 expect(script.includes('const REFRESH_MS = 420000'), 'manual/auto refresh interval must stay at 420 seconds');
+expect(script.includes('async function askTeddy'), 'Ask Teddy client handler must stay wired');
+expect(script.includes('/api/pages/teddy-house/ask'), 'Ask Teddy client must call page-local ask route');
 expect(!script.match(/sparkline|SPARKS|trend/i), 'fake trend or sparkline language must stay out');
 expect(!script.includes('Teddy House'), 'visible script copy should use Teddy Homebase');
 expect(!script.match(/needs eyes|worth eyes|Everything important|Nothing to do|Live reads|Real data/i), 'dashboard copy should stay polished and direct');

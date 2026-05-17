@@ -7,6 +7,7 @@ const SERVICES = [
 ];
 
 const REFRESH_MS = 420000;
+let currentHealth = null;
 
 function stateClass(state) {
   if (state === "ok") return "state-ok";
@@ -111,7 +112,21 @@ function renderNeeds(needs) {
     return;
   }
   title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} to review.`;
-  needs.forEach(item => list.append(span("need-chip", item)));
+  needs.forEach(item => {
+    const chip = span("need-chip");
+    chip.append(span("", item));
+    const ask = document.createElement("button");
+    ask.className = "ask-mini";
+    ask.type = "button";
+    ask.textContent = "Ask";
+    ask.addEventListener("click", () => askTeddy({
+      action: "explain",
+      prompt: `Explain this Homebase review item: ${item}`,
+      clicked: { type: "review", label: item }
+    }));
+    chip.append(ask);
+    list.append(chip);
+  });
 }
 
 function signalValue(signal, fallback = "--") {
@@ -230,6 +245,7 @@ async function loadHealth() {
     const res = await fetch("/api/pages/teddy-house/health", { cache: "no-store" });
     if (!res.ok) throw new Error(`Health API returned ${res.status}`);
     const data = await res.json();
+    currentHealth = data;
     renderSummary(data);
     renderNeeds(data.needsDan);
     renderServices(data);
@@ -248,5 +264,60 @@ async function loadHealth() {
 }
 
 document.getElementById("refresh-button").addEventListener("click", loadHealth);
+
+function setAskState(state, text) {
+  const pill = document.getElementById("ask-state");
+  const response = document.getElementById("ask-response");
+  if (pill) pill.textContent = state;
+  if (response && text !== undefined) response.textContent = text;
+}
+
+async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
+  const input = document.getElementById("ask-input");
+  const submit = document.getElementById("ask-submit");
+  const statusButton = document.getElementById("ask-status-button");
+  const finalPrompt = (prompt || input.value || "").trim();
+  if (!finalPrompt && action !== "status") {
+    setAskState("Ready", "Ask a question first.");
+    input.focus();
+    return;
+  }
+
+  submit.disabled = true;
+  statusButton.disabled = true;
+  setAskState("Asking", "Sending the current dashboard context to Teddy...");
+
+  try {
+    const res = await fetch("/api/pages/teddy-house/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        prompt: finalPrompt,
+        clicked,
+        context: currentHealth
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.status === "error") throw new Error(data.message || data.error || `Ask Teddy returned ${res.status}`);
+    setAskState(data.status === "complete" ? "Answered" : "Done", data.answer || "Teddy answered, but no text came back.");
+    if (input && action !== "status") input.value = "";
+  } catch (err) {
+    setAskState("Failed", err.message);
+  } finally {
+    submit.disabled = false;
+    statusButton.disabled = false;
+  }
+}
+
+document.getElementById("ask-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  askTeddy({ action: "ask" });
+});
+
+document.getElementById("ask-status-button").addEventListener("click", () => {
+  askTeddy({ action: "status", prompt: "Summarize the current Homebase status and explain what needs review." });
+});
+
 loadHealth();
 setInterval(loadHealth, REFRESH_MS);
