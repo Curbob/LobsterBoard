@@ -2,9 +2,10 @@
  * Teddy Homebase custom page tests.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { JSDOM } from 'jsdom';
 import { startServer } from '../helpers/server.js';
 
 let srv;
@@ -25,6 +26,30 @@ describe('Teddy Homebase page', () => {
     expect(html).toContain('/pages/teddy-house/teddy-house-icon.png');
   });
 
+  it('renders shared navigation with text nodes instead of API-derived HTML', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/_shared/nav.js'), 'utf8');
+    const dom = new JSDOM('<!doctype html><nav id="page-nav"></nav>', {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+    const maliciousTitle = '<img src=x onerror="window.__navInjected = true">';
+    const maliciousId = 'bad"id';
+    dom.window.fetch = vi.fn(async () => ({
+      json: async () => [{ id: maliciousId, icon: '<svg onload=1>', title: maliciousTitle }]
+    }));
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const nav = dom.window.document.getElementById('page-nav');
+    expect(nav.querySelector('img')).toBeNull();
+    expect(dom.window.__navInjected).toBeUndefined();
+    expect(nav.textContent).toContain(maliciousTitle);
+    expect(nav.innerHTML).toContain('&lt;img src=x onerror=');
+    expect(nav.querySelectorAll('a')).toHaveLength(2);
+    expect(nav.querySelectorAll('a')[1].getAttribute('href')).toBe('/pages/bad%22id');
+  });
+
   it('redirects direct file opens to the served Homebase route', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
 
@@ -36,6 +61,58 @@ describe('Teddy Homebase page', () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     expect(script).toContain('const REFRESH_MS = 420000');
     expect(script).toContain('setInterval(loadHealth, REFRESH_MS)');
+  });
+
+  it('keeps the summary rendering alive when checkedAt is missing or invalid', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="refresh-button"></button>
+      <form id="ask-form">
+        <input id="ask-input">
+        <button id="ask-submit"></button>
+      </form>
+      <button id="ask-status-button"></button>
+      <div id="ask-state"></div>
+      <div id="ask-response"></div>
+      <div id="summary-title"></div>
+      <div id="summary-copy"></div>
+      <div id="health-score"></div>
+      <div id="score-ring"></div>
+      <div id="next-action"></div>
+      <div id="last-check"></div>
+      <div id="teddy-line"></div>
+      <div id="needs-title"></div>
+      <div id="needs-list"></div>
+      <div id="service-grid"></div>
+      <div id="vitals-grid"></div>
+      <div id="signal-grid"></div>
+      <div id="events-list"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/health') {
+        return {
+          ok: true,
+          json: async () => ({
+            checkedAt: 'not-a-date',
+            score: 95,
+            needsDan: [],
+            services: {},
+            vitals: {},
+            intelligence: {},
+            timeline: []
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+    expect(dom.window.document.getElementById('last-check').textContent).toBe('Checked unknown');
+    expect(dom.window.document.getElementById('summary-title').textContent).toBe('All core systems are online.');
   });
 
   it('includes an Ask Teddy command bar for dashboard actions', async () => {

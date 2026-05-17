@@ -8,32 +8,44 @@
 
   const currentPath = window.location.pathname;
 
+  function buildNav(links) {
+    const nav = document.createElement('div');
+    nav.className = 'lb-nav';
+
+    const left = document.createElement('div');
+    left.className = 'lb-nav-left';
+
+    links.forEach(link => {
+      const anchor = document.createElement('a');
+      const href = String(link.href || '/');
+      anchor.href = href;
+      anchor.className = 'lb-nav-link';
+      if (href === currentPath || (href !== '/' && currentPath.startsWith(href))) {
+        anchor.classList.add('active');
+      }
+      anchor.textContent = `${link.icon || ''} ${link.title || 'Untitled'}`.trim();
+      left.appendChild(anchor);
+    });
+
+    nav.appendChild(left);
+    navEl.replaceChildren(nav);
+  }
+
   fetch('/api/pages')
     .then(r => r.json())
     .then(pages => {
       const links = [
         { href: '/', icon: '🦞', title: 'Dashboard' }
       ].concat(pages.map(p => ({
-        href: '/pages/' + p.id,
+        href: '/pages/' + encodeURIComponent(p.id),
         icon: p.icon,
         title: p.title
       })));
 
-      navEl.innerHTML = `
-        <div class="lb-nav">
-          <div class="lb-nav-left">
-            ${links.map(l => {
-              const active = l.href === currentPath || (l.href !== '/' && currentPath.startsWith(l.href));
-              return `<a href="${l.href}" class="lb-nav-link${active ? ' active' : ''}">${l.icon} ${l.title}</a>`;
-            }).join('')}
-          </div>
-        </div>
-      `;
+      buildNav(links);
     })
     .catch(() => {
-      navEl.innerHTML = `<div class="lb-nav"><div class="lb-nav-left">
-        <a href="/" class="lb-nav-link">🦞 Dashboard</a>
-      </div></div>`;
+      buildNav([{ href: '/', icon: '🦞', title: 'Dashboard' }]);
     });
 
   // Inject nav styles if not already present

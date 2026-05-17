@@ -36,6 +36,13 @@ function fmtAge(iso) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function fmtCheckedAt(iso) {
+  if (!iso) return "Checked unknown";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Checked unknown";
+  return `Checked ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
 function clear(el) {
   el.replaceChildren();
 }
@@ -210,7 +217,7 @@ function renderSummary(data) {
 
   scoreText.textContent = `${score}`;
   ring.style.background = `conic-gradient(var(--green) ${score * 3.6}deg, rgba(255, 255, 255, 0.10) 0deg)`;
-  last.textContent = `Checked ${new Date(data.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  last.textContent = fmtCheckedAt(data.checkedAt);
 
   if (score >= 90 && needCount === 0) {
     title.textContent = "All core systems are online.";
