@@ -12,6 +12,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
   <title>Teddy Homebase</title>
+  <script>
+    if (window.location.protocol === "file:") {
+      window.location.replace("http://127.0.0.1:8080/pages/teddy-house/");
+    }
+  </script>
   <link rel="icon" href="/pages/teddy-house/teddy-house-icon.png" type="image/png">
   <link rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png">
   <link rel="manifest" href="/pages/teddy-house/manifest.webmanifest">

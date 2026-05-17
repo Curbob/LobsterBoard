@@ -25,6 +25,13 @@ describe('Teddy Homebase page', () => {
     expect(html).toContain('/pages/teddy-house/teddy-house-icon.png');
   });
 
+  it('redirects direct file opens to the served Homebase route', () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+
+    expect(html).toContain('window.location.protocol === "file:"');
+    expect(html).toContain('window.location.replace("http://127.0.0.1:8080/pages/teddy-house/")');
+  });
+
   it('uses a 420 second automatic refresh interval', () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     expect(script).toContain('const REFRESH_MS = 420000');

@@ -33,6 +33,8 @@ const server = read('server.cjs');
 const manifest = JSON.parse(read('pages/teddy-house/manifest.webmanifest'));
 
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
+expect(html.includes('window.location.protocol === "file:"'), 'file-open guard must redirect to served Homebase route');
+expect(html.includes('http://127.0.0.1:8080/pages/teddy-house/'), 'file-open guard must target local Homebase server');
 expect(html.includes('rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png"'), 'missing Apple touch icon');
 expect(html.includes('rel="manifest" href="/pages/teddy-house/manifest.webmanifest"'), 'missing web app manifest');
 expect(html.includes('id="ask-teddy"'), 'missing Ask Teddy command bar');
