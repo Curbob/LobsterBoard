@@ -46,6 +46,21 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('context: currentHealth');
   });
 
+  it('links to the current Teddy Weather PWA and widget from Homebase', async () => {
+    const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+
+    expect(html).toContain('id="weather"');
+    expect(html).toContain('Teddy Weather');
+    expect(html).toContain("Dan and Maria's Lafayette read.");
+    expect(html).toContain('https://teddy-weather-kappa.vercel.app/?review=1');
+    expect(html).toContain('https://teddy-weather-kappa.vercel.app/?review=1&amp;surface=widget');
+    expect(html).toContain('Open Weather');
+    expect(html).toContain('Open Widget');
+    expect(html).not.toContain('https://teddy-weather.vercel.app');
+  });
+
   it('has iPhone home-screen metadata and install icons', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
