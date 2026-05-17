@@ -8,6 +8,8 @@ const { AUTH_FILE, writeJsonFile } = require('../config.cjs');
 const {
   DASHBOARD_PASSWORD, SESSION_TTL_MS, sessions,
   createSession, isValidSession, getSessionCookie,
+  createTrustedDeviceToken, sessionCookieHeader, trustedDeviceCookieHeader,
+  clearSessionCookie, clearTrustedDeviceCookie,
   checkPassword, isRateLimited, recordFailedAttempt, hashPin,
 } = auth;
 
@@ -44,10 +46,13 @@ function handle(req, res, pathname, parsedUrl) {
         const { password } = JSON.parse(body);
         if (checkPassword(password)) {
           const token = createSession();
-          const cookieOpts = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`;
+          const trustedToken = createTrustedDeviceToken();
           res.writeHead(200, {
             'Content-Type': 'application/json',
-            'Set-Cookie': `lb_session=${token}; ${cookieOpts}`
+            'Set-Cookie': [
+              sessionCookieHeader(req, token),
+              trustedDeviceCookieHeader(req, trustedToken),
+            ],
           });
           res.end(JSON.stringify({ status: 'ok', redirect: '/' }));
         } else {
@@ -65,7 +70,10 @@ function handle(req, res, pathname, parsedUrl) {
     const token = getSessionCookie(req);
     if (token) sessions.delete(token);
     res.writeHead(302, {
-      'Set-Cookie': 'lb_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
+      'Set-Cookie': [
+        clearSessionCookie(req),
+        clearTrustedDeviceCookie(req),
+      ],
       'Location': '/login'
     });
     res.end();

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || null;
 const SESSION_TTL_MS = (parseInt(process.env.SESSION_TTL_HOURS) || 24) * 60 * 60 * 1000;
+const TRUSTED_DEVICE_TTL_MS = (parseInt(process.env.TRUSTED_DEVICE_TTL_DAYS) || 30) * 24 * 60 * 60 * 1000;
 
 const sessions = new Map();
 
@@ -31,6 +32,68 @@ function getSessionCookie(req) {
   const cookie = req.headers.cookie || '';
   const match = cookie.match(/(?:^|;\s*)lb_session=([a-f0-9]{64})/);
   return match ? match[1] : null;
+}
+
+function getTrustedCookie(req) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/(?:^|;\s*)lb_trusted=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getCookieOptions(req, maxAgeSeconds) {
+  const host = req.headers.host || '';
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const isHttps = req.socket.encrypted || forwardedProto === 'https' || host.includes('.ts.net');
+  return [
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Strict',
+    `Max-Age=${Math.floor(maxAgeSeconds)}`,
+    isHttps ? 'Secure' : null,
+  ].filter(Boolean).join('; ');
+}
+
+function sessionCookieHeader(req, token) {
+  return `lb_session=${token}; ${getCookieOptions(req, SESSION_TTL_MS / 1000)}`;
+}
+
+function clearSessionCookie(req) {
+  return `lb_session=; ${getCookieOptions(req, 0)}`;
+}
+
+function trustedDeviceSignature(exp, nonce) {
+  return crypto
+    .createHmac('sha256', `lb-trusted-device:${DASHBOARD_PASSWORD || ''}`)
+    .update(`${exp}.${nonce}`)
+    .digest('hex');
+}
+
+function createTrustedDeviceToken(now = Date.now()) {
+  if (!DASHBOARD_PASSWORD) return null;
+  const exp = now + TRUSTED_DEVICE_TTL_MS;
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const sig = trustedDeviceSignature(exp, nonce);
+  return `${exp}.${nonce}.${sig}`;
+}
+
+function isValidTrustedDevice(token) {
+  if (!DASHBOARD_PASSWORD || !token) return false;
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return false;
+  const [expRaw, nonce, sig] = parts;
+  if (!/^\d{10,16}$/.test(expRaw) || !/^[a-f0-9]{32}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(sig)) return false;
+  const exp = Number(expRaw);
+  if (!Number.isFinite(exp) || Date.now() > exp) return false;
+  const expected = trustedDeviceSignature(expRaw, nonce);
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+
+function trustedDeviceCookieHeader(req, token) {
+  return `lb_trusted=${encodeURIComponent(token)}; ${getCookieOptions(req, TRUSTED_DEVICE_TTL_MS / 1000)}`;
+}
+
+function clearTrustedDeviceCookie(req) {
+  return `lb_trusted=; ${getCookieOptions(req, 0)}`;
 }
 
 function checkPassword(input) {
@@ -67,11 +130,19 @@ setInterval(() => {
 module.exports = {
   DASHBOARD_PASSWORD,
   SESSION_TTL_MS,
+  TRUSTED_DEVICE_TTL_MS,
   sessions,
   generateSessionToken,
   createSession,
   isValidSession,
   getSessionCookie,
+  getTrustedCookie,
+  createTrustedDeviceToken,
+  isValidTrustedDevice,
+  sessionCookieHeader,
+  trustedDeviceCookieHeader,
+  clearSessionCookie,
+  clearTrustedDeviceCookie,
   checkPassword,
   isRateLimited,
   recordFailedAttempt,

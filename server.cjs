@@ -19,7 +19,15 @@ const { CWD, PKG_DIR, PAGES_DIRS, PAGES_DIR, MIME_TYPES } = config;
 const { loadPages, matchPageRoute } = require('./server/pages.cjs');
 const { cachedStats, sseClients } = require('./server/stats.cjs');
 const auth = require('./server/auth.cjs');
-const { DASHBOARD_PASSWORD, sessions, isValidSession, getSessionCookie } = auth;
+const {
+  DASHBOARD_PASSWORD,
+  isValidSession,
+  getSessionCookie,
+  getTrustedCookie,
+  isValidTrustedDevice,
+  createSession,
+  sessionCookieHeader,
+} = auth;
 const { isPublicMode } = require('./server/secrets.cjs');
 const { sendResponse, sendJson, sendError } = require('./server/response.cjs');
 
@@ -95,14 +103,19 @@ const server = http.createServer(async (req, res) => {
   if (DASHBOARD_PASSWORD) {
     const token = getSessionCookie(req);
     if (!isValidSession(token)) {
-      if (pathname.startsWith('/api/')) {
-        sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
+      const trustedToken = getTrustedCookie(req);
+      if (isValidTrustedDevice(trustedToken)) {
+        res.setHeader('Set-Cookie', sessionCookieHeader(req, createSession()));
       } else {
-        const next = encodeURIComponent(`${pathname}${parsedUrl.search}`);
-        res.writeHead(302, { 'Location': `/login?next=${next}` });
-        res.end();
+        if (pathname.startsWith('/api/')) {
+          sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
+        } else {
+          const next = encodeURIComponent(`${pathname}${parsedUrl.search}`);
+          res.writeHead(302, { 'Location': `/login?next=${next}` });
+          res.end();
+        }
+        return;
       }
-      return;
     }
   }
 

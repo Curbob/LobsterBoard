@@ -8,6 +8,18 @@ import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+function setCookieHeaders(res) {
+  if (typeof res.headers.getSetCookie === 'function') return res.headers.getSetCookie();
+  const combined = res.headers.get('set-cookie');
+  if (!combined) return [];
+  return combined.split(/,(?=\s*lb_(?:session|trusted)=)/).map(cookie => cookie.trim());
+}
+
+function cookiePair(headers, name) {
+  const cookie = headers.find(value => value.startsWith(`${name}=`));
+  return cookie ? cookie.split(';')[0] : null;
+}
+
 // ─── Password / Session Auth ───────────────────────────
 
 describe('Password auth', () => {
@@ -35,15 +47,17 @@ describe('Password auth', () => {
     expect(res.headers.get('content-type')).toContain('text/html');
   });
 
-  it('POST /api/auth/login with correct password returns session cookie', async () => {
+  it('POST /api/auth/login with correct password returns session and trusted-device cookies', async () => {
     const res = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
     expect(body.redirect).toBe('/');
-    const cookie = res.headers.get('set-cookie');
-    expect(cookie).toContain('lb_session=');
-    expect(cookie).toContain('HttpOnly');
+    const cookies = setCookieHeaders(res);
+    expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+    expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
+    expect(cookies.join('\n')).toContain('HttpOnly');
+    expect(cookies.join('\n')).toContain('Max-Age=2592000');
   });
 
   it('login page only redirects to same-origin relative paths', async () => {
@@ -65,7 +79,7 @@ describe('Password auth', () => {
   it('authenticated requests work with valid session cookie', async () => {
     // Login first
     const loginRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
-    const cookie = loginRes.headers.get('set-cookie').split(';')[0]; // lb_session=...
+    const cookie = cookiePair(setCookieHeaders(loginRes), 'lb_session');
 
     // Use cookie for API request
     const res = await fetch(`${srv.baseUrl}/api/stats`, {
@@ -76,19 +90,43 @@ describe('Password auth', () => {
     expect(data).toHaveProperty('timestamp');
   });
 
+  it('trusted-device cookie refreshes the in-memory session after restart-like loss', async () => {
+    const loginRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
+    const trustedCookie = cookiePair(setCookieHeaders(loginRes), 'lb_trusted');
+    expect(trustedCookie).toBeTruthy();
+
+    const res = await fetch(`${srv.baseUrl}/api/stats`, {
+      headers: { Cookie: trustedCookie },
+    });
+    expect(res.status).toBe(200);
+    expect(cookiePair(setCookieHeaders(res), 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+  });
+
+  it('rejects invalid trusted-device cookies', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/stats`, {
+      headers: { Cookie: 'lb_trusted=bad-token' },
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('POST /api/auth/logout clears session', async () => {
     // Login
     const loginRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
-    const cookie = loginRes.headers.get('set-cookie').split(';')[0];
+    const cookies = setCookieHeaders(loginRes);
+    const cookie = cookiePair(cookies, 'lb_session');
+    const trustedCookie = cookiePair(cookies, 'lb_trusted');
 
     // Logout
     const logoutRes = await fetch(`${srv.baseUrl}/api/auth/logout`, {
       method: 'POST',
-      headers: { Cookie: cookie },
+      headers: { Cookie: `${cookie}; ${trustedCookie}` },
       redirect: 'manual',
     });
     expect(logoutRes.status).toBe(302);
     expect(logoutRes.headers.get('location')).toBe('/login');
+    const clearCookies = setCookieHeaders(logoutRes).join('\n');
+    expect(clearCookies).toContain('lb_session=;');
+    expect(clearCookies).toContain('lb_trusted=;');
 
     // Old cookie should no longer work
     const afterRes = await fetch(`${srv.baseUrl}/api/stats`, {
