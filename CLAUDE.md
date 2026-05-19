@@ -1,6 +1,6 @@
 # Claude Briefing
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 This repo is LobsterBoard with Dan's private Teddy Homebase work layered on top. Treat it like a local production surface for the Mac mini, not a generic demo dashboard.
 
@@ -12,6 +12,7 @@ This repo is LobsterBoard with Dan's private Teddy Homebase work layered on top.
 - Keep Teddy Weather, Focus Room, Claude Usage, and other adjacent pages out of Homebase unless Dan explicitly promotes them.
 - Use real probes, real logs, and real evidence. No fake charts, fake trends, or decorative metrics.
 - Eufy lock data is currently unreliable and ignored on the daily dashboard unless a better live source replaces it.
+- CPU peaks and other trend-like signals must be backed by persisted local history, not generated display noise.
 
 ## Logging Contract
 
@@ -31,6 +32,14 @@ See `docs/UNIFIED-LOGGING-PLAN.md` for the saved Teddy/Codex architecture plan.
 - Local loopback smoke probes are intentionally narrow and exist so health checks can verify Homebase without a browser session.
 - Do not widen unauthenticated routes without an explicit security reason and tests.
 - Do not run broad Tailscale resets. Route changes need Dan approval.
+- Direct `/data/...` file serving must remain blocked. Browser-visible data should go through intentional APIs.
+
+Expected public Funnel routes:
+
+- `:10000` Teddy Homebase
+- `:8443` BlueBubbles
+
+Everything else should stay tailnet-only or local unless Dan approves a change.
 
 ## Storage
 
@@ -54,6 +63,12 @@ curl -sS http://127.0.0.1:8080/api/pages/teddy-house/health
 curl -sS http://127.0.0.1:8080/api/pages/teddy-house/logs
 ```
 
+After server-code or route changes:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.teddy.house-lobsterboard
+```
+
 ## Review Rules
 
 - Preserve Dan's existing dirty work. Do not reset, delete, or broad-clean the tree.
@@ -62,6 +77,8 @@ curl -sS http://127.0.0.1:8080/api/pages/teddy-house/logs
 - For UI work, verify the rendered page on desktop and narrow/mobile widths.
 - Before shipping, report what changed, what passed, what is still unverified, and whether Tailscale was checked.
 
-## Next Repo Gate
+## Repo Gate Status
 
-This repo still needs a proper `AGENTS.md` and a Homebase-level architecture doc. Do that before piling on more features.
+`AGENTS.md` is the operational contract. Keep it current when routes, auth, storage, proof commands, or product boundaries change.
+
+Architecture lives in `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`.

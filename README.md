@@ -4,6 +4,45 @@ A self-hosted, drag-and-drop dashboard builder with 60+ widgets, a template gall
 
 **Works standalone or with [OpenClaw](https://github.com/openclaw/openclaw).** LobsterBoard is a general-purpose dashboard — use it to monitor your homelab, track stocks, display weather, manage todos, or anything else. OpenClaw users get bonus widgets (auth status, cron jobs, activity logs), but they're completely optional.
 
+## Dan's Mac mini Homebase
+
+This checkout also carries Teddy Homebase: Dan's private Mac mini and home-stack cockpit.
+
+Homebase is intentionally quieter than a generic dashboard. The first screen answers:
+
+- Is the house stack steady?
+- What should Dan check first?
+- What changed since the last meaningful check?
+
+Key local routes:
+
+```bash
+http://127.0.0.1:8080/pages/teddy-house/
+http://127.0.0.1:8080/api/pages/teddy-house/health
+http://127.0.0.1:8080/pages/teddy-house/logs/
+```
+
+Approved remote route:
+
+```bash
+https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/
+```
+
+Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, OpenClaw, service logs, macOS/system logs, public route exposure, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
+
+Before changing Homebase behavior, read:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`
+- `docs/UNIFIED-LOGGING-PLAN.md`
+
+Homebase proof command:
+
+```bash
+npm run check -- --runInBand
+```
+
 ![LobsterBoard](lobsterboard-logo-final.png)
 
 ![LobsterBoard Dashboard](lobsterboard-screenshot.jpg)

@@ -1,6 +1,7 @@
 # Teddy Homebase Handoff
 
 Recorded: 2026-05-17 05:38:53 PDT
+Updated: 2026-05-18
 
 Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 
@@ -31,3 +32,20 @@ Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 - `node --check pages/teddy-house/api.cjs` passed.
 - `npm run lint` passed.
 - Socket-based Vitest server suites could not run in the 2026-05-17 Codex sandbox because binding `127.0.0.1` failed with `EPERM`.
+
+## Current SDLC Checkpoint
+
+- Latest Homebase commit: `fe3af9c` (`Polish Teddy Homebase dashboard`).
+- Current full proof command: `npm run check -- --runInBand`.
+- Latest checked result during the SDLC pass: 98 tests passed.
+- `AGENTS.md` is now the operational contract for future Codex work.
+- Architecture map: `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`.
+
+## Product Decisions To Preserve
+
+- Empty Review lane stays hidden when there are no review items.
+- Mac mini vitals appear before Ask Teddy and raw evidence.
+- Memory card shows macOS memory pressure/free percentage, not scary cache-heavy used RAM as the primary value.
+- CPU card may show recent peaks only from persisted `vitals-history.json`.
+- Changes timeline groups repeat events instead of showing the same warning over and over.
+- Direct `/data/...` routes stay blocked.

@@ -1,6 +1,6 @@
 # Teddy Homebase Unified Logging Plan
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 ## Goal
 
@@ -49,3 +49,10 @@ Teddy's live read on 2026-05-17:
 - Add named suppression rules with expiration dates for known noisy devices.
 - Add source-level Ask Teddy actions once the local agent bridge is stable.
 - Add a durable log analyzer runbook under OpenClaw docs if this view becomes an operator workflow.
+
+## SDLC Guardrails
+
+- Do not promote repeated identical log findings into multiple timeline rows. Group them and show a count.
+- Do not add graph-like UI unless the data is persisted and the source is visible.
+- Keep noisy sources out of the Review lane unless they cross a clear warn or bad threshold.
+- Keep Eufy plugin evidence visible only as degraded/ignored evidence until lock truth is reliable.
