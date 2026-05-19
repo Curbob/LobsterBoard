@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
@@ -776,6 +776,38 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(secondData.timeline.length).toBeGreaterThanOrEqual(firstData.timeline.length);
   }, 16000);
 
+  it('keeps resolved log warnings out of the house-state recent changes', async () => {
+    const dataDir = join(srv.cwd, 'data', 'teddy-house');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v3',
+      state: 'ok',
+      detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
+      metric: '0',
+      check: 'System logs',
+      confidence: 'live'
+    }, null, 2));
+    writeFileSync(join(dataDir, 'timeline.json'), JSON.stringify({
+      events: [
+        {
+          at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          time: '9:55 PM',
+          title: 'System logs',
+          detail: 'Recent Mac logs need attention.',
+          state: 'warn'
+        }
+      ]
+    }, null, 2));
+
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.intelligence.systemLogs.state).toBe('ok');
+    expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/System logs|Recent Mac logs need attention/);
+    expect(data.timeline.some(event => event.title === 'System logs')).toBe(true);
+  }, 12000);
+
   it('keeps default graphs backed by real health signals', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);
@@ -888,7 +920,20 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
 
     expect(api).toContain("state: gitState.state === 'warn' ? 'warn' : updatesAvailable > 0 ? 'info' : 'ok'");
     expect(api).toContain("state: gitState.state === 'warn' ? 'warn' : cachedUpdates > 0 ? 'info' : 'ok'");
+    expect(api).toContain('function reconcileCachedSoftwareItems');
+    expect(api).toContain('updateItemFromInstalled');
     expect(api).not.toContain("updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok'");
+  });
+
+  it('reads the active OpenClaw log before older fallback logs', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain('function openClawLogCandidates');
+    expect(api).toContain('/tmp/openclaw/openclaw-${localDateStamp(0)}.log');
+    expect(api).toContain('logFileSummary(\'OpenClaw\', openClawLogCandidates()');
+    expect(api).toContain('JSON.parse(text)');
+    expect(api).toContain('function logLineMessage');
+    expect(api).toContain('payload.message || payload[1] || payload[0]');
   });
 
   it('keeps empty dashboard sections hidden until health data loads', () => {

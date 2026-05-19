@@ -856,15 +856,65 @@ function normalizeGitCopy(detail) {
     .replace('Git branch is clean locally.', 'Repo is clean.');
 }
 
+function updateItemFromInstalled(cachedItem, installedItem) {
+  const item = {
+    ...cachedItem,
+    installed: installedItem && installedItem.installed && installedItem.installed !== 'unknown'
+      ? installedItem.installed
+      : cachedItem.installed
+  };
+  if (installedItem && installedItem.state === 'info') {
+    return {
+      ...item,
+      state: 'info',
+      detail: installedItem.detail
+    };
+  }
+  if (!item.latest) {
+    return {
+      ...item,
+      state: 'info',
+      detail: `${item.name} is installed at ${item.installed}; latest version check was unavailable.`
+    };
+  }
+  const cmp = compareVersions(item.installed, item.latest);
+  return {
+    ...item,
+    state: cmp < 0 ? 'warn' : 'ok',
+    detail: cmp < 0
+      ? `${item.name} can update from ${item.installed} to ${item.latest}.`
+      : `${item.name} is current at ${item.installed}.`
+  };
+}
+
+async function reconcileCachedSoftwareItems(cached) {
+  const items = Array.isArray(cached && cached.items) ? cached.items : [];
+  if (!items.length) return items;
+  const [openclaw, lobsterboard] = await Promise.all([
+    openClawVersion(),
+    lobsterBoardVersion()
+  ]);
+  const installedByName = new Map([
+    [openclaw.name, openclaw],
+    [lobsterboard.name, lobsterboard],
+    ['Teddy House', lobsterboard]
+  ]);
+  return items.map(item => updateItemFromInstalled(item, installedByName.get(item.name)));
+}
+
 async function checkSoftwareUpdates(ctx) {
   const cached = readDataSafe(ctx, 'software-updates.json', null);
   if (cached && cached.checkedAt && Date.now() - new Date(cached.checkedAt).getTime() < UPDATE_CACHE_MS) {
-    const gitState = await gitFreshness(path.resolve(__dirname, '..', '..'));
-    const cachedUpdates = Array.isArray(cached.items)
-      ? cached.items.filter(item => item.state === 'warn').length
+    const [gitState, items] = await Promise.all([
+      gitFreshness(path.resolve(__dirname, '..', '..')),
+      reconcileCachedSoftwareItems(cached)
+    ]);
+    const cachedUpdates = items.length
+      ? items.filter(item => item.state === 'warn').length
       : Number(cached.value || 0);
-    return normalizeSoftwareUpdateCopy({
+    const normalized = normalizeSoftwareUpdateCopy({
       ...cached,
+      items,
       state: gitState.state === 'warn' ? 'warn' : cachedUpdates > 0 ? 'info' : 'ok',
       value: cachedUpdates > 0 ? `${cachedUpdates}` : 'current',
       confidence: 'cached',
@@ -873,6 +923,8 @@ async function checkSoftwareUpdates(ctx) {
         : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
       git: gitState
     });
+    writeDataSafe(ctx, 'software-updates.json', normalized);
+    return normalized;
   }
 
   const [openclaw, lobsterboard] = await Promise.all([
@@ -1176,8 +1228,19 @@ function stripAnsi(text) {
   return String(text || '').replace(/\x1b\[[0-9;]*m/g, '');
 }
 
+function logLineMessage(line) {
+  const text = stripAnsi(line);
+  if (!text.startsWith('{')) return text;
+  try {
+    const payload = JSON.parse(text);
+    return payload.message || payload[1] || payload[0] || text;
+  } catch (_) {
+    return text;
+  }
+}
+
 function redactLogLine(line) {
-  return stripAnsi(line)
+  return logLineMessage(line)
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/(password|token|access_token|refresh_token|id_token|cloud_token)([^A-Za-z0-9]+)[^,\s]+/gi, '$1$2[redacted]')
     .replace(/\b(setup code|passcode|manual pairing code)([^A-Za-z0-9]+)[0-9 -]{6,}/gi, '$1$2[redacted]')
@@ -1230,6 +1293,13 @@ function unifiedLoggingFramework() {
 
 function logLineDate(line) {
   const text = stripAnsi(line);
+  if (text.startsWith('{')) {
+    try {
+      const payload = JSON.parse(text);
+      const stamp = payload && payload._meta && payload._meta.time ? payload._meta.time : payload.time;
+      if (stamp) return new Date(stamp);
+    } catch (_) {}
+  }
   let match = text.match(/^\[(\d{1,2})\/(\d{1,2})\/(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\]/);
   if (match) {
     const [, month, day, year, hourRaw, minute, second, ampm] = match;
@@ -1260,6 +1330,25 @@ async function freshestFile(candidates) {
   }
   readable.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
   return readable[0] || null;
+}
+
+function localDateStamp(offsetDays = 0) {
+  const date = new Date(Date.now() - offsetDays * 24 * HOUR_MS);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function openClawLogCandidates() {
+  return [
+    `/tmp/openclaw/openclaw-${localDateStamp(0)}.log`,
+    `/tmp/openclaw/openclaw-${localDateStamp(1)}.log`,
+    '/Users/teddyclaw/.openclaw/logs/gateway.err.log',
+    '/Users/teddyclaw/.openclaw/logs/gateway.log',
+    '/Users/teddyclaw/.openclaw/logs/gateway-watchdog.err.log',
+    '/Users/teddyclaw/.openclaw/logs/gateway-health.log'
+  ];
 }
 
 async function logFileSummary(name, candidates, options = {}) {
@@ -1361,12 +1450,7 @@ async function serviceLogOverview(ctx) {
     logFileSummary('Eufy plugin', [
       '/Users/teddyclaw/.homebridge/eufysecurity/eufy-security.log'
     ], { warnAt: 3, badAt: 10 }),
-    logFileSummary('OpenClaw', [
-      '/Users/teddyclaw/.openclaw/logs/gateway.err.log',
-      '/Users/teddyclaw/.openclaw/logs/gateway.log',
-      '/Users/teddyclaw/.openclaw/logs/gateway-watchdog.err.log',
-      '/Users/teddyclaw/.openclaw/logs/gateway-health.log'
-    ], { warnAt: 10, badAt: 40, issuePattern: /\b(ERROR|WARN|FATAL|uncaught|exception|EADDRINUSE|ETIMEDOUT|ECONNRESET|handshake timeout|invalid config)\b/ }),
+    logFileSummary('OpenClaw', openClawLogCandidates(), { warnAt: 10, badAt: 40, issuePattern: /\b(ERROR|WARN|FATAL|uncaught|exception|EADDRINUSE|ETIMEDOUT|ECONNRESET|handshake timeout|invalid config)\b/ }),
     logFileSummary('AdGuard', [
       '/var/log/AdGuardHome.stderr.log',
       '/var/log/AdGuardHome.stdout.log'
@@ -1866,14 +1950,16 @@ async function homebridgeLogHealth() {
 
 async function openClawReadyAge() {
   try {
-    const log = await fs.readFile('/Users/teddyclaw/.openclaw/logs/gateway.log', 'utf8');
+    const latest = await freshestFile(openClawLogCandidates());
+    if (!latest) return { age: 'unknown', detail: 'Could not read OpenClaw log.' };
+    const log = await fs.readFile(latest.filePath, 'utf8');
     const ready = log
       .split('\n')
-      .filter(line => line.includes('[gateway] ready'))
+      .filter(line => line.includes('[gateway] ready') || line.includes('Gateway Health') || line.includes('CODEx_BOOT_OK'))
       .pop();
     if (!ready) return { age: 'unknown', detail: 'No recent ready signal found.' };
-    const stamp = ready.slice(0, 29);
-    return { age: formatAgeFromDate(new Date(stamp)), detail: `Last ready signal was ${formatAgeFromDate(new Date(stamp))}.` };
+    const stamp = logLineDate(ready);
+    return { age: formatAgeFromDate(stamp), detail: `Last ready signal was ${formatAgeFromDate(stamp)}.` };
   } catch (_) {
     return { age: 'unknown', detail: 'Could not read OpenClaw log.' };
   }
@@ -2119,11 +2205,28 @@ function translatePrimaryAction(needs) {
   return 'Start with the first review item.';
 }
 
-function meaningfulRecentChanges(timeline) {
+function isResolvedRecentChange(event, current) {
+  if (!event || (event.state !== 'warn' && event.state !== 'bad')) return false;
+  const title = String(event.title || '').toLowerCase();
+  if (title.includes('system logs')) return current.systemLogs && current.systemLogs.state === 'ok';
+  if (title.includes('service logs')) return current.serviceLogs && current.serviceLogs.state === 'ok';
+  if (title.includes('updates') || title.includes('app versions')) {
+    return current.softwareUpdates && current.softwareUpdates.state !== 'warn' && current.softwareUpdates.state !== 'bad';
+  }
+  if (title.includes('macos')) return current.macUpdates && current.macUpdates.state === 'ok';
+  if (title.includes('wan')) return current.wanQuality && current.wanQuality.state === 'ok';
+  if (title.includes('external access') || title.includes('public access')) {
+    return current.tailscaleFunnel && current.tailscaleFunnel.state !== 'warn' && current.tailscaleFunnel.state !== 'bad';
+  }
+  return false;
+}
+
+function meaningfulRecentChanges(timeline, current = {}) {
   const grouped = [];
   for (const event of (Array.isArray(timeline) ? timeline : [])) {
     if (!event || event.title === 'Status check' || event.title === 'No drift') continue;
     if (/no changes/i.test(event.detail || '')) continue;
+    if (isResolvedRecentChange(event, current)) continue;
     const key = `${event.title || 'Change'}|${event.detail || 'Change detected.'}|${event.state || 'info'}`;
     const existing = grouped.find(item => item.key === key);
     if (existing) {
@@ -2233,7 +2336,14 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
     primaryAction: translatePrimaryAction(reviewItems),
     zones,
-    recentChanges: meaningfulRecentChanges(timeline)
+    recentChanges: meaningfulRecentChanges(timeline, {
+      systemLogs: intelligence.systemLogs,
+      serviceLogs: intelligence.serviceLogs,
+      softwareUpdates: intelligence.softwareUpdates,
+      macUpdates: intelligence.macUpdates,
+      wanQuality: intelligence.wanQuality,
+      tailscaleFunnel: intelligence.tailscaleFunnel
+    })
   };
 }
 
