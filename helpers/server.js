@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
  * @param {object} [opts.config]    - initial config.json contents
  * @param {object} [opts.auth]      - initial auth.json contents
  * @param {object} [opts.secrets]   - initial secrets.json contents
+ * @param {object} [opts.env]       - extra environment variables
  * @returns {Promise<{baseUrl: string, port: number, cwd: string, kill: () => Promise<void>}>}
  */
 export async function startServer(opts = {}) {
@@ -34,6 +35,7 @@ export async function startServer(opts = {}) {
 
   const env = {
     ...process.env,
+    ...(opts.env || {}),
     PORT: String(port),
     HOST: '127.0.0.1',
     LOBSTERBOARD_PKG_DIR: join(process.cwd()),

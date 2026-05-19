@@ -3,26 +3,34 @@ const fs = require('fs').promises;
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { execFile } = require('child_process');
 
 const TIMEOUT_MS = 2200;
-const TEDDY_ASK_TIMEOUT_MS = 45000;
+const TAILSCALE_BIN = process.env.TAILSCALE_BIN || '/usr/local/bin/tailscale';
+const TAILSCALE_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_TAILSCALE_TIMEOUT_MS || 8000);
+const TEDDY_ASK_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_ASK_TIMEOUT_MS || 60000);
 const TEDDY_ASK_MAX_PROMPT = 600;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
+const MANUAL_VERIFICATION_TTL_MS = 4 * HOUR_MS;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
 const MAC_UPDATE_CACHE_MS = 6 * HOUR_MS;
 const SYSTEM_LOG_CACHE_MS = 10 * 60 * 1000;
 const MAC_UPDATE_CACHE_SCHEMA = 'mac-updates-v2';
-const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v2';
+const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v3';
 const EVIDENCE_LIMIT = 120;
+const VITALS_HISTORY_LIMIT = 500;
+const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
+const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
   'adguardBlocks',
   'homebridgeAccessories',
   'homebridgeLogs',
   'publicFunnel',
   'wanQuality',
+  'serviceLogs',
   'softwareUpdates',
   'macUpdates',
   'systemLogs'
@@ -37,7 +45,7 @@ const SERVICE_NAMES = {
 };
 const HIDDEN_BY_DEFAULT = {
   services: ['backups'],
-  signals: ['weirdThings'],
+  signals: ['doorLocks', 'weirdThings'],
   sections: ['readout', 'dependencyMap']
 };
 
@@ -139,20 +147,20 @@ async function tryRunFull(command, args, ms = TIMEOUT_MS) {
   }
 }
 
-function ok(detail, metric, check) {
-  return { state: 'ok', detail, metric, check };
+function ok(detail, metric, check, confidence = 'live') {
+  return { state: 'ok', detail, metric, check, confidence };
 }
 
-function warn(detail, metric, check) {
-  return { state: 'warn', detail, metric, check };
+function warn(detail, metric, check, confidence = 'live') {
+  return { state: 'warn', detail, metric, check, confidence };
 }
 
-function info(detail, metric, check) {
-  return { state: 'info', detail, metric, check };
+function info(detail, metric, check, confidence = 'live') {
+  return { state: 'info', detail, metric, check, confidence };
 }
 
-function bad(detail, metric, check) {
-  return { state: 'bad', detail, metric, check };
+function bad(detail, metric, check, confidence = 'live') {
+  return { state: 'bad', detail, metric, check, confidence };
 }
 
 function pickObjectEntries(obj, limit = 3) {
@@ -205,11 +213,29 @@ function summarizeForTeddy(context) {
   return {
     checkedAt: data.checkedAt || null,
     score: data.score ?? null,
+    houseState: data.houseState && typeof data.houseState === 'object'
+      ? {
+          headline: data.houseState.headline || null,
+          summary: data.houseState.summary || null,
+          tone: data.houseState.tone || null,
+          primaryAction: data.houseState.primaryAction || null,
+          zones: Array.isArray(data.houseState.zones)
+            ? data.houseState.zones.map(zone => ({
+                id: zone.id,
+                title: zone.title,
+                state: zone.state,
+                value: zone.value,
+                detail: zone.detail
+              }))
+            : []
+        }
+      : null,
     summary: serviceSummary || 'No service summary supplied.',
     review: review || 'No review items supplied.',
     signals: {
       externalAccess: intelligence.tailscaleFunnel ? stripSignal(intelligence.tailscaleFunnel) : null,
       wanQuality: intelligence.wanQuality ? stripSignal(intelligence.wanQuality) : null,
+      serviceLogs: intelligence.serviceLogs ? stripSignal(intelligence.serviceLogs) : null,
       systemLogs: intelligence.systemLogs ? stripSignal(intelligence.systemLogs) : null,
       macUpdates: intelligence.macUpdates ? stripSignal(intelligence.macUpdates) : null
     }
@@ -229,6 +255,10 @@ function extractAgentText(stdout) {
   return stdout.trim();
 }
 
+function askSessionId() {
+  return `teddy-homebase-ask-${Date.now()}-${randomUUID().slice(0, 8)}`;
+}
+
 async function askTeddy(ctx, body) {
   const prompt = String(body.prompt || '').trim().slice(0, TEDDY_ASK_MAX_PROMPT);
   const action = String(body.action || 'ask');
@@ -240,8 +270,13 @@ async function askTeddy(ctx, body) {
   }
 
   const task = [
-    'Teddy Homebase action request.',
+    'You are Teddy inside OpenClaw answering a Teddy Homebase action request.',
     'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.',
+    'Use available OpenClaw MCP context if it helps, but keep this turn read-only.',
+    'Treat the supplied Dashboard context as the source of truth.',
+    'Stay inside Teddy Homebase: house status, services, logs, network, Mac mini, and the current dashboard.',
+    'Never mention Axon, work pipeline, family, birthdays, email, calendar, or other personal context unless the user explicitly asks for that topic.',
+    'If the Dashboard context has no review items and the house state is steady, say that clearly and do not invent commands, null fields, logs, or extra checks.',
     'Answer in 3-5 short bullets. If a fix would require action, say what you would check first and what approval would be needed.',
     '',
     `Action: ${action}`,
@@ -260,19 +295,46 @@ async function askTeddy(ctx, body) {
     };
   }
 
+  if (process.env.TEDDY_HOMEBASE_ASK_LOCAL_ONLY === '1' || process.env.TEDDY_HOMEBASE_ASK_AGENT === '0') {
+    return recordAsk(ctx, {
+      action,
+      prompt: prompt || 'Summarize current status and review items.',
+      clicked,
+      status: 'complete',
+      source: 'local',
+      answer: answerFromDashboardContext(action, prompt, clicked, context),
+      run: null
+    });
+  }
+
   const result = await tryRunFull(
-    'openclaw',
-    ['agent', '--agent', 'main', '--json', '--message', task],
+    process.env.TEDDY_HOMEBASE_OPENCLAW_BIN || 'openclaw',
+    [
+      'agent',
+      '--agent',
+      process.env.TEDDY_HOMEBASE_ASK_AGENT_ID || 'main',
+      '--session-id',
+      askSessionId(),
+      '--json',
+      '--timeout',
+      String(Math.ceil(TEDDY_ASK_TIMEOUT_MS / 1000)),
+      '--message',
+      task
+    ],
     TEDDY_ASK_TIMEOUT_MS
   );
 
-  const record = {
-    at: nowIso(),
+  const agentAnswer = result.ok ? extractAgentText(result.stdout) : '';
+  const fallbackAnswer = answerFromDashboardContext(action, prompt, clicked, context, result.stderr || 'Teddy did not answer before the local timeout.');
+  const useAgentAnswer = result.ok && agentAnswer && !answerEscapesHomebase(agentAnswer, context);
+
+  return recordAsk(ctx, {
     action,
     prompt: prompt || 'Summarize current status and review items.',
     clicked,
-    status: result.ok ? 'complete' : 'failed',
-    answer: result.ok ? extractAgentText(result.stdout) : (result.stderr || 'Teddy did not answer.'),
+    status: 'complete',
+    source: useAgentAnswer ? 'teddy' : 'local-fallback',
+    answer: useAgentAnswer ? agentAnswer : fallbackAnswer,
     run: result.ok ? (() => {
       try {
         const parsed = JSON.parse(result.stdout);
@@ -281,13 +343,56 @@ async function askTeddy(ctx, body) {
         return null;
       }
     })() : null
-  };
+  });
+}
 
+function answerEscapesHomebase(answer, context) {
+  const text = String(answer || '');
+  const forbidden = /\b(Axon|pipeline|quota|booking|Maria|birthday|calendar|email|inbox)\b/i;
+  if (forbidden.test(text)) return true;
+  const houseState = context && context.houseState;
+  const steady = houseState && houseState.tone === 'steady' && context.review === 'No review items supplied.';
+  if (steady && /(^|\s)(run|bash|sudo|open)\s+[`~/$]/i.test(text)) return true;
+  if (steady && /\bnull\b/i.test(text)) return true;
+  return false;
+}
+
+function recordAsk(ctx, record) {
+  const fullRecord = { at: nowIso(), ...record };
   const history = readDataSafe(ctx, 'ask-history.json', { entries: [] });
   const entries = Array.isArray(history.entries) ? history.entries : [];
-  writeDataSafe(ctx, 'ask-history.json', { entries: [record, ...entries].slice(0, 40) });
+  writeDataSafe(ctx, 'ask-history.json', { entries: [fullRecord, ...entries].slice(0, 40) });
 
-  return record;
+  return fullRecord;
+}
+
+function answerFromDashboardContext(action, prompt, clicked, context, fallbackReason) {
+  const review = context.review && context.review !== 'No review items supplied.'
+    ? context.review
+    : 'No review items are currently called out.';
+  const score = context.score !== null && context.score !== undefined ? `${context.score}/100` : 'unknown';
+  const external = context.signals && context.signals.externalAccess;
+  const wan = context.signals && context.signals.wanQuality;
+  const systemLogs = context.signals && context.signals.systemLogs;
+  const lines = [];
+  if (fallbackReason) lines.push('Teddy was slow, so I used the live dashboard instead.');
+  const hasReview = review !== 'No review items are currently called out.';
+  if (external && external.metric && (external.state === 'warn' || external.state === 'bad')) {
+    lines.push(`Only review item: external access on ${external.metric}. ${external.detail || 'Confirm those ports are expected.'}`);
+  } else {
+    lines.push(!hasReview
+      ? `Readiness ${score}. No review item is currently called out.`
+      : `Readiness ${score}. ${review}`);
+  }
+  if (clicked) lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
+  if (wan && wan.state !== 'ok' && wan.detail) lines.push(`Internet: ${wan.detail}`);
+  if (systemLogs && systemLogs.state !== 'ok' && systemLogs.detail) lines.push(`System logs: ${systemLogs.detail}`);
+  lines.push(hasReview
+    ? (action === 'status'
+        ? 'Next: verify the first ranked warning, then leave the rest alone.'
+        : 'Next: start with the first ranked warning.')
+    : 'Next: nothing needs action right now.');
+  return lines.slice(0, 4).map(line => `- ${line}`).join('\n');
 }
 
 function stripSignal(signal) {
@@ -296,11 +401,26 @@ function stripSignal(signal) {
     state: signal.state || 'info',
     metric: signal.metric ?? signal.value ?? signal.count ?? null,
     label: signal.label || signal.check || null,
-    detail: signal.detail || null
+    detail: signal.detail || null,
+    confidence: signal.confidence || null,
+    source: signal.source || null,
+    hidden: signal.hidden === true
   };
 }
 
-function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score) {
+function stripLogItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  return {
+    name: item.name,
+    state: item.state,
+    issues: item.issues,
+    source: item.source,
+    detail: item.detail,
+    ignored: item.ignored === true
+  };
+}
+
+function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState) {
   const serviceStates = Object.fromEntries(
     Object.entries(services).map(([key, service]) => [key, {
       state: service.state,
@@ -316,6 +436,12 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         value: score,
         source: 'scoreServices(service states)',
         inputs: serviceStates
+      },
+      houseState: {
+        type: 'zone-state',
+        defaultKeys: DEFAULT_ZONE_KEYS,
+        source: 'derived from existing probes and intelligence',
+        inputs: houseState && Array.isArray(houseState.zones) ? houseState.zones : []
       },
       serviceGrid: {
         type: 'probe-cards',
@@ -340,10 +466,12 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         source: 'AdGuard, Homebridge, Tailscale, WAN, npm, git, and drift checks',
         inputs: {
           adguardBlocks: stripSignal(intelligence.adguard),
+          doorLocks: stripSignal(intelligence.homebridge.doorLocks),
           homebridgeAccessories: stripSignal(intelligence.homebridge.accessories),
           homebridgeLogs: stripSignal(intelligence.homebridge.logHealth),
           publicFunnel: stripSignal(intelligence.tailscaleFunnel),
           wanQuality: stripSignal(intelligence.wanQuality),
+          serviceLogs: stripSignal(intelligence.serviceLogs),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
           macUpdates: stripSignal(intelligence.macUpdates),
           systemLogs: stripSignal(intelligence.systemLogs),
@@ -351,6 +479,14 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
             ? intelligence.weirdThings.filter(item => item.title !== 'No drift' && item.title !== 'No new weird thing').length
             : 0
         }
+      },
+      serviceLogSources: {
+        type: 'log-summary',
+        count: Array.isArray(intelligence.serviceLogs && intelligence.serviceLogs.items) ? intelligence.serviceLogs.items.length : 0,
+        source: 'local log files and service status probes',
+        inputs: Array.isArray(intelligence.serviceLogs && intelligence.serviceLogs.items)
+          ? intelligence.serviceLogs.items.map(stripLogItem)
+          : []
       },
       vitalsGrid: {
         type: 'host-metrics',
@@ -376,6 +512,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
 function buildPresentationContract() {
   return {
     defaultServiceKeys: DEFAULT_SERVICE_KEYS,
+    defaultZoneKeys: DEFAULT_ZONE_KEYS,
     defaultSignalKeys: DEFAULT_SIGNAL_KEYS,
     hiddenByDefault: HIDDEN_BY_DEFAULT
   };
@@ -420,21 +557,21 @@ async function checkHomebridge() {
 
 async function checkTailscale() {
   try {
-    const stdout = await run('tailscale', ['status', '--json']);
+    const stdout = await run(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
     const data = JSON.parse(stdout);
     const ip = (data.Self && data.Self.TailscaleIPs && data.Self.TailscaleIPs[0]) || 'connected';
     const online = data.Self && data.Self.Online !== false;
     if (!online) return warn('The Mac mini is not reporting online in Tailscale.', ip, 'Tailscale');
     return ok('The Mac mini is online in Tailscale.', ip, 'Tailscale');
   } catch (err) {
-    return warn(`Tailscale status is unavailable: ${err.message}.`, 'unknown', 'Tailscale');
+    return warn(`Tailscale status is unavailable: ${err.message}.`, 'unknown', 'Tailscale', 'degraded');
   }
 }
 
 async function checkTailscaleFunnel() {
-  const status = await tryRun('tailscale', ['funnel', 'status']);
+  const status = await tryRun(TAILSCALE_BIN, ['funnel', 'status'], TAILSCALE_TIMEOUT_MS);
   if (!status.ok) {
-    return info('External access status is unavailable.', 'unknown', 'External access');
+    return info('External access status is unavailable.', 'unknown', 'External access', 'degraded');
   }
 
   const ports = [...status.stdout.matchAll(/https:\/\/[^\s:]+(?::(\d+))?\s+\(Funnel on\)/g)]
@@ -449,10 +586,42 @@ async function checkTailscaleFunnel() {
   if (hasHouse && extras.length === 0) {
     return ok('Only Teddy Homebase is externally available.', '10000', 'External access');
   }
+  if (hasHouse && extras.length === 1 && extras[0] === '8443' && isBlueBubblesFunnel('8443', status.stdout)) {
+    return info(
+      'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.',
+      uniquePorts.join(', '),
+      'Accepted access'
+    );
+  }
   if (hasHouse) {
-    return warn(`Teddy Homebase is external. Extra port${extras.length === 1 ? '' : 's'} detected: ${extras.join(', ')}.`, uniquePorts.join(', '), 'External access');
+    const extraDetails = extras.map(port => describeFunnelPort(port, status.stdout)).join(' ');
+    return warn(`Teddy Homebase is public on 10000. ${extraDetails}`, uniquePorts.join(', '), 'External access');
   }
   return warn(`External access is on outside the Homebase port: ${uniquePorts.join(', ')}.`, uniquePorts.join(', '), 'External access');
+}
+
+function funnelPortBlock(port, statusText) {
+  const blockPattern = new RegExp(`https://[^\\s:]+:${port} \\(Funnel on\\)[\\s\\S]*?(?=\\n\\nhttps://|$)`);
+  const block = statusText.match(blockPattern);
+  return block ? block[0] : statusText;
+}
+
+function isBlueBubblesFunnel(port, statusText) {
+  const text = funnelPortBlock(port, statusText);
+  const target = text.match(/proxy\s+http:\/\/127\.0\.0\.1:(\d+)/);
+  return port === '8443' && target && target[1] === '1234';
+}
+
+function describeFunnelPort(port, statusText) {
+  const text = funnelPortBlock(port, statusText);
+  const target = text.match(/proxy\s+http:\/\/127\.0\.0\.1:(\d+)/);
+  if (isBlueBubblesFunnel(port, statusText)) {
+    return '8443 is BlueBubbles exposed through Funnel; close it if messages do not need public web access.';
+  }
+  if (target) {
+    return `${port} proxies to local ${target[1]}; confirm it should be public.`;
+  }
+  return `${port} is also public; confirm it should stay open.`;
 }
 
 async function checkInternet() {
@@ -498,7 +667,7 @@ async function checkOpenClaw() {
   const pid = pidMatch ? pidMatch[1] : null;
 
   async function tailnetIp() {
-    const status = await tryRun('tailscale', ['status', '--json']);
+    const status = await tryRun(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
     if (!status.ok) return null;
     try {
       const data = JSON.parse(status.stdout);
@@ -576,6 +745,60 @@ async function lobsterBoardVersion() {
   }
 }
 
+async function homebridgeVersionStatus() {
+  const [homebridgeResult, uiResult, homebridgeLatest, uiLatest] = await Promise.all([
+    tryRun('homebridge', ['--version']),
+    tryRun('hb-service', ['--version']),
+    npmLatestVersion('homebridge').catch(() => null),
+    npmLatestVersion('homebridge-config-ui-x').catch(() => null)
+  ]);
+  const homebridgeInstalled = homebridgeResult.ok ? homebridgeResult.stdout.trim().replace(/^v/, '') : 'unknown';
+  const uiInstalled = uiResult.ok ? uiResult.stdout.trim().replace(/^v/, '') : 'unknown';
+  const items = [
+    {
+      name: 'Homebridge',
+      installed: homebridgeInstalled,
+      latest: homebridgeLatest
+    },
+    {
+      name: 'Homebridge UI',
+      installed: uiInstalled,
+      latest: uiLatest
+    }
+  ].map(item => {
+    if (item.installed === 'unknown' || !item.latest) {
+      return {
+        ...item,
+        state: 'info',
+        detail: `${item.name} version check was incomplete.`
+      };
+    }
+    const cmp = compareVersions(item.installed, item.latest);
+    return {
+      ...item,
+      state: cmp < 0 ? 'warn' : 'ok',
+      detail: cmp < 0
+        ? `${item.name} can update from ${item.installed} to ${item.latest}.`
+        : `${item.name} is current at ${item.installed}.`
+    };
+  });
+  const updates = items.filter(item => item.state === 'warn');
+  const unknown = items.some(item => item.state === 'info');
+  const coreCurrent = items[0] && items[0].state === 'ok';
+  const uiOnlyUpdate = updates.length === 1 && updates[0].name === 'Homebridge UI' && coreCurrent;
+  return {
+    state: uiOnlyUpdate ? 'info' : updates.length > 0 ? 'warn' : unknown ? 'info' : 'ok',
+    value: updates.length > 0 ? `${updates.length}` : homebridgeInstalled,
+    label: uiOnlyUpdate ? 'optional UI update' : updates.length > 0 ? 'update available' : 'version',
+    items,
+    detail: uiOnlyUpdate
+      ? `${items[0].detail} Homebridge UI has a patch update available when convenient: ${updates[0].installed} to ${updates[0].latest}.`
+      : updates.length > 0
+      ? `${items[0].detail} ${updates.map(item => item.detail).join(' ')}`
+      : items.map(item => item.detail).join(' ')
+  };
+}
+
 async function gitFreshness(repoPath) {
   const status = await tryRun('git', ['-C', repoPath, 'status', '-sb']);
   if (!status.ok) return { state: 'info', detail: 'Could not read repo status.' };
@@ -642,8 +865,9 @@ async function checkSoftwareUpdates(ctx) {
       : Number(cached.value || 0);
     return normalizeSoftwareUpdateCopy({
       ...cached,
-      state: cachedUpdates > 0 || gitState.state === 'warn' ? 'warn' : 'ok',
+      state: gitState.state === 'warn' ? 'warn' : cachedUpdates > 0 ? 'info' : 'ok',
       value: cachedUpdates > 0 ? `${cachedUpdates}` : 'current',
+      confidence: 'cached',
       detail: cachedUpdates > 0
         ? `${cachedUpdates} update${cachedUpdates === 1 ? '' : 's'} available. ${gitState.detail}`
         : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
@@ -687,9 +911,10 @@ async function checkSoftwareUpdates(ctx) {
   const updatesAvailable = items.filter(item => item.state === 'warn').length;
   const result = {
     checkedAt: nowIso(),
-    state: updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok',
+    state: gitState.state === 'warn' ? 'warn' : updatesAvailable > 0 ? 'info' : 'ok',
     value: updatesAvailable > 0 ? `${updatesAvailable}` : 'current',
     label: 'version check',
+    confidence: 'live',
     detail: updatesAvailable > 0
       ? `${updatesAvailable} update${updatesAvailable === 1 ? '' : 's'} available. ${gitState.detail}`
       : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
@@ -722,7 +947,7 @@ function countMacUpdateItems(text) {
 
 async function checkMacUpdates(ctx) {
   const cached = readDataSafe(ctx, 'mac-updates.json', null);
-  if (cachedKnownFresh(cached, MAC_UPDATE_CACHE_MS, MAC_UPDATE_CACHE_SCHEMA)) return cached;
+  if (cachedKnownFresh(cached, MAC_UPDATE_CACHE_MS, MAC_UPDATE_CACHE_SCHEMA)) return { ...cached, confidence: 'cached' };
 
   const result = await tryRunFull('/usr/sbin/softwareupdate', ['-l'], 6500);
   let signal;
@@ -760,6 +985,12 @@ function systemLogLines(text) {
     .filter(line => /^\d{4}-\d{2}-\d{2}/.test(line));
 }
 
+function isCriticalDiagnosticReport(file) {
+  const name = String(file || '').toLowerCase();
+  if (!/\.(panic|ips|diag|crash)$/i.test(name)) return false;
+  return /(panic|kernel|thermal|watchdog|shutdown|disk|i\/o|\bi[-_ ]?o\b|corrupt)/i.test(name);
+}
+
 async function recentCriticalReports() {
   const dirs = [
     '/Library/Logs/DiagnosticReports',
@@ -773,8 +1004,7 @@ async function recentCriticalReports() {
       const files = await fs.readdir(dir);
       checked += 1;
       for (const file of files) {
-        if (!/\.(panic|ips|diag|crash)$/i.test(file)) continue;
-        if (!/(panic|kernel|thermal|watchdog|shutdown|disk|io|i\/o|corrupt)/i.test(file)) continue;
+        if (!isCriticalDiagnosticReport(file)) continue;
         try {
           const stat = await fs.stat(path.join(dir, file));
           if (stat.mtimeMs >= since) matches += 1;
@@ -787,7 +1017,7 @@ async function recentCriticalReports() {
 
 async function checkSystemLogs(ctx) {
   const cached = readDataSafe(ctx, 'system-logs.json', null);
-  if (cachedKnownFresh(cached, SYSTEM_LOG_CACHE_MS, SYSTEM_LOG_CACHE_SCHEMA)) return cached;
+  if (cachedKnownFresh(cached, SYSTEM_LOG_CACHE_MS, SYSTEM_LOG_CACHE_SCHEMA)) return { ...cached, confidence: 'cached' };
 
   const reports = await recentCriticalReports();
   if (reports.matches > 0) {
@@ -836,6 +1066,7 @@ async function adGuardStats() {
         value: 'locked',
         label: 'locked',
         detail: 'Blocked-query stats need the local AdGuard login.',
+        confidence: 'degraded',
         topBlocked: []
       };
     }
@@ -845,6 +1076,7 @@ async function adGuardStats() {
         value: `HTTP ${res.status}`,
         label: 'stats',
         detail: 'AdGuard stats returned an unexpected response.',
+        confidence: 'degraded',
         topBlocked: []
       };
     }
@@ -859,6 +1091,7 @@ async function adGuardStats() {
       value: `${blocked}`,
       label: 'blocked queries',
       detail: `${queries} queries; ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top blocked: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
+      confidence: 'live',
       topBlocked
     };
   } catch (err) {
@@ -867,6 +1100,7 @@ async function adGuardStats() {
       value: '--',
       label: 'stats unavailable',
       detail: `Could not read AdGuard stats: ${err.message}.`,
+      confidence: 'degraded',
       topBlocked: []
     };
   }
@@ -892,6 +1126,8 @@ async function memoryPressure(usedPct) {
     return {
       state: 'ok',
       metric: `${usedPct}%`,
+      displayMetric: '--',
+      review: false,
       detail: 'macOS uses idle RAM for cache; no memory-pressure warning was readable.'
     };
   }
@@ -902,15 +1138,19 @@ async function memoryPressure(usedPct) {
     return {
       state: 'warn',
       metric: `${usedPct}%`,
-      detail: `Memory pressure is worth watching: ${freePct}% free by macOS pressure check.`
+      displayMetric: `${freePct}% free`,
+      review: true,
+      detail: `Memory pressure is worth watching: ${freePct}% free by macOS pressure check. ${usedPct}% used includes macOS cache.`
     };
   }
   return {
     state: 'ok',
     metric: `${usedPct}%`,
+    displayMetric: freePct === null ? `${usedPct}% used` : `${freePct}% free`,
+    review: false,
     detail: freePct === null
       ? 'Memory use is high, but macOS did not report a readable pressure warning.'
-      : `Memory pressure looks normal: ${freePct}% free by pressure check.`
+      : `Memory pressure looks normal: ${freePct}% free by macOS pressure check. ${usedPct}% used includes cache.`
   };
 }
 
@@ -936,7 +1176,277 @@ function stripAnsi(text) {
   return String(text || '').replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-async function vitals() {
+function redactLogLine(line) {
+  return stripAnsi(line)
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(password|token|access_token|refresh_token|id_token|cloud_token)([^A-Za-z0-9]+)[^,\s]+/gi, '$1$2[redacted]')
+    .replace(/\b(setup code|passcode|manual pairing code)([^A-Za-z0-9]+)[0-9 -]{6,}/gi, '$1$2[redacted]')
+    .replace(/\b(qrCode|qr code)([^A-Za-z0-9]+)['"]?[^,'"\s]+['"]?/gi, '$1$2[redacted]')
+    .replace(/\b\d{3}-\d{2}-\d{3}\b/g, '[redacted-code]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function unifiedLoggingFramework() {
+  return {
+    checkedAt: nowIso(),
+    title: 'Unified Homebase logging',
+    codexTake: 'Normalize every source into one small contract: state, count, source, confidence, detail, and redacted examples. Keep the dashboard ranked; keep evidence one tap deeper.',
+    teddyTake: 'Daily Homebase should feel calm. Logs are the basement light: easy to switch on when something is weird, invisible when the house is fine.',
+    architecture: [
+      {
+        layer: 'Collect',
+        detail: 'Read local service logs and status probes for Homebase, Homebridge, Eufy plugin, OpenClaw, AdGuard, and Tailscale.'
+      },
+      {
+        layer: 'Redact',
+        detail: 'Strip ANSI noise and hide emails, tokens, passwords, pairing codes, and QR payloads before anything reaches the browser.'
+      },
+      {
+        layer: 'Classify',
+        detail: 'Score each source as ok, info, warn, or bad using recent windows and service-specific thresholds.'
+      },
+      {
+        layer: 'Store',
+        detail: 'Persist the latest normalized snapshot in data/teddy-house/service-logs.json for repeatable debugging and future timeline work.'
+      },
+      {
+        layer: 'Surface',
+        detail: 'Show one calm Service logs signal on the main dashboard and keep grouped evidence in the hidden logs view.'
+      },
+      {
+        layer: 'Escalate',
+        detail: 'Only promote a log source into the Review lane when it is current, counted, and above its warn or bad threshold.'
+      }
+    ],
+    next: [
+      'Add persistent per-source log history so drift can be graphed without fake trend lines.',
+      'Route repeated known-noisy devices into named suppression rules with expiration dates.',
+      'Attach a one-click Ask Teddy action to each source once the local agent bridge is stable.'
+    ]
+  };
+}
+
+function logLineDate(line) {
+  const text = stripAnsi(line);
+  let match = text.match(/^\[(\d{1,2})\/(\d{1,2})\/(\d{4}),\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\]/);
+  if (match) {
+    const [, month, day, year, hourRaw, minute, second, ampm] = match;
+    let hour = Number(hourRaw);
+    if (ampm === 'PM' && hour < 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    return new Date(Number(year), Number(month) - 1, Number(day), hour, Number(minute), Number(second));
+  }
+  match = text.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  }
+  match = text.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
+  if (match) return new Date(match[1]);
+  match = text.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+  if (match) return new Date(match[1].replace(' ', 'T'));
+  return null;
+}
+
+async function freshestFile(candidates) {
+  const readable = [];
+  for (const filePath of candidates) {
+    try {
+      const stat = await fs.stat(filePath);
+      if (stat.isFile()) readable.push({ filePath, stat });
+    } catch (_) {}
+  }
+  readable.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+  return readable[0] || null;
+}
+
+async function logFileSummary(name, candidates, options = {}) {
+  const latest = await freshestFile(candidates);
+  if (!latest) {
+    return {
+      name,
+      state: 'info',
+      issues: null,
+      source: candidates[0],
+      detail: `${name} log was not found.`,
+      examples: []
+    };
+  }
+
+  const issuePattern = options.issuePattern || /\b(error|warn|warning|failed|failure|timeout|exception|not connected|could not|invalid|unavailable|closed: 1006)\b/i;
+  const text = await fs.readFile(latest.filePath, 'utf8');
+  const lines = text.split('\n').filter(Boolean).slice(-(options.window || 1200));
+  const recentMs = options.recentMs || 6 * HOUR_MS;
+  const issueLines = lines
+    .filter(line => {
+      const date = logLineDate(line);
+      return !date || Number.isNaN(date.getTime()) || Date.now() - date.getTime() <= recentMs;
+    })
+    .map(redactLogLine)
+    .filter(line => issuePattern.test(line));
+  const ageMs = Date.now() - latest.stat.mtimeMs;
+  const stale = ageMs > (options.staleMs || 24 * HOUR_MS);
+  const warnAt = options.warnAt ?? 20;
+  const badAt = options.badAt ?? 80;
+  const state = stale
+    ? 'info'
+    : issueLines.length >= badAt
+      ? 'bad'
+      : issueLines.length >= warnAt
+        ? 'warn'
+        : 'ok';
+  const detail = stale
+    ? `${name} log is stale; newest file update was ${formatAgeFromDate(latest.stat.mtime)}.`
+    : issueLines.length > 0
+      ? `${issueLines.length} notable line${issueLines.length === 1 ? '' : 's'} in the recent ${name} log window.`
+      : `${name} log is quiet.`;
+  return {
+    name,
+    state,
+    issues: issueLines.length,
+    source: latest.filePath,
+    updatedAt: latest.stat.mtime.toISOString(),
+    detail,
+    examples: issueLines.slice(-3)
+  };
+}
+
+async function tailscaleLogSummary() {
+  const status = await tryRun(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
+  if (!status.ok) {
+    return {
+      name: 'Tailscale',
+      state: 'warn',
+      issues: 1,
+      source: 'tailscale status --json',
+      detail: `Tailscale status probe failed: ${status.stderr || 'unknown error'}.`,
+      examples: []
+    };
+  }
+  try {
+    const data = JSON.parse(status.stdout);
+    const health = Array.isArray(data.Health) ? data.Health : [];
+    return {
+      name: 'Tailscale',
+      state: health.length > 0 ? 'warn' : 'ok',
+      issues: health.length,
+      source: 'tailscale status --json',
+      detail: health.length > 0 ? `${health.length} Tailscale health warning${health.length === 1 ? '' : 's'}.` : 'Tailscale status has no health warnings.',
+      examples: health.slice(0, 3).map(item => redactLogLine(typeof item === 'string' ? item : JSON.stringify(item)))
+    };
+  } catch (err) {
+    return {
+      name: 'Tailscale',
+      state: 'info',
+      issues: null,
+      source: 'tailscale status --json',
+      detail: `Tailscale status was not parseable: ${err.message}.`,
+      examples: []
+    };
+  }
+}
+
+async function serviceLogOverview(ctx) {
+  const items = await Promise.all([
+    logFileSummary('Homebase', [
+      '/Users/teddyclaw/Library/Logs/TeddyHouse/lobsterboard.err.log',
+      '/Users/teddyclaw/Library/Logs/TeddyHouse/lobsterboard.out.log'
+    ], { warnAt: 5, badAt: 20 }),
+    logFileSummary('Homebridge', [
+      '/Users/teddyclaw/.homebridge/homebridge.log',
+      '/Users/teddyclaw/.homebridge/logs/homebridge.log'
+    ], { warnAt: 60, badAt: 160 }),
+    logFileSummary('Eufy plugin', [
+      '/Users/teddyclaw/.homebridge/eufysecurity/eufy-security.log'
+    ], { warnAt: 3, badAt: 10 }),
+    logFileSummary('OpenClaw', [
+      '/Users/teddyclaw/.openclaw/logs/gateway.err.log',
+      '/Users/teddyclaw/.openclaw/logs/gateway.log',
+      '/Users/teddyclaw/.openclaw/logs/gateway-watchdog.err.log',
+      '/Users/teddyclaw/.openclaw/logs/gateway-health.log'
+    ], { warnAt: 10, badAt: 40, issuePattern: /\b(ERROR|WARN|FATAL|uncaught|exception|EADDRINUSE|ETIMEDOUT|ECONNRESET|handshake timeout|invalid config)\b/ }),
+    logFileSummary('AdGuard', [
+      '/var/log/AdGuardHome.stderr.log',
+      '/var/log/AdGuardHome.stdout.log'
+    ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS }),
+    tailscaleLogSummary()
+  ]);
+  const normalizedItems = items.map(item => {
+    if (item.name !== 'Eufy plugin') return item;
+    return {
+      ...item,
+      state: 'info',
+      ignored: true,
+      detail: `${item.detail} Eufy lock data is ignored on the daily dashboard because the plugin source is unreliable.`
+    };
+  });
+  const countedItems = normalizedItems.filter(item => item.ignored !== true);
+  const issueCount = countedItems.reduce((sum, item) => sum + (Number(item.issues) || 0), 0);
+  const badCount = countedItems.filter(item => item.state === 'bad').length;
+  const warnCount = countedItems.filter(item => item.state === 'warn').length;
+  const infoCount = countedItems.filter(item => item.state === 'info').length;
+  const noisy = countedItems.filter(item => item.state === 'bad' || item.state === 'warn');
+  const state = badCount > 0 ? 'bad' : warnCount > 0 ? 'warn' : infoCount > 0 ? 'info' : 'ok';
+  const detail = noisy.length > 0
+    ? noisy.map(item => `${item.name}: ${item.detail}`).join(' ')
+    : `Logs checked for ${normalizedItems.map(item => item.name).join(', ')}. No noisy service logs need action.`;
+  const result = {
+    checkedAt: nowIso(),
+    state,
+    value: issueCount === 0 ? 'quiet' : `${issueCount}`,
+    label: issueCount === 0 ? 'quiet' : 'notable lines',
+    detail,
+    confidence: 'live',
+    source: 'local service logs',
+    items: normalizedItems
+  };
+  writeDataSafe(ctx, 'service-logs.json', result);
+  return result;
+}
+
+async function logDetailPayload(ctx) {
+  const serviceLogs = await serviceLogOverview(ctx);
+  return {
+    checkedAt: nowIso(),
+    serviceLogs,
+    framework: unifiedLoggingFramework(),
+    storage: {
+      latestSnapshot: 'data/teddy-house/service-logs.json',
+      visualEvidence: 'data/teddy-house/visual-evidence.json'
+    }
+  };
+}
+
+async function updateVitalsHistory(ctx, sample) {
+  const at = nowIso();
+  const cpu = Number.parseFloat(sample.cpu);
+  const memoryUsedPct = Number.parseInt(sample.memory, 10);
+  const diskUsedPct = Number.parseInt(sample.disk, 10);
+  const history = readDataSafe(ctx, 'vitals-history.json', { entries: [] });
+  const cutoff = Date.now() - 48 * HOUR_MS;
+  const entries = (Array.isArray(history.entries) ? history.entries : [])
+    .filter(entry => {
+      const time = new Date(entry.at).getTime();
+      return Number.isFinite(time) && time >= cutoff && Number.isFinite(Number(entry.cpu));
+    })
+    .concat([{ at, cpu, memoryUsedPct, diskUsedPct }])
+    .slice(-VITALS_HISTORY_LIMIT);
+  writeDataSafe(ctx, 'vitals-history.json', { entries });
+
+  const peakCutoff = Date.now() - VITALS_PEAK_WINDOW_MS;
+  const recent = entries.filter(entry => new Date(entry.at).getTime() >= peakCutoff);
+  const cpuPeak = recent.reduce((max, entry) => Math.max(max, Number(entry.cpu) || 0), cpu);
+  return {
+    window: '6h',
+    cpuPeak: cpuPeak.toFixed(2),
+    samples: recent.length,
+    source: 'data/teddy-house/vitals-history.json'
+  };
+}
+
+async function vitals(ctx) {
   const total = os.totalmem();
   const free = os.freemem();
   const usedPct = Math.round(((total - free) / total) * 100);
@@ -947,11 +1457,13 @@ async function vitals() {
     memoryPressure(usedPct)
   ]);
   const diskPct = Number.parseInt(disk, 10);
-  const cpuState = loadRaw > os.cpus().length ? 'warn' : 'ok';
+  const cpuCores = os.cpus().length || 1;
+  const cpuState = loadRaw > cpuCores * 2 ? 'warn' : loadRaw > cpuCores ? 'info' : 'ok';
   const diskState = Number.isFinite(diskPct) && diskPct >= 90 ? 'warn' : 'ok';
-  return {
+  const result = {
     cpu: load,
     memory: `${usedPct}%`,
+    memoryPressure: memorySignal.displayMetric || memorySignal.metric,
     disk,
     uptime: formatUptime(os.uptime()),
     network: 'local',
@@ -960,20 +1472,34 @@ async function vitals() {
       cpu: {
         state: cpuState,
         metric: load,
-        detail: cpuState === 'warn' ? 'Load is above the CPU core count.' : 'Load is inside the normal range.'
+        review: false,
+        detail: cpuState === 'warn'
+          ? 'Load average is high, usually from recent work. Check active processes only if it persists.'
+          : cpuState === 'info'
+            ? 'CPU load is elevated, but not urgent unless it persists.'
+            : 'Load is inside the normal range.'
       },
       memory: {
         state: memorySignal.state,
         metric: memorySignal.metric,
+        displayMetric: memorySignal.displayMetric || memorySignal.metric,
+        review: memorySignal.review === true,
         detail: memorySignal.detail
       },
       disk: {
         state: diskState,
         metric: disk,
+        review: diskState === 'warn',
         detail: diskState === 'warn' ? 'Root disk is above the watch threshold.' : 'Root disk has room.'
       }
     }
   };
+  const history = await updateVitalsHistory(ctx, result);
+  result.health.cpu.peak6h = history.cpuPeak;
+  result.health.cpu.secondary = `Peak ${history.cpuPeak} / 6h`;
+  result.health.cpu.detail = `${result.health.cpu.detail} Recent 6h peak: ${history.cpuPeak}.`;
+  result.vitalsHistory = history;
+  return result;
 }
 
 async function homebridgePlugins() {
@@ -1027,6 +1553,237 @@ async function homebridgeAccessorySummary() {
   }
 }
 
+async function homebridgeCacheFiles() {
+  const dir = '/Users/teddyclaw/.homebridge/accessories';
+  const files = await fs.readdir(dir);
+  return files
+    .filter(file => file.startsWith('cachedAccessories'))
+    .filter(file => !file.includes('.bak') && !file.includes('pre-') && !file.startsWith('.'))
+    .map(file => path.join(dir, file));
+}
+
+function verificationKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function manualVerificationFor(ctx, name) {
+  const data = readDataSafe(ctx, 'manual-verifications.json', { locks: {} });
+  const locks = data && typeof data === 'object' && data.locks && typeof data.locks === 'object'
+    ? data.locks
+    : {};
+  const entry = locks[verificationKey(name)];
+  if (!entry || !entry.verifiedAt) return null;
+  const verifiedAt = new Date(entry.verifiedAt);
+  if (Number.isNaN(verifiedAt.getTime())) return null;
+  if (Date.now() - verifiedAt.getTime() > MANUAL_VERIFICATION_TTL_MS) return null;
+  return { ...entry, verifiedAt: verifiedAt.toISOString(), age: formatAgeFromDate(verifiedAt) };
+}
+
+function hasDoorLockName(...values) {
+  const text = values.filter(Boolean).join(' ');
+  if (/\b(washer|dryer|wash tower|washtower|dishwasher|oven|appliance)\b/i.test(text)) return false;
+  return /\b(lock|deadbolt|front door|side door|back door|garage entry|eufy|schlage|august|yale|level|kwikset)\b/i.test(text);
+}
+
+function charByUuidOrName(characteristics, uuid, namePattern) {
+  return characteristics.find(char => char.UUID === uuid || namePattern.test(`${char.displayName || ''} ${char.constructorName || ''}`));
+}
+
+function lockCurrentLabel(value) {
+  if (value === 0) return 'locked';
+  if (value === 1) return 'unlocked';
+  if (value === 2) return 'jammed';
+  if (value === 3) return 'unknown';
+  return 'unknown';
+}
+
+function lockStateRank(state) {
+  if (state === 'jammed') return 0;
+  if (state === 'unlocked') return 1;
+  if (state === 'unknown') return 2;
+  return 3;
+}
+
+async function eufyBridgeStatus() {
+  const pluginPath = '/opt/homebrew/lib/node_modules/@homebridge-plugins/homebridge-eufy-security/package.json';
+  let installed = false;
+  let version = null;
+  try {
+    const pkg = JSON.parse(await fs.readFile(pluginPath, 'utf8'));
+    installed = true;
+    version = pkg.version || null;
+  } catch (_) {}
+
+  let platformPresent = false;
+  let hasCredentials = false;
+  try {
+    const config = JSON.parse(await fs.readFile('/Users/teddyclaw/.homebridge/config.json', 'utf8'));
+    const platform = (config.platforms || []).find(item => /EufySecurity/i.test(item.platform || ''));
+    platformPresent = Boolean(platform);
+    hasCredentials = Boolean(platform && platform.username && platform.password);
+  } catch (_) {}
+
+  let guestAdminWarning = false;
+  let discovery = null;
+  try {
+    const log = await fs.readFile('/Users/teddyclaw/.homebridge/eufysecurity/eufy-security.log', 'utf8');
+    guestAdminWarning = /not using a guest admin account/i.test(log);
+    const matches = [...log.matchAll(/Discovery finished with (\d+) station\(s\) and (\d+) devices\(s\)/gi)];
+    const latest = matches[matches.length - 1];
+    if (latest) {
+      discovery = {
+        stations: Number(latest[1]),
+        devices: Number(latest[2])
+      };
+    }
+  } catch (_) {}
+
+  return { installed, configured: platformPresent && hasCredentials, platformPresent, hasCredentials, version, guestAdminWarning, discovery };
+}
+
+async function homebridgeDoorLockStatus(ctx) {
+  try {
+    const [cacheFiles, eufy] = await Promise.all([
+      homebridgeCacheFiles(),
+      eufyBridgeStatus()
+    ]);
+    const lockServiceUuid = '00000045-0000-1000-8000-0026BB765291';
+    const currentUuid = '0000001D-0000-1000-8000-0026BB765291';
+    const targetUuid = '0000001E-0000-1000-8000-0026BB765291';
+    const batteryUuid = '00000068-0000-1000-8000-0026BB765291';
+    const seen = new Map();
+
+    for (const filePath of cacheFiles) {
+      try {
+        const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+        if (!Array.isArray(parsed)) continue;
+        for (const accessory of parsed) {
+          const services = accessory.services || [];
+          const infoText = [
+            accessory.displayName,
+            accessory.pluginAlias,
+            accessory.plugin,
+            accessory.context && accessory.context.name,
+            accessory.context && accessory.context.displayName
+          ];
+          for (const service of services) {
+            if (service.UUID !== lockServiceUuid) continue;
+            if (!hasDoorLockName(...infoText, service.displayName)) continue;
+            const characteristics = service.characteristics || [];
+            const current = charByUuidOrName(characteristics, currentUuid, /Lock Current State/i);
+            const target = charByUuidOrName(characteristics, targetUuid, /Lock Target State/i);
+            const battery = services
+              .flatMap(item => item.characteristics || [])
+              .find(char => char.UUID === batteryUuid || /Battery Level/i.test(`${char.displayName || ''} ${char.constructorName || ''}`));
+            const name = service.displayName || accessory.displayName || 'Door lock';
+            const state = lockCurrentLabel(current && current.value);
+            const id = accessory.UUID || `${accessory.plugin || 'homebridge'}:${name}`;
+            const plugin = accessory.pluginAlias || accessory.plugin || 'homebridge';
+            seen.set(id, {
+              name,
+              state,
+              plugin,
+              target: target && target.value === 0 ? 'lock' : target && target.value === 1 ? 'unlock' : 'unknown',
+              battery: typeof (battery && battery.value) === 'number' ? battery.value : null
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    const items = Array.from(seen.values()).sort((a, b) => {
+      const byState = lockStateRank(a.state) - lockStateRank(b.state);
+      return byState || a.name.localeCompare(b.name);
+    });
+
+    if (items.length === 0) {
+      const detail = eufy.installed
+        ? eufy.hasCredentials
+          ? 'Eufy is configured, but Homebridge has not exposed a door lock yet.'
+          : 'No live door lock source yet. Eufy needs a dedicated guest admin account in Homebridge.'
+        : 'No door locks are exposed by Homebridge yet. Eufy plugin is not installed.';
+      return {
+        state: 'info',
+        value: eufy.installed ? 'not linked' : 'none',
+        label: eufy.installed ? 'Eufy auth' : 'Homebridge',
+        detail,
+        source: 'Homebridge cachedAccessories',
+        confidence: eufy.installed ? 'degraded' : 'live',
+        eufy,
+        items: []
+      };
+    }
+
+    const unlocked = items.filter(item => item.state === 'unlocked').length;
+    const jammed = items.filter(item => item.state === 'jammed').length;
+    const unknown = items.filter(item => item.state === 'unknown').length;
+    const allEufy = items.every(item => /eufy/i.test(item.plugin || ''));
+    const manualLocks = items
+      .map(item => ({ item, verification: manualVerificationFor(ctx, item.name) }))
+      .filter(entry => entry.verification && entry.verification.state === 'locked');
+    if (allEufy) {
+      const manual = manualLocks[0] && manualLocks[0].verification;
+      const manualDetail = manual
+        ? ` Dan manually verified locked ${manual.age}; this expires after 4 hours.`
+        : '';
+      return {
+        state: 'info',
+        value: 'ignored',
+        label: 'ignored',
+        detail: `Eufy lock state is ignored on the daily dashboard because the Homebridge plugin source is not trusted for lock truth.${manualDetail}`,
+        source: 'Homebridge cachedAccessories',
+        confidence: 'degraded',
+        confidenceDetail: manual
+          ? `Manual check from ${manual.verifiedBy || 'Dan'} noted; plugin source is degraded and ignored.`
+          : 'Eufy plugin source is degraded and ignored.',
+        hidden: true,
+        eufy,
+        items: items.map(item => {
+          const verification = manualVerificationFor(ctx, item.name);
+          return {
+            ...item,
+            unverified: true,
+            manualVerified: verification && verification.state === 'locked'
+              ? { state: verification.state, verifiedAt: verification.verifiedAt, age: verification.age }
+              : null
+          };
+        })
+      };
+    }
+    const state = jammed > 0 ? 'bad' : unlocked > 0 || unknown > 0 ? 'warn' : 'ok';
+    const value = jammed > 0
+      ? `${jammed} jammed`
+      : unlocked > 0
+        ? `${unlocked} unlocked`
+        : unknown > 0
+          ? `${unknown} unknown`
+          : 'locked';
+    const detail = items
+      .map(item => `${item.name}: ${item.state}${item.battery === null ? '' : `, ${item.battery}% battery`}`)
+      .join('. ');
+
+    return {
+      state,
+      value,
+      label: `${items.length} lock${items.length === 1 ? '' : 's'}`,
+      detail,
+      source: 'Homebridge cachedAccessories',
+      confidence: 'cached',
+      eufy,
+      items
+    };
+  } catch (err) {
+    return {
+      state: 'info',
+      value: '--',
+      label: 'unavailable',
+      detail: `Could not read Homebridge lock state: ${err.message}.`,
+      confidence: 'degraded',
+      items: []
+    };
+  }
+}
+
 function newestLogTimestamp(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
     const cleanLine = stripAnsi(lines[i]);
@@ -1064,6 +1821,7 @@ async function homebridgeLogHealth() {
     const lines = log.split('\n').slice(-500);
     const cleanLines = lines.map(stripAnsi);
     const issueLines = cleanLines.filter(line => /\b(error|warn|warning|failed|uncaught|exception)\b/i.test(line));
+    const credenzaTimeouts = cleanLines.filter(line => /Family Room Credenza|192\.168\.7\.242/i.test(line) && /timeout|error|failed/i.test(line));
     const newest = newestLogTimestamp(lines);
     const stale = newest ? Date.now() - newest.getTime() > 24 * HOUR_MS : true;
     if (stale) {
@@ -1072,6 +1830,14 @@ async function homebridgeLogHealth() {
         value: 'stale',
         label: 'last log',
         detail: newest ? `Newest visible entry is ${formatAgeFromDate(newest)}.` : 'No readable Homebridge log time.'
+      };
+    }
+    if (credenzaTimeouts.length >= 3) {
+      return {
+        state: 'warn',
+        value: `${credenzaTimeouts.length}`,
+        label: 'TP-Link loop',
+        detail: 'Family Room Credenza is timing out again; keep it excluded or fix the device network.'
       };
     }
     if (issueLines.length > 20) {
@@ -1168,12 +1934,15 @@ async function buildInsights(services, systemVitals, intelligence) {
 }
 
 async function buildIntelligence(ctx) {
-  const [adguard, accessories, logHealth, funnel, wanQuality, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
+  const [adguard, accessories, doorLocks, logHealth, homebridgeVersion, funnel, wanQuality, serviceLogs, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
     adGuardStats(),
     homebridgeAccessorySummary(),
+    homebridgeDoorLockStatus(ctx),
     homebridgeLogHealth(),
+    homebridgeVersionStatus(),
     checkTailscaleFunnel(),
     checkWanQuality(),
+    serviceLogOverview(ctx),
     checkSoftwareUpdates(ctx),
     checkMacUpdates(ctx),
     checkSystemLogs(ctx)
@@ -1181,9 +1950,10 @@ async function buildIntelligence(ctx) {
 
   return {
     adguard,
-    homebridge: { accessories, logHealth },
+    homebridge: { accessories, doorLocks, logHealth, version: homebridgeVersion },
     tailscaleFunnel: funnel,
     wanQuality,
+    serviceLogs,
     softwareUpdates,
     macUpdates,
     systemLogs,
@@ -1197,6 +1967,8 @@ function snapshotFor(services, intelligence, score) {
     services: Object.fromEntries(Object.entries(services).map(([key, service]) => [key, service.state])),
     funnelMetric: intelligence.tailscaleFunnel.metric,
     accessoryCount: intelligence.homebridge.accessories.count,
+    doorLockValue: intelligence.homebridge.doorLocks.value,
+    doorLockState: intelligence.homebridge.doorLocks.state,
     homebridgeLogState: intelligence.homebridge.logHealth.state,
     wanState: intelligence.wanQuality.state,
     adguardStatsState: intelligence.adguard.state,
@@ -1205,7 +1977,9 @@ function snapshotFor(services, intelligence, score) {
     macUpdateState: intelligence.macUpdates.state,
     macUpdateMetric: intelligence.macUpdates.metric,
     systemLogState: intelligence.systemLogs.state,
-    systemLogMetric: intelligence.systemLogs.metric
+    systemLogMetric: intelligence.systemLogs.metric,
+    serviceLogState: intelligence.serviceLogs.state,
+    serviceLogValue: intelligence.serviceLogs.value
   };
 }
 
@@ -1238,6 +2012,9 @@ function buildWeirdThings(previous, current) {
   }
   if (current.systemLogState === 'bad' || current.systemLogState === 'warn') {
     items.push({ state: current.systemLogState, title: 'System logs', detail: 'Recent Mac logs need attention.' });
+  }
+  if ((current.serviceLogState === 'bad' || current.serviceLogState === 'warn') && previous.serviceLogValue !== current.serviceLogValue) {
+    items.push({ state: current.serviceLogState, title: 'Service logs', detail: `${current.serviceLogValue} service log signal changed.` });
   }
 
   if (items.length === 0) {
@@ -1279,7 +2056,7 @@ function updateTimeline(ctx, services, intelligence, score) {
   return nextEvents.length ? nextEvents : additions;
 }
 
-function scoreServices(services) {
+function scoreServices(services, intelligence, systemVitals) {
   const values = Object.values(services);
   const points = values.reduce((sum, service) => {
     if (service.state === 'ok') return sum + 1;
@@ -1287,27 +2064,199 @@ function scoreServices(services) {
     if (service.state === 'warn') return sum + 0.55;
     return sum;
   }, 0);
-  return Math.round((points / values.length) * 100);
+  const serviceScore = Math.round((points / values.length) * 100);
+  const signalPenalty = usefulSignals(intelligence).reduce((sum, signal) => {
+    if (signal.state === 'bad') return sum + 14;
+    if (signal.state === 'warn') return sum + 8;
+    return sum;
+  }, 0);
+  const vitalPenalty = usefulVitals(systemVitals).reduce((sum, signal) => {
+    if (signal.state === 'bad') return sum + 10;
+    return sum + 5;
+  }, 0);
+  return Math.max(0, Math.min(100, serviceScore - signalPenalty - vitalPenalty));
+}
+
+function worstState(signals) {
+  const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
+  return (signals || [])
+    .filter(Boolean)
+    .map(signal => signal.state || 'info')
+    .sort((a, b) => (rank[a] ?? 2) - (rank[b] ?? 2))[0] || 'info';
+}
+
+function zoneValue(state, okValue, infoValue = okValue) {
+  if (state === 'bad') return 'Issue';
+  if (state === 'warn') return 'Review';
+  if (state === 'info') return infoValue;
+  return okValue;
+}
+
+function actionSignal(signal) {
+  if (!signal || typeof signal !== 'object') return signal;
+  if (signal.state === 'bad' || signal.state === 'warn') return signal;
+  return { ...signal, state: 'ok' };
+}
+
+function reviewVital(signal) {
+  if (!signal || typeof signal !== 'object') return signal;
+  if (signal.state === 'bad' || signal.review === true) return signal;
+  return { ...signal, state: 'ok' };
+}
+
+function firstReviewDetail(signals, fallback) {
+  const match = (signals || []).filter(Boolean).find(signal => signal.state === 'bad' || signal.state === 'warn');
+  return (match && match.detail) || fallback;
+}
+
+function translatePrimaryAction(needs) {
+  if (!Array.isArray(needs) || needs.length === 0) return 'No review items.';
+  const first = String(needs[0] || '').toLowerCase();
+  if (/external|public|funnel|access|tailscale/.test(first)) return 'Start with public access.';
+  if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
+  if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
+  if (/mac|cpu|memory|disk|system logs|updates|openclaw|app versions/.test(first)) return 'Start with the Mac mini.';
+  return 'Start with the first review item.';
+}
+
+function meaningfulRecentChanges(timeline) {
+  const grouped = [];
+  for (const event of (Array.isArray(timeline) ? timeline : [])) {
+    if (!event || event.title === 'Status check' || event.title === 'No drift') continue;
+    if (/no changes/i.test(event.detail || '')) continue;
+    const key = `${event.title || 'Change'}|${event.detail || 'Change detected.'}|${event.state || 'info'}`;
+    const existing = grouped.find(item => item.key === key);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    grouped.push({
+      key,
+      count: 1,
+      title: event.title || 'Change',
+      detail: event.detail || 'Change detected.',
+      state: event.state || 'info',
+      at: event.at,
+      time: event.time
+    });
+  }
+  return grouped
+    .map(({ key, ...event }) => ({
+      ...event,
+      detail: event.count > 1 ? `${event.detail} Seen ${event.count} times.` : event.detail
+    }))
+    .slice(0, 3);
+}
+
+function deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score) {
+  const homebridge = intelligence.homebridge || {};
+  const health = systemVitals.health || {};
+  const outsideState = worstState([intelligence.tailscaleFunnel]);
+  const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality]);
+  const smartHomeState = worstState([
+    services.homebridge,
+    homebridge.accessories,
+    actionSignal(homebridge.logHealth),
+    actionSignal(homebridge.version)
+  ]);
+  const macMiniState = worstState([
+    services.openclaw,
+    reviewVital(health.cpu),
+    reviewVital(health.memory),
+    reviewVital(health.disk),
+    actionSignal(intelligence.macUpdates),
+    actionSignal(intelligence.systemLogs),
+    actionSignal(intelligence.serviceLogs)
+  ]);
+  const networkSignals = [services.internet, intelligence.wanQuality, services.adguard, services.tailscale];
+  const smartHomeSignals = [services.homebridge, homebridge.logHealth, homebridge.version, homebridge.accessories];
+  const macMiniSignals = [
+    services.openclaw,
+    health.cpu,
+    health.memory,
+    health.disk,
+    intelligence.macUpdates,
+    intelligence.systemLogs,
+    intelligence.serviceLogs
+  ];
+  const zones = [
+    {
+      id: 'outside-access',
+      title: 'Public access',
+      state: outsideState,
+      value: zoneValue(outsideState, 'Known', 'Known'),
+      detail: outsideState === 'ok' || outsideState === 'info'
+        ? 'Expected public routes are accounted for.'
+        : intelligence.tailscaleFunnel.detail || 'Public access needs review.',
+      evidence: ['Tailscale Funnel']
+    },
+    {
+      id: 'network',
+      title: 'Internet',
+      state: networkState,
+      value: zoneValue(networkState, 'Normal'),
+      detail: networkState === 'ok'
+        ? 'Internet, DNS, and Tailscale are responding.'
+        : firstReviewDetail(networkSignals, 'Network checks need review.'),
+      evidence: ['Internet', 'DNS', 'Tailscale']
+    },
+    {
+      id: 'smart-home',
+      title: 'Automations',
+      state: smartHomeState,
+      value: zoneValue(smartHomeState, 'Responding'),
+      detail: smartHomeState === 'ok'
+        ? 'Homebridge and accessories are responding.'
+        : firstReviewDetail(smartHomeSignals, 'Automation checks need review.'),
+      evidence: ['Homebridge', 'Accessories', 'Homebridge logs']
+    },
+    {
+      id: 'mac-mini',
+      title: 'Mac mini',
+      state: macMiniState,
+      value: zoneValue(macMiniState, 'Healthy'),
+      detail: macMiniState === 'ok'
+        ? 'System checks, updates, and service logs are quiet.'
+        : firstReviewDetail(macMiniSignals, 'Mac mini checks need review.'),
+      evidence: ['OpenClaw', 'macOS', 'System logs', 'Service logs']
+    }
+  ];
+  const hasBad = zones.some(zone => zone.state === 'bad') || score < 70;
+  const hasReview = hasBad || zones.some(zone => zone.state === 'warn') || (Array.isArray(reviewItems) && reviewItems.length > 0);
+  return {
+    headline: hasBad ? 'Homebase found an issue.' : hasReview ? 'Something needs a look.' : "Dan's house is steady.",
+    summary: hasBad
+      ? `${translatePrimaryAction(reviewItems)} Core evidence is still available below.`
+      : hasReview
+        ? `${translatePrimaryAction(reviewItems)} Everything else is responding.`
+        : 'Internet, automations, public access, and the Mac mini are quiet.',
+    tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
+    primaryAction: translatePrimaryAction(reviewItems),
+    zones,
+    recentChanges: meaningfulRecentChanges(timeline)
+  };
 }
 
 function usefulSignals(intelligence) {
   if (!intelligence) return [];
   return [
     ['External access', intelligence.tailscaleFunnel],
+    ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
+    ['Service Logs', intelligence.serviceLogs],
     ['Homebridge Log', intelligence.homebridge && intelligence.homebridge.logHealth],
     ['App Versions', intelligence.softwareUpdates],
     ['macOS', intelligence.macUpdates],
     ['System Logs', intelligence.systemLogs]
   ]
-    .filter(([, signal]) => signal && (signal.state === 'warn' || signal.state === 'bad'))
+    .filter(([, signal]) => signal && signal.hidden !== true && (signal.state === 'warn' || signal.state === 'bad'))
     .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch' }));
 }
 
 function usefulVitals(systemVitals) {
   const health = systemVitals && systemVitals.health ? systemVitals.health : {};
   return Object.entries(health)
-    .filter(([, signal]) => signal && (signal.state === 'warn' || signal.state === 'bad'))
+    .filter(([, signal]) => signal && (signal.state === 'bad' || signal.review === true))
     .map(([key, signal]) => ({
       name: key === 'cpu' ? 'CPU' : key === 'memory' ? 'Memory' : 'Disk',
       state: signal.state,
@@ -1339,6 +2288,7 @@ module.exports = function(ctx = {}) {
   return {
     routes: {
       'POST /ask': async (req, res, { body }) => askTeddy(ctx, body || {}),
+      'GET /logs': async () => logDetailPayload(ctx),
       'GET /health': async () => {
         const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence] = await Promise.all([
           checkAdGuard(),
@@ -1347,22 +2297,25 @@ module.exports = function(ctx = {}) {
           checkInternet(),
           checkOpenClaw(),
           checkBackups(),
-          vitals(),
+          vitals(ctx),
           buildIntelligence(ctx)
         ]);
 
         const services = { adguard, homebridge, tailscale, internet, openclaw, backups };
-        const score = scoreServices(services);
+        const score = scoreServices(services, intelligence, systemVitals);
         const timeline = updateTimeline(ctx, services, intelligence, score);
         const insights = await buildInsights(services, systemVitals, intelligence);
+        const reviewItems = needsDan(services, intelligence, systemVitals);
+        const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
         const visualEvidence = updateVisualEvidenceLog(
           ctx,
-          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score)
+          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState)
         );
         return {
           checkedAt: nowIso(),
           score,
-          needsDan: needsDan(services, intelligence, systemVitals),
+          needsDan: reviewItems,
+          houseState,
           services,
           insights,
           intelligence,

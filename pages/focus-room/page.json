@@ -1,0 +1,10 @@
+{
+  "id": "focus-room",
+  "title": "Focus Room",
+  "icon": "FR",
+  "description": "Quiet Teddy Focus Room preview",
+  "order": 4,
+  "enabled": false,
+  "nav": false,
+  "standalone": true
+}

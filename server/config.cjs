@@ -22,6 +22,7 @@ const SECRETS_FILE = path.join(CWD, 'secrets.json');
 const MIME_TYPES = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
   '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.mp4': 'video/mp4',
   '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
   '.map': 'application/json'

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A quiet Teddy Focus Room preview surface.">
+  <meta name="theme-color" content="#0b1d1f">
+  <meta name="color-scheme" content="dark">
+  <title>Teddy Focus Room</title>
+  <link rel="icon" href="/pages/teddy-house/teddy-house-icon.png" type="image/png">
+  <link rel="stylesheet" href="/pages/focus-room/style.css">
+</head>
+<body>
+  <main class="focus-shell">
+    <nav id="page-nav" class="page-nav" aria-label="Pages"></nav>
+
+    <section class="hero" aria-labelledby="focus-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Teddy Focus Room</p>
+        <h1 id="focus-title">Quiet mode, not dashboard mode.</h1>
+        <p>
+          A lightweight preview from the OBS bells demo. The full source video stays in the local archive;
+          this page only serves a tiny muted loop so Homebase stays fast.
+        </p>
+        <a class="home-link" href="/pages/teddy-house/">Back to Homebase</a>
+      </div>
+
+      <figure class="preview-card">
+        <video
+          src="/pages/focus-room/teddy-focus-room-preview.mp4"
+          poster="/pages/focus-room/teddy-focus-room-poster.jpg"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          aria-label="Muted Teddy Focus Room preview loop"
+        ></video>
+        <figcaption>8-second muted preview, generated from the 51-second OBS demo.</figcaption>
+      </figure>
+    </section>
+  </main>
+
+  <script src="/pages/_shared/nav.js"></script>
+</body>
+</html>

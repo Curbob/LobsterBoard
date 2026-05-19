@@ -9,6 +9,14 @@ const SERVICES = [
 const REFRESH_MS = 420000;
 let currentHealth = null;
 
+function configureLocalLinks() {
+  const hostname = window.location.hostname || "127.0.0.1";
+  document.querySelectorAll("[data-local-link]").forEach(link => {
+    const path = link.getAttribute("data-local-link") || "/";
+    link.href = `http://${hostname}:8081${path}`;
+  });
+}
+
 function stateClass(state) {
   if (state === "ok") return "state-ok";
   if (state === "info") return "state-info";
@@ -17,10 +25,28 @@ function stateClass(state) {
 }
 
 function stateLabel(state) {
-  if (state === "ok") return "Good";
+  if (state === "ok") return "Online";
   if (state === "info") return "Notice";
   if (state === "warn") return "Review";
   return "Issue";
+}
+
+function stateRank(state) {
+  if (state === "bad") return 0;
+  if (state === "warn") return 1;
+  if (state === "info") return 2;
+  if (state === "ok") return 3;
+  return 4;
+}
+
+function rankItems(items, getState) {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const rank = stateRank(getState(a.item)) - stateRank(getState(b.item));
+      return rank === 0 ? a.index - b.index : rank;
+    })
+    .map(entry => entry.item);
 }
 
 function fmtAge(iso) {
@@ -65,7 +91,7 @@ function renderServices(data) {
   const grid = document.getElementById("service-grid");
   const services = data.services || {};
   clear(grid);
-  SERVICES.forEach(([key, name]) => {
+  rankItems(SERVICES, ([key]) => (services[key] || {}).state).forEach(([key, name]) => {
     const item = services[key] || { state: "warn", detail: "No reading available.", metric: "--" };
     const card = document.createElement("article");
     card.className = "service-card";
@@ -75,13 +101,14 @@ function renderServices(data) {
     copy.append(div("service-name", name), div("tiny-label", stateLabel(item.state)));
     top.append(copy, span(`status-dot ${stateClass(item.state)}`));
 
-    const detail = div("service-detail", item.detail || "No detail available.");
     const metric = div("metric-row");
     const strong = document.createElement("strong");
     strong.textContent = item.metric || "--";
     metric.append(span("", item.check || "Checking"), strong);
 
-    card.append(top, detail, metric);
+    card.append(top);
+    if (item.state !== "ok" && item.detail) card.append(div("service-detail", item.detail));
+    card.append(metric);
     grid.append(card);
   });
 }
@@ -91,19 +118,20 @@ function renderVitals(vitals) {
   const health = vitals.health || {};
   const rows = [
     ["CPU load", vitals.cpu || "--", health.cpu],
-    ["Memory used", vitals.memory || "--", health.memory],
+    ["Memory pressure", vitals.memoryPressure || (health.memory && health.memory.displayMetric) || vitals.memory || "--", health.memory],
     ["Disk used", vitals.disk || "--", health.disk],
     ["Uptime", vitals.uptime || "--", null],
     ["Network", vitals.network || "--", null],
     ["Host", vitals.host || "--", null]
   ];
   clear(grid);
-  rows.forEach(([label, value, signal]) => {
+  rankItems(rows, ([, , signal]) => signal ? signalState(signal) : "ok").forEach(([label, value, signal]) => {
     const item = div("vital");
     const top = div("vital-top");
     top.append(div("tiny-label", label));
     if (signal) top.append(span(`status-dot ${stateClass(signalState(signal))}`));
     item.append(top, div("vital-value", value));
+    if (signal && signal.secondary) item.append(div("vital-detail", signal.secondary));
     if (signal && signal.detail) item.title = signal.detail;
     grid.append(item);
   });
@@ -112,16 +140,18 @@ function renderVitals(vitals) {
 function renderNeeds(needs) {
   const title = document.getElementById("needs-title");
   const list = document.getElementById("needs-list");
+  const lane = document.getElementById("review-lane") || title.closest(".needs-lane");
   clear(list);
   if (!needs || needs.length === 0) {
-    title.textContent = "No action needed.";
-    list.append(span("badge", "Clear"));
+    if (lane) lane.hidden = true;
+    title.textContent = "Clear for now.";
     return;
   }
+  if (lane) lane.hidden = false;
   title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} to review.`;
   needs.forEach(item => {
     const chip = span("need-chip");
-    chip.append(span("", item));
+    chip.append(span("", formatNeedLabel(item)));
     const ask = document.createElement("button");
     ask.className = "ask-mini";
     ask.type = "button";
@@ -136,6 +166,60 @@ function renderNeeds(needs) {
   });
 }
 
+function formatNeedLabel(item) {
+  const [rawName, rawValue] = String(item || "").split(":").map(part => part.trim());
+  const name = rawName || "Review item";
+  const value = rawValue || "";
+  if (/system logs/i.test(name)) return value ? `System logs: ${value} finding` : "System logs need review";
+  if (/service logs/i.test(name)) return value ? `Service logs: ${value} findings` : "Service logs need review";
+  if (/external access/i.test(name)) return value ? `Public access: ${value}` : "Public access needs review";
+  return value ? `${name}: ${value}` : name;
+}
+
+function renderHouseState(houseState) {
+  const panel = document.getElementById("house-state");
+  const grid = document.getElementById("house-zone-grid");
+  const pill = document.getElementById("house-state-pill");
+  if (!panel || !grid) return;
+  clear(grid);
+  if (!houseState || !Array.isArray(houseState.zones)) {
+    if (pill) pill.textContent = "Evidence";
+    return;
+  }
+  if (pill) {
+    pill.textContent = houseState.tone === "steady"
+      ? "Steady"
+      : houseState.tone === "issue"
+        ? "Issue"
+        : "Review";
+  }
+  rankItems(houseState.zones, zone => zone.state).forEach(zone => {
+    const card = document.createElement("article");
+    card.className = `house-zone-card ${stateClass(zone.state)}`;
+    const top = div("house-zone-top");
+    const copy = div();
+    copy.append(div("tiny-label", zone.title || "Zone"), div("house-zone-value", zone.value || "--"));
+    top.append(copy, span(`status-dot ${stateClass(zone.state)}`));
+    card.append(top);
+    const detail = document.createElement("p");
+    detail.textContent = zone.detail || "No detail available.";
+    card.append(detail);
+    const evidence = Array.isArray(zone.evidence) ? zone.evidence.filter(Boolean).slice(0, 4) : [];
+    if (evidence.length > 0) {
+      const row = div("house-zone-evidence");
+      evidence.forEach(item => row.append(span("", item)));
+      card.append(row);
+    }
+    grid.append(card);
+  });
+}
+
+function primaryAction(needs) {
+  if (!Array.isArray(needs) || needs.length === 0) return "Clear for now.";
+  const first = String(needs[0] || "review item").split(":")[0].trim().toLowerCase();
+  return first ? `Start with ${first}.` : "Start with the first review item.";
+}
+
 function signalValue(signal, fallback = "--") {
   if (!signal) return fallback;
   if (signal.value !== undefined && signal.value !== null) return String(signal.value);
@@ -148,19 +232,42 @@ function signalState(signal) {
   return (signal && signal.state) || "info";
 }
 
+function confidenceLabel(signal) {
+  const value = signal && signal.confidence;
+  if (value === "manual") return "Manual verified";
+  if (value === "cached") return "Cached";
+  if (value === "degraded") return "Degraded source";
+  if (value === "live") return "Live";
+  return "";
+}
+
+function renderConfidence(signal) {
+  const label = confidenceLabel(signal);
+  if (!label || label === "Live") return null;
+  const pill = span(`confidence-pill confidence-${signal.confidence}`, label);
+  if (signal.confidenceDetail) pill.title = signal.confidenceDetail;
+  return pill;
+}
+
 function renderSignalCard(grid, title, signal, label, detailOverride) {
   const item = document.createElement("article");
   item.className = "signal-card";
+  const state = signalState(signal);
   const top = div("signal-top");
   const copy = div();
   const value = document.createElement("strong");
   value.textContent = signalValue(signal);
   copy.append(div("tiny-label", title), value);
-  top.append(copy, span(`status-dot ${stateClass(signalState(signal))}`));
-  item.append(top, div("signal-label", label || (signal && (signal.label || signal.check)) || "Checking"));
-  const detail = document.createElement("p");
-  detail.textContent = detailOverride || (signal && signal.detail) || "No detail available.";
-  item.append(detail);
+  top.append(copy, span(`status-dot ${stateClass(state)}`));
+  item.append(top);
+  const confidence = renderConfidence(signal);
+  if (confidence) item.append(confidence);
+  if (state !== "ok") {
+    item.append(div("signal-label", label || (signal && (signal.label || signal.check)) || "Checking"));
+    const detail = document.createElement("p");
+    detail.textContent = detailOverride || (signal && signal.detail) || "No detail available.";
+    item.append(detail);
+  }
   grid.append(item);
 }
 
@@ -173,14 +280,19 @@ function renderSignals(intelligence) {
   const weirdItems = Array.isArray(data.weirdThings) ? data.weirdThings : [];
   const weirdFindings = weirdItems.filter(item => item.title !== "No drift" && item.title !== "No new weird thing");
 
-  renderSignalCard(grid, "DNS blocks", data.adguard, data.adguard && data.adguard.label);
-  renderSignalCard(grid, "Accessories", homebridge.accessories, "Homebridge");
-  renderSignalCard(grid, "Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label);
-  renderSignalCard(grid, "External access", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check);
-  renderSignalCard(grid, "WAN quality", data.wanQuality, data.wanQuality && data.wanQuality.check);
-  renderSignalCard(grid, "App versions", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label);
-  renderSignalCard(grid, "macOS", data.macUpdates, data.macUpdates && data.macUpdates.check);
-  renderSignalCard(grid, "System logs", data.systemLogs, data.systemLogs && data.systemLogs.check);
+  const cards = [
+    ["DNS blocks", data.adguard, data.adguard && data.adguard.label],
+    ["Door locks", homebridge.doorLocks, homebridge.doorLocks && homebridge.doorLocks.label],
+    ["House devices", homebridge.accessories, "Smart Home"],
+    ["Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label],
+    ["Homebridge version", homebridge.version, homebridge.version && homebridge.version.label],
+    ["What's exposed", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check],
+    ["Internet", data.wanQuality, data.wanQuality && data.wanQuality.check],
+    ["Service logs", data.serviceLogs, data.serviceLogs && data.serviceLogs.label],
+    ["App versions", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label],
+    ["macOS", data.macUpdates, data.macUpdates && data.macUpdates.check],
+    ["System logs", data.systemLogs, data.systemLogs && data.systemLogs.check]
+  ];
   if (weirdFindings.length > 0) {
     const weirdState = weirdFindings.some(item => item.state === "bad")
       ? "bad"
@@ -188,24 +300,37 @@ function renderSignals(intelligence) {
         ? "warn"
         : "info";
     const weirdDetail = weirdFindings.map(item => `${item.title}: ${item.detail}`).join(" ");
-    renderSignalCard(grid, "Changes", { state: weirdState, value: weirdFindings.length }, "Change detection", weirdDetail);
+    cards.push(["Changes", { state: weirdState, value: weirdFindings.length }, "Change detection", weirdDetail]);
   }
+  rankItems(cards, ([, signal]) => signalState(signal))
+    .filter(([, signal]) => !signal || signal.hidden !== true)
+    .forEach(([title, signal, label, detailOverride]) => renderSignalCard(grid, title, signal, label, detailOverride));
 }
 
 function renderEvents(events) {
   const list = document.getElementById("events-list");
   clear(list);
-  (events || []).forEach(event => {
+  (events || [])
+    .filter(event => event && event.title !== "Status check" && !/no changes/i.test(event.detail || ""))
+    .slice(0, 8)
+    .forEach(event => {
     const item = div("event");
     const title = document.createElement("strong");
     title.textContent = event.title || "Update";
     item.append(span("", event.time || fmtAge(event.at)), title, span("", event.detail || "No detail available."));
     list.append(item);
   });
+  if (!list.children.length) {
+    const item = div("event quiet-event");
+    item.append(span("", "Now"), document.createElement("strong"), span("", "No meaningful changes."));
+    item.querySelector("strong").textContent = "Quiet";
+    list.append(item);
+  }
 }
 
 function renderSummary(data) {
   const score = data.score ?? 0;
+  const houseState = data.houseState;
   const needCount = Array.isArray(data.needsDan) ? data.needsDan.length : 0;
   const title = document.getElementById("summary-title");
   const copy = document.getElementById("summary-copy");
@@ -214,34 +339,47 @@ function renderSummary(data) {
   const next = document.getElementById("next-action");
   const last = document.getElementById("last-check");
   const teddyLine = document.getElementById("teddy-line");
+  const nextAction = houseState && houseState.primaryAction ? houseState.primaryAction : primaryAction(data.needsDan);
 
   scoreText.textContent = `${score}`;
   ring.style.background = `conic-gradient(var(--green) ${score * 3.6}deg, rgba(255, 255, 255, 0.10) 0deg)`;
   last.textContent = fmtCheckedAt(data.checkedAt);
 
+  if (houseState && houseState.headline) {
+    title.textContent = houseState.headline;
+    copy.textContent = houseState.summary || "House state is derived from live evidence.";
+    next.textContent = nextAction;
+    teddyLine.textContent = houseState.tone === "steady" ? "Dan's house is steady." : nextAction;
+    return;
+  }
+
   if (score >= 90 && needCount === 0) {
-    title.textContent = "All core systems are online.";
-    copy.textContent = "DNS, Homebridge, Tailscale, OpenClaw, and the Mac mini responded.";
-    next.textContent = "No action needed.";
-    teddyLine.textContent = "No action needed.";
+    title.textContent = "Dan's house is steady.";
+    copy.textContent = "Internet, automations, public access, and the Mac mini are quiet.";
+    next.textContent = "Clear for now.";
+    teddyLine.textContent = "Clear for now.";
   } else if (score >= 90) {
-    title.textContent = "Core systems are online.";
+    title.textContent = "Something needs a look.";
     copy.textContent = needCount === 1 ? "1 signal needs review." : `${needCount} signals need review.`;
-    next.textContent = "Review the flagged item.";
+    next.textContent = nextAction;
     teddyLine.textContent = "Review recommended.";
   } else if (score >= 70) {
-    title.textContent = "Mostly online.";
+    title.textContent = "Something needs a look.";
     copy.textContent = needCount === 1
       ? "Core services are online. 1 signal needs review."
       : `Core services are online. ${needCount} signals need review.`;
-    next.textContent = "Review the flagged item.";
+    next.textContent = nextAction;
     teddyLine.textContent = needCount === 1 ? "1 item to review." : `${needCount} items to review.`;
   } else {
-    title.textContent = "A core check needs attention.";
+    title.textContent = "Homebase found an issue.";
     copy.textContent = "A core check failed from the Mac mini.";
     next.textContent = "Start with the issue.";
     teddyLine.textContent = "Issue detected.";
   }
+}
+
+function setLoadedState(isLoaded) {
+  document.body.classList.toggle("homebase-loading", !isLoaded);
 }
 
 async function loadHealth() {
@@ -255,15 +393,18 @@ async function loadHealth() {
     currentHealth = data;
     renderSummary(data);
     renderNeeds(data.needsDan);
+    renderHouseState(data.houseState);
     renderServices(data);
     renderVitals(data.vitals || {});
     renderSignals(data.intelligence);
-    renderEvents(data.timeline || data.events || []);
+    renderEvents((data.houseState && data.houseState.recentChanges) || data.timeline || data.events || []);
+    setLoadedState(true);
   } catch (err) {
     document.getElementById("summary-title").textContent = "Could not refresh status.";
     const copy = document.getElementById("summary-copy");
     clear(copy);
     copy.append(span("error-box", err.message));
+    setLoadedState(false);
   } finally {
     button.disabled = false;
     button.textContent = "Refresh";
@@ -292,12 +433,20 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
 
   submit.disabled = true;
   statusButton.disabled = true;
+  if (!currentHealth) {
+    setAskState("Refreshing", "Checking the house first...");
+    await loadHealth();
+  }
   setAskState("Asking", "Sending the current dashboard context to Teddy...");
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 75000);
   try {
     const res = await fetch("/api/pages/teddy-house/ask", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         action,
         prompt: finalPrompt,
@@ -310,8 +459,12 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     setAskState(data.status === "complete" ? "Answered" : "Done", data.answer || "Teddy answered, but no text came back.");
     if (input && action !== "status") input.value = "";
   } catch (err) {
-    setAskState("Failed", err.message);
+    const message = err.name === "AbortError"
+      ? "Teddy took too long. Refresh and try again; the dashboard is still live."
+      : err.message;
+    setAskState("Failed", message);
   } finally {
+    clearTimeout(timer);
     submit.disabled = false;
     statusButton.disabled = false;
   }
@@ -326,5 +479,6 @@ document.getElementById("ask-status-button").addEventListener("click", () => {
   askTeddy({ action: "status", prompt: "Summarize the current Homebase status and explain what needs review." });
 });
 
+configureLocalLinks();
 loadHealth();
 setInterval(loadHealth, REFRESH_MS);

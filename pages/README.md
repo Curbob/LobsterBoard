@@ -171,6 +171,12 @@ Or set `"enabled": false` in the page's own `page.json`. The `pages.json` overri
 
 Restart the server after changes.
 
+## Teddy Homebase Guardrails
+
+`pages/teddy-house/` is the active Homebase surface. Keep it quiet and status-first: no embedded Focus Room media, no extra dashboard cards unless they make the first read clearer, and no links to orphaned preview pages.
+
+`pages/focus-room/` is intentionally parked. It may exist as an archived preview, but it must stay disabled in both `pages.json` and `pages/focus-room/page.json`, and it must stay out of navigation unless Dan explicitly promotes it.
+
 ## Full Example: Bookmarks Page
 
 ### pages/bookmarks/page.json

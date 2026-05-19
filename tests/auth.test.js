@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { startServer, postJson } from './helpers/server.js';
 import crypto from 'node:crypto';
+import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,7 +27,7 @@ describe('Password auth', () => {
   let srv;
 
   beforeAll(async () => {
-    srv = await startServer({ password: 'test-secret-123' });
+    srv = await startServer({ password: 'test-secret-123', env: { TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '1' } });
   });
   afterAll(async () => { if (srv) await srv.kill(); });
 
@@ -39,6 +40,78 @@ describe('Password auth', () => {
   it('returns 401 for unauthenticated API requests', async () => {
     const res = await fetch(`${srv.baseUrl}/api/stats`);
     expect(res.status).toBe(401);
+  });
+
+  it('allows local Homebase health-check probes without a browser session', async () => {
+    const pageRes = await fetch(`${srv.baseUrl}/pages/teddy-house/`, { redirect: 'manual' });
+    expect(pageRes.status).toBe(200);
+    expect(pageRes.headers.get('content-type')).toContain('text/html');
+    expect(pageRes.headers.get('cache-control')).toBe('no-store');
+
+    const healthRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(healthRes.status).toBe(200);
+    const health = await healthRes.json();
+    expect(health).toHaveProperty('score');
+    expect(health).toHaveProperty('services');
+
+    const logsPageRes = await fetch(`${srv.baseUrl}/pages/teddy-house/logs/`, { redirect: 'manual' });
+    expect(logsPageRes.status).toBe(200);
+    expect(logsPageRes.headers.get('cache-control')).toBe('no-store');
+    const logsScriptRes = await fetch(`${srv.baseUrl}/pages/teddy-house/logs.js`, { redirect: 'manual' });
+    expect(logsScriptRes.status).toBe(200);
+    expect(logsScriptRes.headers.get('cache-control')).toBe('no-store');
+    const sharedNavRes = await fetch(`${srv.baseUrl}/pages/_shared/nav.js`, { redirect: 'manual' });
+    expect(sharedNavRes.status).toBe(200);
+    expect(sharedNavRes.headers.get('content-type')).toContain('javascript');
+    const pagesListRes = await fetch(`${srv.baseUrl}/api/pages`, { redirect: 'manual' });
+    expect(pagesListRes.status).toBe(200);
+    const logsRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/logs`);
+    expect(logsRes.status).toBe(200);
+
+    const loginForDataRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
+    const dataCookie = cookiePair(setCookieHeaders(loginForDataRes), 'lb_session');
+    const directEvidenceRes = await fetch(`${srv.baseUrl}/data/teddy-house/visual-evidence.json`, {
+      redirect: 'manual',
+      headers: { Cookie: dataCookie }
+    });
+    expect(directEvidenceRes.status).toBe(404);
+    const directAskHistoryRes = await fetch(`${srv.baseUrl}/data/teddy-house/ask-history.json`, {
+      redirect: 'manual',
+      headers: { Cookie: dataCookie }
+    });
+    expect(directAskHistoryRes.status).toBe(404);
+
+    const askRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status', prompt: 'Summarize current status.' })
+    });
+    expect(askRes.status).toBe(200);
+    const ask = await askRes.json();
+    expect(ask).toEqual(expect.objectContaining({
+      status: 'complete',
+      source: 'local'
+    }));
+  });
+
+  it('keeps Homebase probes passworded for non-loopback hosts', async () => {
+    const requestStatus = (path) => new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port: srv.port,
+        path,
+        method: 'GET',
+        headers: { Host: 'openclaw-mac-mini.tail02a3b6.ts.net:10000' }
+      }, res => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    await expect(requestStatus('/api/pages/teddy-house/health')).resolves.toBe(401);
+    await expect(requestStatus('/api/pages/teddy-house/logs')).resolves.toBe(401);
+    await expect(requestStatus('/pages/teddy-house/logs.js')).resolves.toBe(302);
   });
 
   it('GET /login is always accessible', async () => {
@@ -57,12 +130,51 @@ describe('Password auth', () => {
     expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
     expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
     expect(cookies.join('\n')).toContain('HttpOnly');
+    expect(cookies.join('\n')).toContain('SameSite=Lax');
     expect(cookies.join('\n')).toContain('Max-Age=2592000');
+    expect(cookies.join('\n')).toContain('Expires=');
+  });
+
+  it('POST /api/auth/login accepts the Codex-only dashboard password', async () => {
+    const codexSrv = await startServer({
+      password: 'test-secret-123',
+      env: { CODEX_DASHBOARD_PASSWORD: 'codex-secret-456' }
+    });
+    try {
+      const res = await postJson(codexSrv.baseUrl, '/api/auth/login', { password: 'codex-secret-456' });
+      expect(res.status).toBe(200);
+      const cookies = setCookieHeaders(res);
+      expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+      expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
+    } finally {
+      await codexSrv.kill();
+    }
+  });
+
+  it('POST /api/auth/login accepts the Codex-only verifier hash', async () => {
+    const hash = crypto.createHmac('sha256', 'lb-session-auth').update('codex-secret-789').digest('hex');
+    const codexSrv = await startServer({
+      password: 'test-secret-123',
+      env: { CODEX_DASHBOARD_PASSWORD_HASH: hash }
+    });
+    try {
+      const res = await postJson(codexSrv.baseUrl, '/api/auth/login', { password: 'codex-secret-789' });
+      expect(res.status).toBe(200);
+      const cookies = setCookieHeaders(res);
+      expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+      expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
+    } finally {
+      await codexSrv.kill();
+    }
   });
 
   it('login page only redirects to same-origin relative paths', async () => {
     const html = readFileSync(join(process.cwd(), 'login.html'), 'utf8');
     expect(html).toContain('function safeRedirectTarget');
+    expect(html).toContain('let loginInFlight = false');
+    expect(html).toContain("addEventListener('submit', login)");
+    expect(html).not.toContain("addEventListener('click', login)");
+    expect(html).toContain("credentials: 'same-origin'");
     expect(html).toContain("candidate.startsWith('/')");
     expect(html).toContain("candidate.startsWith('//')");
     expect(html).toContain('url.origin !== window.location.origin');
@@ -99,7 +211,10 @@ describe('Password auth', () => {
       headers: { Cookie: trustedCookie },
     });
     expect(res.status).toBe(200);
-    expect(cookiePair(setCookieHeaders(res), 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+    const cookies = setCookieHeaders(res);
+    expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
+    expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
+    expect(cookies.join('\n')).toContain('SameSite=Lax');
   });
 
   it('rejects invalid trusted-device cookies', async () => {

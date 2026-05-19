@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Private grouped log evidence for Teddy Homebase.">
+  <meta name="theme-color" content="#0b1d1f">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Homebase Logs">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Homebase Logs</title>
+  <link rel="icon" href="/pages/teddy-house/teddy-house-icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png">
+  <link rel="manifest" href="/pages/teddy-house/manifest.webmanifest">
+  <link rel="stylesheet" href="/pages/teddy-house/style.css">
+</head>
+<body class="logs-page">
+  <div class="window-shell logs-shell">
+    <aside class="sidebar">
+      <div class="traffic-lights" aria-hidden="true">
+        <span class="light red"></span>
+        <span class="light amber"></span>
+        <span class="light green"></span>
+      </div>
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">
+          <img src="/pages/teddy-house/teddy-house-icon.png" alt="">
+        </div>
+        <div>
+          <div class="brand-title">Homebase Logs</div>
+          <div class="brand-subtitle">Private evidence</div>
+        </div>
+      </div>
+      <nav id="page-nav" class="lobster-page-nav" aria-label="Pages"></nav>
+      <nav class="side-nav" aria-label="Log sections">
+        <a href="/pages/teddy-house/">Dashboard</a>
+        <a class="active" href="#sources">Sources</a>
+        <a href="#framework">Framework</a>
+      </nav>
+      <div class="teddy-card">
+        <div class="teddy-face" aria-hidden="true">
+          <span class="ear left"></span>
+          <span class="ear right"></span>
+          <span class="eye left"></span>
+          <span class="eye right"></span>
+          <span class="nose"></span>
+        </div>
+        <div>
+          <div class="tiny-label">Teddy</div>
+          <div id="logs-teddy-line">Checking grouped service logs.</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="dashboard logs-dashboard">
+      <header class="toolbar">
+        <div class="toolbar-title">
+          <p class="eyebrow">Mac mini</p>
+          <h1>Homebase Logs</h1>
+        </div>
+        <div class="toolbar-actions">
+          <span class="badge">Hidden detail</span>
+          <span class="last-check" id="logs-last-check">Waiting for first check</span>
+          <button id="logs-refresh" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="status-band logs-status" id="overview">
+        <div class="status-copy">
+          <p class="eyebrow">Logging</p>
+          <h2 id="logs-summary-title">Checking service logs</h2>
+          <p id="logs-summary-copy">Grouped, redacted evidence for Homebase, Homebridge, OpenClaw, AdGuard, and Tailscale.</p>
+        </div>
+        <div class="score-card">
+          <div class="score-ring" id="logs-score-ring">
+            <span id="logs-score">--</span>
+          </div>
+          <div>
+            <div class="tiny-label">Sources</div>
+            <div id="logs-next-action" class="next-action">Running checks</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="sources" aria-labelledby="sources-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Evidence</p>
+            <h3 id="sources-title">Service sources</h3>
+          </div>
+          <span class="state-pill" id="logs-state">Checking</span>
+        </div>
+        <div class="log-source-grid" id="log-source-grid"></div>
+      </section>
+
+      <section class="panel" id="framework" aria-labelledby="framework-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Architecture</p>
+            <h3 id="framework-title">Unified logging plan</h3>
+          </div>
+          <span class="state-pill">Codex + Teddy</span>
+        </div>
+        <div class="framework-copy">
+          <p id="codex-take">Codex is drafting the operator plan.</p>
+          <p id="teddy-take">Teddy is keeping the daily surface calm.</p>
+        </div>
+        <div class="framework-grid" id="framework-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/pages/_shared/nav.js"></script>
+  <script src="/pages/teddy-house/logs.js"></script>
+</body>
+</html>

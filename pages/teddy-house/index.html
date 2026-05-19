@@ -22,7 +22,7 @@
   <link rel="manifest" href="/pages/teddy-house/manifest.webmanifest">
   <link rel="stylesheet" href="/pages/teddy-house/style.css">
 </head>
-<body>
+<body class="homebase-loading">
   <div class="window-shell">
     <aside class="sidebar">
       <div class="traffic-lights" aria-hidden="true">
@@ -41,11 +41,11 @@
       </div>
       <nav id="page-nav" class="lobster-page-nav" aria-label="Pages"></nav>
       <nav class="side-nav" aria-label="Sections">
-        <a class="active" href="#overview">Status</a>
-        <a href="#signals">Signals</a>
-        <a href="#service-grid">Services</a>
-        <a href="#server">Mac</a>
-        <a href="#timeline">Timeline</a>
+        <a class="active" href="#overview">Home</a>
+        <a href="#house-state">House state</a>
+        <a href="#ask-teddy">Ask</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#timeline">Changes</a>
       </nav>
       <div class="teddy-card">
         <div class="teddy-face" aria-hidden="true">
@@ -57,7 +57,7 @@
         </div>
         <div>
           <div class="tiny-label">Teddy</div>
-          <div id="teddy-line">Checking status.</div>
+          <div id="teddy-line">Checking the house.</div>
         </div>
       </div>
     </aside>
@@ -70,16 +70,17 @@
         </div>
         <div class="toolbar-actions">
           <span class="badge" id="privacy-badge">Private</span>
-          <span class="last-check" id="last-check">Not checked yet</span>
+          <span class="last-check" id="last-check">Waiting for first check</span>
+          <a class="toolbar-link" href="https://openclaw-mac-mini.tail02a3b6.ts.net:3001/" target="_blank" rel="noopener">AdGuard</a>
           <button id="refresh-button" type="button">Refresh</button>
         </div>
       </header>
 
       <section class="status-band" id="overview">
         <div class="status-copy">
-          <p class="eyebrow">Status</p>
-          <h2 id="summary-title">Checking status.</h2>
-          <p id="summary-copy">Network, automation, and Mac mini signals.</p>
+          <p class="eyebrow">Home</p>
+          <h2 id="summary-title">Checking the house</h2>
+          <p id="summary-copy">Internet, automations, public access, and the Mac mini.</p>
         </div>
         <div class="score-card">
           <div class="score-ring" id="score-ring">
@@ -87,68 +88,112 @@
           </div>
           <div>
             <div class="tiny-label">Readiness</div>
-            <div id="next-action" class="next-action">Preparing report.</div>
+            <div id="next-action" class="next-action">Running checks</div>
           </div>
         </div>
       </section>
 
-      <section class="needs-lane" aria-labelledby="needs-title">
+      <section class="needs-lane" id="review-lane" aria-labelledby="needs-title">
         <div>
           <p class="eyebrow">Review</p>
-          <h3 id="needs-title">No action needed.</h3>
+          <h3 id="needs-title">Checking for review items.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
       </section>
+
+      <section class="panel link-panel" id="local-links" aria-labelledby="local-links-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Local Links</p>
+            <h3 id="local-links-title">Launcher shortcuts</h3>
+          </div>
+          <span class="state-pill">Local</span>
+        </div>
+        <div class="link-grid">
+          <a class="link-card" href="http://127.0.0.1:8081/" data-local-link="/" target="_blank" rel="noopener">
+            <span class="link-title">Teddy Launcher</span>
+            <span class="link-detail">All local apps</span>
+          </a>
+          <a class="link-card" href="http://127.0.0.1:8081/life-wiki/" data-local-link="/life-wiki/" target="_blank" rel="noopener">
+            <span class="link-title">Life Wiki</span>
+            <span class="link-detail">Personal knowledge base</span>
+          </a>
+          <a class="link-card" href="http://127.0.0.1:8081/cobraclaw/" data-local-link="/cobraclaw/" target="_blank" rel="noopener">
+            <span class="link-title">CobraClaw</span>
+            <span class="link-detail">Local doctrine files</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="panel house-state-panel hidden-until-loaded" id="house-state" aria-labelledby="house-state-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">House State</p>
+            <h3 id="house-state-title">Daily state</h3>
+          </div>
+          <span class="state-pill" id="house-state-pill">Checking</span>
+        </div>
+        <div class="house-zone-grid" id="house-zone-grid"></div>
+      </section>
+
+      <article class="panel vitals-panel hidden-until-loaded" id="server">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Mac mini</p>
+            <h3>Vitals</h3>
+          </div>
+          <span class="state-pill" id="vitals-pill">Mac vitals</span>
+        </div>
+        <div class="vitals-grid" id="vitals-grid"></div>
+      </article>
 
       <section class="panel ask-panel" id="ask-teddy" aria-labelledby="ask-title">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Ask Teddy</p>
-            <h3 id="ask-title">Bring the dashboard with you.</h3>
+            <h3 id="ask-title">Ask about this status</h3>
           </div>
           <span class="state-pill" id="ask-state">Ready</span>
         </div>
         <form class="ask-form" id="ask-form">
           <label class="sr-only" for="ask-input">Ask Teddy about this dashboard</label>
-          <textarea id="ask-input" rows="2" maxlength="600" placeholder="Ask about this Mac mini..."></textarea>
+          <textarea id="ask-input" rows="2" maxlength="600" placeholder="Ask what changed, what matters, or what to check first."></textarea>
           <div class="ask-actions">
             <button class="ask-secondary" id="ask-status-button" type="button">Send status</button>
             <button id="ask-submit" type="submit">Ask Teddy</button>
           </div>
         </form>
-        <div class="ask-response" id="ask-response" aria-live="polite">Ask a question or send the current status.</div>
+        <div class="ask-response" id="ask-response" aria-live="polite">Ask what changed, what matters, or what to check first.</div>
       </section>
 
-      <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
+      <section class="panel evidence-panel hidden-until-loaded" id="evidence" aria-labelledby="evidence-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Evidence</p>
+            <h3 id="evidence-title">Service evidence</h3>
+          </div>
+          <span class="state-pill">Details</span>
+        </div>
+        <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
+      </section>
 
-      <section class="panel signals-panel" id="signals" aria-labelledby="signals-title">
+      <section class="panel signals-panel hidden-until-loaded" id="signals" aria-labelledby="signals-title">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Signals</p>
-            <h3 id="signals-title">Current</h3>
+            <h3 id="signals-title">Evidence signals</h3>
           </div>
-          <span class="state-pill">Live</span>
+          <span class="state-pill">Fresh check</span>
         </div>
         <div class="signal-grid" id="signal-grid"></div>
       </section>
 
-      <section class="lower-grid">
-        <article class="panel vitals-panel" id="server">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Mac mini</p>
-              <h3>Vitals</h3>
-            </div>
-            <span class="state-pill" id="vitals-pill">Now</span>
-          </div>
-          <div class="vitals-grid" id="vitals-grid"></div>
-        </article>
-
+      <section class="lower-grid hidden-until-loaded">
         <article class="panel events-panel" id="timeline">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Timeline</p>
-              <h3>Recent activity</h3>
+              <p class="eyebrow">Changes</p>
+              <h3>Recent changes</h3>
             </div>
           </div>
           <div class="events" id="events-list"></div>

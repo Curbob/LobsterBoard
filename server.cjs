@@ -25,8 +25,10 @@ const {
   getSessionCookie,
   getTrustedCookie,
   isValidTrustedDevice,
+  createTrustedDeviceToken,
   createSession,
   sessionCookieHeader,
+  trustedDeviceCookieHeader,
 } = auth;
 const { isPublicMode } = require('./server/secrets.cjs');
 const { sendResponse, sendJson, sendError } = require('./server/response.cjs');
@@ -55,6 +57,13 @@ const PUBLIC_INSTALL_ASSETS = new Set([
   '/pages/teddy-house/manifest.webmanifest'
 ]);
 
+function teddyHouseStaticHeaders(pathname) {
+  if (!pathname.startsWith('/pages/teddy-house/')) return {};
+  if (PUBLIC_INSTALL_ASSETS.has(pathname)) return {};
+  if (!/\.(html|css|js)$/.test(pathname) && !pathname.endsWith('/')) return {};
+  return { 'Cache-Control': 'no-store' };
+}
+
 function servePublicInstallAsset(pathname, res) {
   if (!PUBLIC_INSTALL_ASSETS.has(pathname)) return false;
   const resolved = path.resolve(PAGES_DIR, pathname.replace(/^\/pages\//, ''));
@@ -73,6 +82,31 @@ function servePublicInstallAsset(pathname, res) {
 
 function isReadMethod(method) {
   return method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+}
+
+function isLoopbackHost(host = '') {
+  const value = String(host).toLowerCase();
+  const hostname = value.startsWith('[') ? value.slice(0, value.indexOf(']') + 1) : value.split(':')[0];
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+}
+
+function isLoopbackAddress(address = '') {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+function isLocalHomebaseProbe(req, pathname) {
+  if (process.env.TEDDY_HOMEBASE_LOCAL_PROBES === '0') return false;
+  if (!isLoopbackHost(req.headers.host || '') || !isLoopbackAddress(req.socket.remoteAddress || '')) return false;
+
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/pages/teddy-house/') return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/pages/teddy-house/logs/') return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/pages/_shared/nav.js') return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && /^\/pages\/teddy-house\/.+\.(css|js|png|webmanifest)$/.test(pathname)) return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages') return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/health') return true;
+  if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/logs') return true;
+  if (req.method === 'POST' && pathname === '/api/pages/teddy-house/ask') return true;
+  return false;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -102,10 +136,13 @@ const server = http.createServer(async (req, res) => {
   // ── Auth: enforce session for all other routes ──
   if (DASHBOARD_PASSWORD) {
     const token = getSessionCookie(req);
-    if (!isValidSession(token)) {
+    if (!isValidSession(token) && !isLocalHomebaseProbe(req, pathname)) {
       const trustedToken = getTrustedCookie(req);
       if (isValidTrustedDevice(trustedToken)) {
-        res.setHeader('Set-Cookie', sessionCookieHeader(req, createSession()));
+        res.setHeader('Set-Cookie', [
+          sessionCookieHeader(req, createSession()),
+          trustedDeviceCookieHeader(req, createTrustedDeviceToken()),
+        ]);
       } else {
         if (pathname.startsWith('/api/')) {
           sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
@@ -159,17 +196,42 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (pageMatch.type === 'static') {
-      const resolved = path.resolve(pageMatch.filePath);
-      const isAllowed = PAGES_DIRS.some(dir => resolved.startsWith(path.resolve(dir)));
-      if (!isAllowed) {
+      const initialResolved = path.resolve(pageMatch.filePath);
+      const isAllowedPageFile = (filePath) => PAGES_DIRS.some(dir => {
+        const pageRoot = path.resolve(dir);
+        return filePath === pageRoot || filePath.startsWith(pageRoot + path.sep);
+      });
+      if (!isAllowedPageFile(initialResolved)) {
         sendResponse(res, 403, 'text/plain', 'Forbidden');
         return;
       }
-      const ext = path.extname(resolved).toLowerCase();
-      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-      fs.readFile(resolved, (err, data) => {
-        if (err) { sendResponse(res, 404, 'text/plain', 'Not Found'); return; }
-        sendResponse(res, 200, contentType, data);
+
+      let resolved = initialResolved;
+      try {
+        const stat = fs.statSync(resolved);
+        if (stat.isDirectory()) resolved = path.join(resolved, 'index.html');
+      } catch (err) {
+        if (err && err.code === 'ENOENT' && !path.extname(resolved)) {
+          resolved = `${resolved}.html`;
+        }
+      }
+
+      if (!isAllowedPageFile(resolved)) {
+        sendResponse(res, 403, 'text/plain', 'Forbidden');
+        return;
+      }
+
+      fs.stat(resolved, (statErr, stat) => {
+        if (statErr || !stat.isFile()) {
+          sendResponse(res, 404, 'text/plain', 'Not Found');
+          return;
+        }
+        const ext = path.extname(resolved).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        fs.readFile(resolved, (err, data) => {
+          if (err) { sendResponse(res, 404, 'text/plain', 'Not Found'); return; }
+          sendResponse(res, 200, contentType, data, teddyHouseStaticHeaders(pathname));
+        });
       });
       return;
     }
@@ -194,6 +256,14 @@ const server = http.createServer(async (req, res) => {
           if (result !== undefined && !res.writableEnded) sendJson(res, res.statusCode || 200, result);
         } catch (e) { sendError(res, e.message); }
       });
+      return;
+    }
+  }
+  const disabledPageMatch = pathname.match(/^\/(?:api\/)?pages\/([^/]+)/);
+  if (disabledPageMatch && disabledPageMatch[1] !== '_shared' && !loadedPages.some(p => p.id === disabledPageMatch[1])) {
+    const disabledPageExists = PAGES_DIRS.some(dir => fs.existsSync(path.join(dir, disabledPageMatch[1], 'page.json')));
+    if (disabledPageExists) {
+      sendResponse(res, 404, 'text/plain', 'Not Found');
       return;
     }
   }
@@ -241,6 +311,11 @@ const server = http.createServer(async (req, res) => {
 
   // File routes (latest-image, browse-dirs)
   if (fileRoutes.handle(req, res, pathname, parsedUrl)) return;
+
+  if (pathname === '/data' || pathname.startsWith('/data/')) {
+    sendResponse(res, 404, 'text/plain', 'Not Found');
+    return;
+  }
 
   // Serve static files
   const publicPath = path.join(CWD, 'public', pathname);

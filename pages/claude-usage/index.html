@@ -56,6 +56,16 @@
       return 'green';
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
     function timeLeft(iso) {
       if (!iso) return '';
       const ms = new Date(iso) - Date.now();
@@ -66,18 +76,61 @@
       return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
     }
 
-    function renderMeter(label, pct, resetIso) {
-      const p = Math.min(100, Math.max(0, pct || 0));
+    function metricPercent(metric) {
+      if (!metric || !Number.isFinite(Number(metric.used))) return 0;
+      if (metric.format === 'percent') return Number(metric.used);
+      if (Number.isFinite(Number(metric.limit)) && Number(metric.limit) > 0) {
+        return (Number(metric.used) / Number(metric.limit)) * 100;
+      }
+      return 0;
+    }
+
+    function metricValue(metric) {
+      if (!metric || !Number.isFinite(Number(metric.used))) return '—';
+      if (metric.format === 'dollars') {
+        const used = '$' + Number(metric.used).toFixed(2);
+        return Number.isFinite(Number(metric.limit)) && Number(metric.limit) > 0
+          ? used + ' / $' + Number(metric.limit).toFixed(2)
+          : used;
+      }
+      if (metric.format === 'percent') return Math.round(Number(metric.used)) + '%';
+      return String(metric.used);
+    }
+
+    function renderMeter(metric) {
+      const p = Math.min(100, Math.max(0, metricPercent(metric)));
       const cls = barClass(p);
-      const reset = resetIso ? `<div class="meter-sub">resets in ${timeLeft(resetIso)}</div>` : '';
+      const reset = metric.resetsAt ? `<div class="meter-sub">resets in ${escapeHtml(timeLeft(metric.resetsAt))}</div>` : '';
       return `<div class="meter">
         <div class="meter-header">
-          <span class="meter-label">${label}</span>
-          <span class="meter-value ${cls}">${p.toFixed(0)}%</span>
+          <span class="meter-label">${escapeHtml(metric.label)}</span>
+          <span class="meter-value ${cls}">${escapeHtml(metricValue(metric))}</span>
         </div>
         <div class="meter-bar"><div class="meter-fill bg-${cls}" style="width:${p}%"></div></div>
         ${reset}
       </div>`;
+    }
+
+    function normalizeMetrics(d) {
+      if (Array.isArray(d.metrics)) return d.metrics;
+      const metrics = [];
+      if (d.five_hour) metrics.push({ label: 'Session (5h)', used: d.five_hour.utilization, format: 'percent', resetsAt: d.five_hour.resets_at });
+      if (d.seven_day) metrics.push({ label: 'Weekly', used: d.seven_day.utilization, format: 'percent', resetsAt: d.seven_day.resets_at });
+      if (d.seven_day_opus) metrics.push({ label: 'Opus Weekly', used: d.seven_day_opus.utilization, format: 'percent', resetsAt: d.seven_day_opus.resets_at });
+      if (d.seven_day_sonnet) metrics.push({ label: 'Sonnet Weekly', used: d.seven_day_sonnet.utilization, format: 'percent', resetsAt: d.seven_day_sonnet.resets_at });
+      if (d.extra_usage && d.extra_usage.is_enabled) {
+        metrics.push({
+          label: 'Extra Credits',
+          used: d.extra_usage.used_credits / 100,
+          limit: d.extra_usage.monthly_limit ? d.extra_usage.monthly_limit / 100 : null,
+          format: 'dollars'
+        });
+      }
+      return metrics;
+    }
+
+    function renderError(message) {
+      return `<div class="error">${escapeHtml(message || 'Claude usage is unavailable.')}</div>`;
     }
 
     async function loadUsage() {
@@ -89,35 +142,26 @@
         const res = await fetch('/api/pages/claude-usage/usage');
         const d = await res.json();
 
-        if (d.error) {
-          card.innerHTML = `<div class="error">${d.error}</div>`;
+        if (d.error || d.status === 'error') {
+          const message = d.error || d.message || 'Claude usage is unavailable.';
+          planEl.textContent = 'Claude Code';
+          card.innerHTML = renderError(message);
+          refreshEl.textContent = 'Last checked: ' + new Date().toLocaleTimeString();
           return;
         }
 
         const labels = { max: 'Max (5×)', pro: 'Pro', free: 'Free' };
-        const planName = labels[d.subscription] || d.subscription || 'Unknown';
+        const planName = labels[d.subscription || d.plan] || d.subscription || d.plan || 'Claude Code';
         const tierLabel = d.tier ? d.tier.replace('default_claude_', '').replace(/_/g, ' ') : '';
-        planEl.innerHTML = `${planName} plan` + (tierLabel ? `<span class="badge">${tierLabel}</span>` : '');
+        planEl.innerHTML = `${escapeHtml(planName)} plan` + (tierLabel ? `<span class="badge">${escapeHtml(tierLabel)}</span>` : '');
 
-        let html = '';
-        if (d.five_hour) html += renderMeter('5-Hour Session', d.five_hour.utilization, d.five_hour.resets_at);
-        if (d.seven_day) html += renderMeter('7-Day Weekly', d.seven_day.utilization, d.seven_day.resets_at);
-        if (d.seven_day_opus) html += renderMeter('Opus (7-Day)', d.seven_day_opus.utilization, d.seven_day_opus.resets_at);
-        if (d.seven_day_sonnet) html += renderMeter('Sonnet (7-Day)', d.seven_day_sonnet.utilization, d.seven_day_sonnet.resets_at);
+        const html = normalizeMetrics(d).map(renderMeter).join('');
 
-        if (d.extra_usage && d.extra_usage.is_enabled) {
-          const used = (d.extra_usage.used_credits / 100).toFixed(2);
-          const limit = d.extra_usage.monthly_limit > 0 ? '$' + (d.extra_usage.monthly_limit / 100).toFixed(2) : 'No limit';
-          html += `<div class="extra-row">
-            <span class="extra-label">Extra Usage (this month)</span>
-            <span class="extra-value">$${used} / ${limit}</span>
-          </div>`;
-        }
-
-        card.innerHTML = html || '<div class="loading">No usage data available</div>';
+        card.innerHTML = html || '<div class="loading">Claude returned no usage meters.</div>';
         refreshEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
       } catch (e) {
-        card.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+        planEl.textContent = 'Claude Code';
+        card.innerHTML = renderError('Failed to load Claude usage: ' + e.message);
       }
     }
 

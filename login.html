@@ -104,7 +104,7 @@
     <div class="header">
       <span class="icon">TH</span>
       <h1>Teddy House</h1>
-      <p>Enter the house password once. This device stays trusted for 30 days.</p>
+      <p>Enter the house password once. This device stays trusted after sign-in.</p>
     </div>
     <form id="form" autocomplete="on" onsubmit="return false;">
       <div class="field">
@@ -117,8 +117,8 @@
   </div>
 
   <script>
+    let loginInFlight = false;
     document.getElementById('form').addEventListener('submit', login);
-    document.getElementById('btn').addEventListener('click', login);
 
     function safeRedirectTarget(candidate, fallback) {
       if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return fallback;
@@ -131,7 +131,9 @@
       }
     }
 
-    async function login() {
+    async function login(event) {
+      if (event) event.preventDefault();
+      if (loginInFlight) return;
       const password = document.getElementById('password').value;
       const btn = document.getElementById('btn');
       const errEl = document.getElementById('error-msg');
@@ -141,6 +143,7 @@
         return;
       }
 
+      loginInFlight = true;
       btn.disabled = true;
       btn.textContent = 'Signing in...';
       errEl.classList.remove('visible');
@@ -148,6 +151,7 @@
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password })
         });
@@ -158,12 +162,14 @@
           window.location.href = safeRedirectTarget(next, data.redirect || '/pages/teddy-house/');
         } else {
           showError(data.error || 'Incorrect password. Please try again.');
+          loginInFlight = false;
           btn.disabled = false;
           btn.textContent = 'Open Teddy House';
           document.getElementById('password').select();
         }
       } catch (e) {
         showError('Connection error. Please try again.');
+        loginInFlight = false;
         btn.disabled = false;
         btn.textContent = 'Open Teddy House';
       }

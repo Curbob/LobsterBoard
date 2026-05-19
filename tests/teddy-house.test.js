@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { startServer } from '../helpers/server.js';
@@ -24,7 +25,37 @@ describe('Teddy Homebase page', () => {
     expect(html).toContain('id="page-nav"');
     expect(html).toContain('/pages/_shared/nav.js');
     expect(html).toContain('/pages/teddy-house/teddy-house-icon.png');
+    expect(html).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net:3001/');
+    expect(html).toContain('>AdGuard</a>');
   });
+
+  it('serves the hidden logs detail page and grouped logs API', async () => {
+    const pageRes = await fetch(`${srv.baseUrl}/pages/teddy-house/logs/`);
+    expect(pageRes.status).toBe(200);
+    const html = await pageRes.text();
+    expect(html).toContain('Homebase Logs');
+    expect(html).toContain('/pages/teddy-house/logs.js');
+
+    const apiRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/logs`);
+    expect(apiRes.status).toBe(200);
+    const data = await apiRes.json();
+    expect(data.serviceLogs).toHaveProperty('items');
+    expect(Array.isArray(data.serviceLogs.items)).toBe(true);
+    expect(data.framework.codexTake).toContain('Normalize every source');
+    expect(data.framework.teddyTake).toContain('Daily Homebase should feel calm');
+    expect(data.framework.architecture.map(step => step.layer)).toEqual([
+      'Collect',
+      'Redact',
+      'Classify',
+      'Store',
+      'Surface',
+      'Escalate'
+    ]);
+
+    const payload = JSON.stringify(data);
+    expect(payload).not.toMatch(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    expect(payload).not.toMatch(/\b\d{3}-\d{2}-\d{3}\b/);
+  }, 12000);
 
   it('renders shared navigation with text nodes instead of API-derived HTML', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/_shared/nav.js'), 'utf8');
@@ -81,8 +112,10 @@ describe('Teddy Homebase page', () => {
       <div id="next-action"></div>
       <div id="last-check"></div>
       <div id="teddy-line"></div>
-      <div id="needs-title"></div>
-      <div id="needs-list"></div>
+      <section id="review-lane" class="needs-lane">
+        <div id="needs-title"></div>
+        <div id="needs-list"></div>
+      </section>
       <div id="service-grid"></div>
       <div id="vitals-grid"></div>
       <div id="signal-grid"></div>
@@ -112,7 +145,197 @@ describe('Teddy Homebase page', () => {
     dom.window.eval(script);
     await new Promise(resolve => dom.window.setTimeout(resolve, 0));
     expect(dom.window.document.getElementById('last-check').textContent).toBe('Checked unknown');
-    expect(dom.window.document.getElementById('summary-title').textContent).toBe('All core systems are online.');
+    expect(dom.window.document.getElementById('summary-title').textContent).toBe("Dan's house is steady.");
+    expect(dom.window.document.getElementById('review-lane').hidden).toBe(true);
+  });
+
+  it('ranks dashboard cards by what needs attention first', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="refresh-button"></button>
+      <form id="ask-form">
+        <input id="ask-input">
+        <button id="ask-submit"></button>
+      </form>
+      <button id="ask-status-button"></button>
+      <div id="ask-state"></div>
+      <div id="ask-response"></div>
+      <div id="summary-title"></div>
+      <div id="summary-copy"></div>
+      <div id="health-score"></div>
+      <div id="score-ring"></div>
+      <div id="next-action"></div>
+      <div id="last-check"></div>
+      <div id="teddy-line"></div>
+      <div id="needs-title"></div>
+      <div id="needs-list"></div>
+      <section id="house-state">
+        <span id="house-state-pill"></span>
+        <div id="house-zone-grid"></div>
+      </section>
+      <div id="service-grid"></div>
+      <div id="vitals-grid"></div>
+      <div id="signal-grid"></div>
+      <div id="events-list"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/health') {
+        return {
+          ok: true,
+          json: async () => ({
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            score: 82,
+            needsDan: ['Homebridge needs review'],
+            houseState: {
+              headline: 'Something needs a look.',
+              summary: 'Start with automations. Everything else is responding.',
+              tone: 'review',
+              primaryAction: 'Start with automations.',
+              zones: [
+                { id: 'smart-home', title: 'Automations', state: 'bad', value: 'Issue', detail: 'Homebridge did not answer.', evidence: ['Homebridge'] },
+                { id: 'outside-access', title: 'Public access', state: 'info', value: 'Known', detail: 'Expected public routes are accounted for.', evidence: ['Tailscale Funnel'] },
+                { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet, DNS, and Tailscale are responding.', evidence: ['Internet', 'DNS'] },
+                { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks are quiet.', evidence: ['OpenClaw'] }
+              ],
+              recentChanges: []
+            },
+            services: {
+              adguard: { state: 'ok', metric: '12 ms', check: 'DNS', detail: 'DNS answered.' },
+              homebridge: { state: 'bad', metric: 'down', check: 'Port', detail: 'Homebridge did not answer.' },
+              tailscale: { state: 'warn', metric: '10000', check: 'Funnel', detail: 'Extra exposure.' },
+              internet: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'Internet is fine.' },
+              openclaw: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' }
+            },
+            vitals: {
+              cpu: '10.0',
+              memory: '55%',
+              memoryPressure: '45% free',
+              disk: '9%',
+              uptime: '1d',
+              network: 'local',
+              host: 'mini',
+              health: {
+                cpu: { state: 'warn', detail: 'Load is high.', peak6h: '12.00', secondary: 'Peak 12.00 / 6h' },
+                memory: { state: 'ok', metric: '55%', displayMetric: '45% free', detail: 'Memory is fine.' },
+                disk: { state: 'ok', detail: 'Disk is fine.' }
+              }
+            },
+            intelligence: {
+              adguard: { state: 'info', value: 'locked', label: 'locked', detail: 'Login needed.' },
+              homebridge: {
+                doorLocks: { state: 'ok', value: 'locked', label: '2 locks', detail: 'Front Door: locked. Side Door: locked.', items: [] },
+                accessories: { state: 'ok', count: 102, detail: 'Accessories loaded.' },
+                logHealth: { state: 'bad', value: '12', label: 'recent issues', detail: 'Errors in the log.' },
+                version: { state: 'info', value: '1', label: 'optional UI update', detail: 'Homebridge is current at 2.0.2. Homebridge UI has a patch update available when convenient: 5.22.0 to 5.23.0.' }
+              },
+              tailscaleFunnel: { state: 'info', metric: '8443, 10000', check: 'Accepted access', detail: 'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.' },
+              wanQuality: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'WAN is fine.' },
+              serviceLogs: { state: 'ok', value: 'quiet', label: 'quiet', detail: 'Service logs are quiet.', items: [] },
+              softwareUpdates: { state: 'ok', value: 'current', label: 'version check', detail: 'Apps are current.' },
+              macUpdates: { state: 'ok', metric: 'current', check: 'macOS', detail: 'No updates.' },
+              systemLogs: { state: 'ok', metric: '0', check: 'System logs', detail: 'Logs are quiet.' },
+              weirdThings: []
+            },
+            timeline: []
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const services = [...dom.window.document.querySelectorAll('#service-grid .service-name')].map(el => el.textContent);
+    expect(services.slice(0, 2)).toEqual(['Homebridge', 'Tailscale']);
+
+    const zones = [...dom.window.document.querySelectorAll('#house-zone-grid .tiny-label')].map(el => el.textContent);
+    expect(zones).toEqual(['Automations', 'Public access', 'Internet', 'Mac mini']);
+    expect(dom.window.document.getElementById('summary-title').textContent).toBe('Something needs a look.');
+    expect(dom.window.document.getElementById('next-action').textContent).toBe('Start with automations.');
+
+    const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
+    expect(signals.slice(0, 4)).toEqual(['Homebridge log', 'DNS blocks', 'Homebridge version', "What's exposed"]);
+
+    const vitals = [...dom.window.document.querySelectorAll('#vitals-grid .tiny-label')].map(el => el.textContent);
+    expect(vitals[0]).toBe('CPU load');
+  });
+
+  it('hides ignored Eufy locks but still shows confidence for visible cached signals', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="refresh-button"></button>
+      <form id="ask-form">
+        <input id="ask-input">
+        <button id="ask-submit"></button>
+      </form>
+      <button id="ask-status-button"></button>
+      <div id="ask-state"></div>
+      <div id="ask-response"></div>
+      <div id="summary-title"></div>
+      <div id="summary-copy"></div>
+      <div id="health-score"></div>
+      <div id="score-ring"></div>
+      <div id="next-action"></div>
+      <div id="last-check"></div>
+      <div id="teddy-line"></div>
+      <div id="needs-title"></div>
+      <div id="needs-list"></div>
+      <div id="service-grid"></div>
+      <div id="vitals-grid"></div>
+      <div id="signal-grid"></div>
+      <div id="events-list"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/health') {
+        return {
+          ok: true,
+          json: async () => ({
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            score: 92,
+            needsDan: [],
+            services: {},
+            vitals: { health: {} },
+            intelligence: {
+              homebridge: {
+                doorLocks: {
+                  state: 'info',
+                  value: 'ignored',
+                  label: 'ignored',
+                  detail: 'Garage side door ignored because the Eufy source is degraded.',
+                  confidence: 'degraded',
+                  hidden: true,
+                  items: []
+                }
+              },
+              macUpdates: {
+                state: 'info',
+                metric: 'current',
+                check: 'macOS',
+                detail: 'Cached update result.',
+                confidence: 'cached'
+              }
+            },
+            timeline: []
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const confidence = [...dom.window.document.querySelectorAll('#signal-grid .confidence-pill')].map(el => el.textContent);
+    const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
+    expect(confidence).toContain('Cached');
+    expect(signals).not.toContain('Door locks');
   });
 
   it('includes an Ask Teddy command bar for dashboard actions', async () => {
@@ -128,6 +351,8 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('async function askTeddy');
     expect(script).toContain('/api/pages/teddy-house/ask');
     expect(script).toContain('context: currentHealth');
+    expect(script).toContain('credentials: "same-origin"');
+    expect(script).toContain('setTimeout(() => controller.abort(), 75000)');
   });
 
   it('has iPhone home-screen metadata and install icons', async () => {
@@ -162,7 +387,7 @@ describe('Teddy Homebase page', () => {
   });
 
   it('lets iPhone install assets load before login without exposing the dashboard', async () => {
-    const locked = await startServer({ password: 'test-homebase-lock' });
+    const locked = await startServer({ password: 'test-homebase-lock', env: { TEDDY_HOMEBASE_LOCAL_PROBES: '0' } });
     try {
       const page = await fetch(`${locked.baseUrl}/pages/teddy-house/`, { redirect: 'manual' });
       expect(page.status).toBe(302);
@@ -226,6 +451,188 @@ describe('Teddy Homebase health API', () => {
     expect(data.promptPreview).toContain('Dashboard context');
   });
 
+  it('can answer Ask Teddy locally for offline tests', async () => {
+    const localAsk = await startServer({ env: { TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '1' } });
+    try {
+      const res = await fetch(`${localAsk.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ask',
+          prompt: 'What should I check first?',
+          clicked: { type: 'review', label: 'External access: 8443, 10000' },
+          context: {
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            score: 91,
+            needsDan: ['External access: 8443, 10000'],
+            services: {
+              adguard: { state: 'ok', metric: '12 ms' },
+              homebridge: { state: 'ok', metric: '8581' },
+              tailscale: { state: 'ok', metric: '100.64.0.1' },
+              internet: { state: 'ok', metric: '18 ms' },
+              openclaw: { state: 'ok', metric: '18789' }
+            },
+            intelligence: {
+              tailscaleFunnel: { state: 'warn', metric: '8443, 10000', detail: '8443 is BlueBubbles exposed through Funnel.' }
+            }
+          }
+        })
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data).toEqual(expect.objectContaining({
+        status: 'complete',
+        source: 'local',
+        answer: expect.stringContaining('Only review item: external access on 8443, 10000')
+      }));
+      expect(data.answer).toContain('External access: 8443, 10000');
+      expect(data.answer).toContain('8443 is BlueBubbles exposed through Funnel.');
+      expect(data.answer.split('\n').length).toBeLessThanOrEqual(3);
+      expect(data.answer).not.toContain('Review lane');
+      expect(data.answer).not.toContain('macOS reports no available updates');
+      expect(data.answer).not.toContain('DNS: ok');
+      expect(data.answer).not.toContain('Homebridge: ok');
+
+      const steadyRes = await fetch(`${localAsk.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ask',
+          prompt: 'What should I check first?',
+          context: {
+            score: 100,
+            needsDan: [],
+            houseState: {
+              headline: "Dan's house is steady.",
+              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              tone: 'steady',
+              primaryAction: 'No review items.'
+            },
+            intelligence: {
+              tailscaleFunnel: { state: 'info', metric: '8443, 10000', detail: 'Known public routes are accounted for.' }
+            }
+          }
+        })
+      });
+      const steadyData = await steadyRes.json();
+      expect(steadyData.answer).toContain('No review item is currently called out.');
+      expect(steadyData.answer).toContain('nothing needs action right now');
+      expect(steadyData.answer).not.toContain('first ranked warning');
+    } finally {
+      await localAsk.kill();
+    }
+  });
+
+  it('routes Ask Teddy through a fresh OpenClaw Teddy session by default', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'ask-openclaw-stub-'));
+    const stubPath = join(tmp, 'openclaw-stub.js');
+    const argsPath = join(tmp, 'args.json');
+    writeFileSync(stubPath, `#!/usr/bin/env node
+const fs = require('fs');
+fs.writeFileSync(process.env.TEDDY_STUB_ARGS_PATH, JSON.stringify(process.argv.slice(2), null, 2));
+console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy bridge live.' }] } }));
+`);
+    chmodSync(stubPath, 0o755);
+
+    const bridgeAsk = await startServer({
+      env: {
+        TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
+        TEDDY_STUB_ARGS_PATH: argsPath,
+        TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '2000'
+      }
+    });
+    try {
+      const res = await fetch(`${bridgeAsk.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'status',
+          prompt: 'What matters right now?',
+          context: {
+            score: 100,
+            houseState: {
+              headline: "Dan's house is steady.",
+              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              tone: 'steady',
+              primaryAction: 'No review items.',
+              zones: [
+                { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet is responding.' }
+              ]
+            },
+            needsDan: ['External access: 8443, 10000'],
+            services: {
+              openclaw: { state: 'ok', metric: '127.0.0.1' }
+            }
+          }
+        })
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data).toEqual(expect.objectContaining({
+        status: 'complete',
+        source: 'teddy',
+        answer: 'Teddy bridge live.'
+      }));
+
+      const args = JSON.parse(readFileSync(argsPath, 'utf8'));
+      expect(args).toContain('agent');
+      expect(args).toContain('--agent');
+      expect(args).toContain('main');
+      expect(args).toContain('--session-id');
+      expect(args[args.indexOf('--session-id') + 1]).toMatch(/^teddy-homebase-ask-/);
+      expect(args).toContain('--json');
+      expect(args.join(' ')).toContain('Use available OpenClaw MCP context');
+      expect(args.join(' ')).toContain('Dashboard context');
+      expect(args.join(' ')).toContain('source of truth');
+      expect(args.join(' ')).toContain("Dan's house is steady.");
+    } finally {
+      await bridgeAsk.kill();
+    }
+  });
+
+  it('falls back when Ask Teddy leaves the Homebase context', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'ask-openclaw-escape-'));
+    const stubPath = join(tmp, 'openclaw-stub.js');
+    writeFileSync(stubPath, `#!/usr/bin/env node
+console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check Axon pipeline and Maria birthday.' }] } }));
+`);
+    chmodSync(stubPath, 0o755);
+
+    const bridgeAsk = await startServer({
+      env: {
+        TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
+        TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '2000'
+      }
+    });
+    try {
+      const res = await fetch(`${bridgeAsk.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ask',
+          prompt: 'What should I check first?',
+          context: {
+            score: 100,
+            needsDan: [],
+            houseState: {
+              headline: "Dan's house is steady.",
+              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              tone: 'steady',
+              primaryAction: 'No review items.'
+            }
+          }
+        })
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.source).toBe('local-fallback');
+      expect(data.answer).toContain('No review item is currently called out.');
+      expect(data.answer).not.toMatch(/Axon|Maria|birthday|pipeline/i);
+    } finally {
+      await bridgeAsk.kill();
+    }
+  });
+
   it('requires an Ask Teddy prompt unless the action is status', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
       method: 'POST',
@@ -250,6 +657,21 @@ describe('Teddy Homebase health API', () => {
     expect(data.score).toBeGreaterThanOrEqual(0);
     expect(data.score).toBeLessThanOrEqual(100);
     expect(Array.isArray(data.needsDan)).toBe(true);
+    expect(data.vitals.health.cpu).toHaveProperty('review');
+    expect(data.vitals.health.cpu.review).toBe(false);
+    expect(data.vitals.health.cpu).toHaveProperty('peak6h');
+    expect(data.vitals.health.cpu.secondary).toMatch(/^Peak \d+\.\d{2} \/ 6h$/);
+    expect(data.vitals).toHaveProperty('vitalsHistory');
+    expect(data.vitals.vitalsHistory.source).toBe('data/teddy-house/vitals-history.json');
+    expect(data.needsDan.join('\n')).not.toMatch(/^CPU:/m);
+    expect(data.vitals.health.memory).toHaveProperty('review');
+    if (data.vitals.health.memory.review !== true) {
+      expect(data.needsDan.join('\n')).not.toMatch(/^Memory:/m);
+    }
+    expect(data.vitals.health.disk).toHaveProperty('review');
+    if (data.vitals.health.disk.review !== true) {
+      expect(data.needsDan.join('\n')).not.toMatch(/^Disk:/m);
+    }
     expect(data.services).toHaveProperty('adguard');
     expect(data.services).toHaveProperty('homebridge');
     expect(data.services).toHaveProperty('tailscale');
@@ -262,9 +684,41 @@ describe('Teddy Homebase health API', () => {
     expect(data.intelligence).toHaveProperty('adguard');
     expect(data.intelligence).toHaveProperty('homebridge');
     expect(data.intelligence.homebridge).toHaveProperty('accessories');
+    expect(data.intelligence.homebridge).toHaveProperty('doorLocks');
+    expect(data.intelligence.homebridge.doorLocks).toEqual(expect.objectContaining({
+      state: 'info',
+      value: 'ignored',
+      detail: expect.any(String),
+      confidence: 'degraded',
+      hidden: true,
+      items: expect.any(Array)
+    }));
+    expect(data.intelligence.homebridge.doorLocks.detail).not.toMatch(/^.*: unlocked, \d+% battery$/);
+    expect(data.intelligence.homebridge.doorLocks.detail).not.toMatch(/\bunlocked\b/i);
+    expect(data.needsDan.join('\n')).not.toMatch(/^Door locks:/m);
     expect(data.intelligence.homebridge).toHaveProperty('logHealth');
+    expect(data.intelligence.homebridge).toHaveProperty('version');
+    expect(data.intelligence.homebridge.version.items.map(item => item.name)).toEqual(['Homebridge', 'Homebridge UI']);
+    if (data.intelligence.homebridge.version.items[0].state === 'ok') {
+      expect(data.intelligence.homebridge.version.state).not.toBe('warn');
+    }
     expect(data.intelligence).toHaveProperty('tailscaleFunnel');
+    expect(data.services.tailscale).toHaveProperty('confidence');
+    expect(data.intelligence.tailscaleFunnel).toHaveProperty('confidence');
+    expect(data.intelligence.tailscaleFunnel.detail).not.toMatch(/Extra port detected/i);
+    if (data.intelligence.tailscaleFunnel.metric.includes('8443')) {
+      expect(data.intelligence.tailscaleFunnel.detail).toContain('BlueBubbles');
+      expect(data.intelligence.tailscaleFunnel.state).toBe('info');
+      expect(data.needsDan.join('\n')).not.toMatch(/^External access:/m);
+    }
     expect(data.intelligence).toHaveProperty('wanQuality');
+    expect(data.intelligence).toHaveProperty('serviceLogs');
+    expect(data.intelligence.serviceLogs).toEqual(expect.objectContaining({
+      state: expect.any(String),
+      value: expect.any(String),
+      detail: expect.any(String),
+      items: expect.any(Array)
+    }));
     expect(data.intelligence).toHaveProperty('softwareUpdates');
     expect(data.intelligence.softwareUpdates).toHaveProperty('items');
     expect(Array.isArray(data.intelligence.softwareUpdates.items)).toBe(true);
@@ -274,13 +728,21 @@ describe('Teddy Homebase health API', () => {
     expect(data.intelligence.systemLogs.detail).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data).toHaveProperty('visualEvidence');
+    expect(data).toHaveProperty('houseState');
+    expect(data.houseState.headline).toEqual(expect.any(String));
+    expect(data.houseState.zones.map(zone => zone.id)).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
+    expect(data.intelligence).not.toHaveProperty('androidDesk');
+    expect(JSON.stringify(data.houseState.zones)).not.toMatch(/Android desk|Front Door|Side Door|Door locks/i);
     expect(data.visualEvidence).toHaveProperty('latest');
     expect(data.visualEvidence.latest.visuals.readinessScore.type).toBe('computed-ring');
+    expect(data.visualEvidence.latest.visuals.houseState.type).toBe('zone-state');
+    expect(data.visualEvidence.latest.visuals.houseState.inputs.map(zone => zone.id)).toEqual(data.presentation.defaultZoneKeys);
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
     expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
     expect(data.visualEvidence.latest.visuals.dependencyMap.type).toBe('static-topology');
     expect(data).toHaveProperty('presentation');
     expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw']);
+    expect(data.presentation.defaultZoneKeys).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
     expect(data.presentation.hiddenByDefault.services).toContain('backups');
     expect(data.presentation.hiddenByDefault.signals).toContain('weirdThings');
     expect(data.presentation.hiddenByDefault.sections).toEqual(expect.arrayContaining(['readout', 'dependencyMap']));
@@ -290,6 +752,9 @@ describe('Teddy Homebase health API', () => {
       state: expect.any(String),
       detail: expect.any(String)
     }));
+    const changes = data.houseState.recentChanges || [];
+    const duplicateKeys = changes.map(event => `${event.title}|${event.detail}|${event.state}`);
+    expect(new Set(duplicateKeys).size).toBe(duplicateKeys.length);
     expect(Array.isArray(data.events)).toBe(true);
     expect(Array.isArray(data.timeline)).toBe(true);
   }, 12000);
@@ -318,6 +783,9 @@ describe('Teddy Homebase health API', () => {
     const visuals = data.visualEvidence.latest.visuals;
 
     expect(visuals.serviceGrid.type).toBe('probe-cards');
+    expect(visuals.houseState.type).toBe('zone-state');
+    expect(visuals.houseState.defaultKeys).toEqual(data.presentation.defaultZoneKeys);
+    expect(visuals.houseState.inputs).toHaveLength(4);
     expect(visuals.serviceGrid.defaultKeys).toEqual(data.presentation.defaultServiceKeys);
     expect(Object.keys(visuals.serviceGrid.inputs)).toEqual(data.presentation.defaultServiceKeys);
     for (const key of data.presentation.defaultServiceKeys) {
@@ -335,6 +803,7 @@ describe('Teddy Homebase health API', () => {
       'homebridgeLogs',
       'publicFunnel',
       'wanQuality',
+      'serviceLogs',
       'softwareUpdates',
       'macUpdates',
       'systemLogs'
@@ -356,6 +825,28 @@ describe('Teddy Homebase health API', () => {
     expect(script).not.toContain('["backups", "Backups"]');
     expect(script).not.toContain('renderInsights(data.insights)');
     expect(script).toContain('if (weirdFindings.length > 0)');
+  });
+
+  it('keeps a guard for the noisy Family Room Credenza TP-Link loop', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain('Family Room Credenza');
+    expect(api).toContain('192\\.168\\.7\\.242');
+    expect(api).toContain('TP-Link loop');
+    expect(api).toContain('keep it excluded or fix the device network');
+  });
+
+  it('keeps orphaned Focus Room out of Homebase', async () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+
+    expect(html).not.toContain('href="/pages/focus-room/"');
+    expect(html).not.toContain('teddy-focus-room-preview.mp4');
+
+    const page = await fetch(`${srv.baseUrl}/pages/focus-room/`);
+    expect(page.status).toBe(404);
+
+    const asset = await fetch(`${srv.baseUrl}/pages/focus-room/teddy-focus-room-preview.mp4`);
+    expect(asset.status).toBe(404);
   });
 
   it('keeps Teddy personality restrained in the dashboard shell', () => {
@@ -384,28 +875,85 @@ describe('Teddy Homebase health API', () => {
     expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*\.service-grid,[\s\S]*\.signal-grid,[\s\S]*\.vitals-grid[\s\S]*grid-template-columns: 1fr;/);
   });
 
+  it('does not classify ordinary diagnostic filenames as critical I/O reports', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain('function isCriticalDiagnosticReport');
+    expect(api).toContain('i\\/o|\\bi[-_ ]?o\\b');
+    expect(api).not.toContain('disk|io|i\\/o');
+  });
+
+  it('keeps routine app update availability out of the health warning path', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain("state: gitState.state === 'warn' ? 'warn' : updatesAvailable > 0 ? 'info' : 'ok'");
+    expect(api).toContain("state: gitState.state === 'warn' ? 'warn' : cachedUpdates > 0 ? 'info' : 'ok'");
+    expect(api).not.toContain("updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok'");
+  });
+
+  it('keeps empty dashboard sections hidden until health data loads', () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+    const css = readFileSync(join(process.cwd(), 'pages/teddy-house/style.css'), 'utf8');
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+
+    expect(html).toContain('<body class="homebase-loading">');
+    expect(html).toContain('house-state-panel hidden-until-loaded');
+    expect(html).toContain('evidence-panel hidden-until-loaded');
+    expect(html).toContain('signals-panel hidden-until-loaded');
+    expect(html).toContain('lower-grid hidden-until-loaded');
+    expect(css).toContain('.homebase-loading .hidden-until-loaded');
+    expect(script).toContain('function setLoadedState');
+    expect(script).toContain('setLoadedState(true)');
+    expect(script).toContain('setLoadedState(false)');
+  });
+
   it('keeps dashboard copy quiet and direct', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 
-    expect(html).toContain('Checking status.');
+    expect(html).toContain('Checking the house');
+    expect(html).toContain('Waiting for first check');
+    expect(html).toContain('Internet, automations, public access, and the Mac mini.');
+    expect(html).toContain('Running checks');
+    expect(html).toContain('Ask about this status');
+    expect(html).toContain('Ask what changed, what matters, or what to check first.');
+    expect(html).toContain('placeholder="Ask what changed, what matters, or what to check first."');
+    expect(html).toContain('House State');
+    expect(html).toContain('Daily state');
+    expect(html).toContain('Evidence signals');
+    expect(html).toContain('Mac vitals');
     expect(html).toContain('Core service health');
     expect(html).toContain('Readiness');
-    expect(html).toContain('No action needed.');
     expect(html).toContain('Private');
+    expect(html).not.toContain('Not checked yet');
+    expect(html).not.toContain('Checking status.');
+    expect(html).not.toContain('Network, automation, and Mac mini signals.');
+    expect(html).not.toContain('Preparing report.');
+    expect(html).not.toContain('Bring the dashboard with you.');
+    expect(html).not.toContain('Ask a question or send the current status.');
     expect(html).not.toContain('Deep signals');
     expect(html).not.toContain('Persistent truth');
     expect(html).not.toContain('Protected');
-    expect(script).toContain('All core systems are online.');
-    expect(script).toContain('No action needed.');
+    expect(script).toContain("Dan's house is steady.");
+    expect(script).toContain('Clear for now.');
+    expect(script).toContain('Start with');
+    expect(script).toContain('Online');
     expect(script).toContain('to review');
     expect(script).toContain('DNS blocks');
-    expect(script).toContain('External access');
+    expect(script).toContain("What's exposed");
+    expect(script).toContain('House devices');
+    expect(script).toContain('Homebridge version');
     expect(script).toContain('App versions');
     expect(script).toContain('System logs');
     expect(script).not.toMatch(/needs eyes|worth eyes/i);
     expect(script).not.toMatch(/Everything important|Nothing to do|Live reads|Real data/i);
+    expect(script).not.toContain('No action needed.');
+    expect(script).not.toContain('Review the flagged item.');
+    expect(script).not.toContain('Getting the latest dashboard status first...');
+    expect(script).not.toContain('return "Good"');
+    expect(script).not.toContain('Readiness is');
+    expect(script).not.toContain('Review lane');
     expect(api).not.toContain('Openclaw');
     expect(script).not.toContain('Teddy could not finish the check.');
   });
@@ -423,8 +971,14 @@ describe('Teddy Homebase health API', () => {
     expect(evidence.entries[0].visuals.serviceGrid.source).toBe('live service checks');
     expect(evidence.entries[0].visuals.serviceGrid.hiddenKeys).toContain('backups');
     expect(evidence.entries[0].visuals.signalGrid.hiddenKeys).toContain('weirdThings');
+    expect(evidence.entries[0].visuals.signalGrid.hiddenKeys).toContain('doorLocks');
+    expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('doorLocks');
+    expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('serviceLogs');
+    expect(evidence.entries[0].visuals.serviceLogSources.inputs.length).toBeGreaterThan(0);
     expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('macUpdates');
     expect(evidence.entries[0].visuals.signalGrid.inputs).toHaveProperty('systemLogs');
+    expect(evidence.entries[0].visuals.vitalsGrid.inputs.vitalsHistory.source).toBe('data/teddy-house/vitals-history.json');
+    expect(evidence.entries[0].visuals.vitalsGrid.inputs.health.cpu.secondary).toMatch(/^Peak \d+\.\d{2} \/ 6h$/);
     expect(evidence.entries[0].visuals.vitalsGrid.inputs.health.memory.detail).toMatch(/Memory/);
     expect(evidence.entries[0].visuals.timeline.source).toBe('data/teddy-house/timeline.json');
   }, 12000);
@@ -462,7 +1016,7 @@ describe('Teddy Homebase health API', () => {
     expect(visuals.dependencyMap.defaultVisible).toBe(false);
     expect(data.presentation.hiddenByDefault).toEqual({
       services: ['backups'],
-      signals: ['weirdThings'],
+      signals: ['doorLocks', 'weirdThings'],
       sections: ['readout', 'dependencyMap']
     });
   }, 12000);
