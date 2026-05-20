@@ -310,6 +310,7 @@ h3 {
 }
 
 .status-band,
+.decision-strip,
 .needs-lane,
 .panel,
 .house-zone-card,
@@ -385,6 +386,55 @@ h3 {
   gap: 16px;
   margin-top: 14px;
   padding: 16px 18px;
+}
+
+.decision-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.decision-slot {
+  min-width: 0;
+  min-height: 86px;
+  padding: 13px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.decision-slot.state-ok {
+  color: var(--text);
+  border-color: rgba(88, 214, 141, 0.18);
+  background: rgba(88, 214, 141, 0.08);
+}
+
+.decision-slot.state-info {
+  color: var(--text);
+  border-color: rgba(117, 167, 255, 0.18);
+  background: rgba(117, 167, 255, 0.08);
+}
+
+.decision-slot.state-warn {
+  color: var(--text);
+  border-color: rgba(241, 182, 76, 0.34);
+  background: rgba(241, 182, 76, 0.10);
+}
+
+.decision-slot.state-bad {
+  color: var(--text);
+  border-color: rgba(255, 107, 98, 0.40);
+  background: rgba(255, 107, 98, 0.10);
+}
+
+.decision-slot h3 {
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .needs-lane[hidden] {
@@ -1072,6 +1122,10 @@ h3 {
 
   .signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .decision-strip {
+    grid-template-columns: 1fr;
   }
 
   .vitals-grid {

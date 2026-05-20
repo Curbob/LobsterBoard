@@ -28,6 +28,20 @@ function homebaseDom() {
       <div id="next-action"></div>
       <div id="last-check"></div>
       <div id="teddy-line"></div>
+      <section id="daily-decision" class="decision-strip hidden-until-loaded">
+        <article class="decision-slot" data-decision-slot="now">
+          <p class="eyebrow"></p>
+          <h3></h3>
+        </article>
+        <article class="decision-slot" data-decision-slot="watch">
+          <p class="eyebrow"></p>
+          <h3></h3>
+        </article>
+        <article class="decision-slot" data-decision-slot="later">
+          <p class="eyebrow"></p>
+          <h3></h3>
+        </article>
+      </section>
       <section id="review-lane" class="needs-lane">
         <div id="needs-title"></div>
         <div id="needs-list"></div>
@@ -73,6 +87,14 @@ function healthyWithOneWarning() {
         { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks, updates, and service logs are quiet.', evidence: ['OpenClaw', 'macOS'] }
       ],
       recentChanges: []
+    },
+    dailyDecision: {
+      tone: 'steady',
+      slots: [
+        { key: 'now', label: 'Now', text: 'Nothing needs Dan.', state: 'ok', source: 'needsDan' },
+        { key: 'watch', label: 'Watch', text: 'Public access is known and passworded.', state: 'info', source: 'tailscaleFunnel' },
+        { key: 'later', label: 'Later', text: 'Homebridge UI has a patch update when convenient.', state: 'info', source: 'maintenance' }
+      ]
     },
     services: {
       adguard: { state: 'ok', metric: '12 ms', check: 'DNS', detail: 'DNS answered.' },
@@ -155,6 +177,15 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.getElementById('summary-title').textContent).toBe("Dan's house is steady.");
     expect(document.getElementById('review-lane').hidden).toBe(true);
     expect(document.getElementById('needs-list').textContent).toBe('');
+    expect(document.querySelectorAll('#daily-decision .decision-slot')).toHaveLength(3);
+    expect([...document.querySelectorAll('#daily-decision h3')].map(el => el.textContent)).toEqual([
+      'Nothing needs Dan.',
+      'Public access is known and passworded.',
+      'Homebridge UI has a patch update when convenient.'
+    ]);
+    expect(document.getElementById('daily-decision').previousElementSibling.id).toBe('teddy-line');
+    expect(document.getElementById('daily-decision').nextElementSibling.id).toBe('review-lane');
+    expect(document.getElementById('daily-decision').textContent).not.toMatch(/Front Door|Side Door|Door locks|100\.64|8443, 10000|5\.22\.0/i);
     expect(document.querySelectorAll('.house-zone-card')).toHaveLength(4);
     expect([...document.querySelectorAll('#house-zone-grid .tiny-label')].map(el => el.textContent)).toEqual([
       'Public access',

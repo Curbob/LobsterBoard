@@ -420,7 +420,7 @@ function stripLogItem(item) {
   };
 }
 
-function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState) {
+function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision) {
   const serviceStates = Object.fromEntries(
     Object.entries(services).map(([key, service]) => [key, {
       state: service.state,
@@ -442,6 +442,12 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         defaultKeys: DEFAULT_ZONE_KEYS,
         source: 'derived from existing probes and intelligence',
         inputs: houseState && Array.isArray(houseState.zones) ? houseState.zones : []
+      },
+      dailyDecision: {
+        type: 'decision-strip',
+        defaultKeys: ['now', 'watch', 'later'],
+        source: 'derived from current review, house-state, signals, and maintenance evidence',
+        inputs: dailyDecision && Array.isArray(dailyDecision.slots) ? dailyDecision.slots : []
       },
       serviceGrid: {
         type: 'probe-cards',
@@ -2385,6 +2391,113 @@ function needsDan(services, intelligence, systemVitals) {
   return [...serviceItems, ...signalItems, ...vitalItems];
 }
 
+function signalBadOrWarn(signal) {
+  return signal && signal.hidden !== true && (signal.state === 'bad' || signal.state === 'warn');
+}
+
+function stripRawTelemetry(text) {
+  return String(text || '')
+    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, 'local address')
+    .replace(/\b(?:\d{2,5},\s*)+\d{2,5}\b/g, 'known routes')
+    .replace(/\b(?:\d+\.){2,}\d+\b/g, 'current version')
+    .replace(/\b\d+\s*(?:ms|warnings?|errors?|issues?|findings?|notable lines)\b/gi, 'current signal')
+    .trim();
+}
+
+function decisionSlot(key, text, state, source) {
+  return {
+    key,
+    label: key === 'now' ? 'Now' : key === 'watch' ? 'Watch' : 'Later',
+    text: stripRawTelemetry(text),
+    state,
+    source
+  };
+}
+
+function optionalMaintenance(intelligence) {
+  const homebridge = intelligence.homebridge || {};
+  if (homebridge.version && homebridge.version.state === 'info' && /ui|patch|optional/i.test(homebridge.version.detail || '')) {
+    return 'Homebridge UI has a patch update when convenient.';
+  }
+  if (intelligence.softwareUpdates && intelligence.softwareUpdates.state === 'info') {
+    return 'App updates can wait until a maintenance pass.';
+  }
+  if (intelligence.macUpdates && intelligence.macUpdates.state === 'info') {
+    return 'macOS update status can wait for maintenance.';
+  }
+  return 'Logs and route exposure are accounted for.';
+}
+
+function recentDecisionChange(houseState) {
+  const currentChange = houseState && Array.isArray(houseState.recentChanges) ? houseState.recentChanges[0] : null;
+  if (!currentChange) return null;
+  const changedAt = Date.parse(currentChange.at || '');
+  if (Number.isFinite(changedAt) && Date.now() - changedAt > 6 * HOUR_MS) return null;
+  const title = String(currentChange.title || 'House signal').replace(/\s+changed$/i, '').trim();
+  const cleanTitle = title ? title[0].toUpperCase() + title.slice(1) : 'House signal';
+  const detail = String(currentChange.detail || '');
+  if (/\b(?:bad|warn)\s*->\s*ok\b/i.test(detail)) return `${cleanTitle} recovered recently.`;
+  return `${cleanTitle} changed recently.`;
+}
+
+function watchSignal(intelligence, houseState) {
+  const currentChange = recentDecisionChange(houseState);
+  if (currentChange) return currentChange;
+  if (intelligence.tailscaleFunnel && intelligence.tailscaleFunnel.state === 'info') return 'Public access is known and passworded.';
+  if (intelligence.serviceLogs && intelligence.serviceLogs.state === 'ok') return 'Service logs are quiet.';
+  if (intelligence.wanQuality && intelligence.wanQuality.state === 'ok') return 'Internet quality is normal.';
+  return 'House evidence is current.';
+}
+
+function activeDecisionSignal(services, intelligence, systemVitals) {
+  const homebridge = intelligence.homebridge || {};
+  const health = systemVitals.health || {};
+  const candidates = [
+    ['Public access', intelligence.tailscaleFunnel, 'Check public access first.'],
+    ['Internet', intelligence.wanQuality, 'Check internet quality first.'],
+    ['DNS', services.adguard, 'Check DNS first.'],
+    ['Homebridge', services.homebridge, 'Check Homebridge first.'],
+    ['OpenClaw', services.openclaw, 'Check OpenClaw first.'],
+    ['System logs', intelligence.systemLogs, 'Check Mac system logs first.'],
+    ['Service logs', intelligence.serviceLogs, 'Check service logs first.'],
+    ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.'],
+    ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.'],
+    ['Memory', reviewVital(health.memory), 'Check Mac mini memory pressure first.'],
+    ['Disk', reviewVital(health.disk), 'Check Mac mini disk first.']
+  ];
+  return candidates
+    .filter(([, signal]) => signalBadOrWarn(signal))
+    .sort((a, b) => stateRankForSort(a[1].state) - stateRankForSort(b[1].state))[0] || null;
+}
+
+function stateRankForSort(state) {
+  if (state === 'bad') return 0;
+  if (state === 'warn') return 1;
+  if (state === 'info') return 2;
+  return 3;
+}
+
+function deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState) {
+  const active = activeDecisionSignal(services, intelligence, systemVitals);
+  const tone = houseState && houseState.tone ? houseState.tone : 'steady';
+  let now;
+  if (active) {
+    const [, signal, fallback] = active;
+    now = decisionSlot('now', fallback || signal.detail || translatePrimaryAction(reviewItems), signal.state, active[0]);
+  } else if (Array.isArray(reviewItems) && reviewItems.length > 0) {
+    now = decisionSlot('now', translatePrimaryAction(reviewItems), 'warn', 'needsDan');
+  } else {
+    now = decisionSlot('now', 'Nothing needs Dan.', 'ok', 'needsDan');
+  }
+
+  const watch = decisionSlot('watch', watchSignal(intelligence, houseState), 'info', 'houseState');
+  const later = decisionSlot('later', optionalMaintenance(intelligence), 'info', 'maintenance');
+  return {
+    tone,
+    slots: [now, watch, later]
+  };
+}
+
 function eventsFromServices(services) {
   const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return Object.entries(services).map(([key, service]) => ({
@@ -2417,15 +2530,17 @@ module.exports = function(ctx = {}) {
         const insights = await buildInsights(services, systemVitals, intelligence);
         const reviewItems = needsDan(services, intelligence, systemVitals);
         const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
+        const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
         const visualEvidence = updateVisualEvidenceLog(
           ctx,
-          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState)
+          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision)
         );
         return {
           checkedAt: nowIso(),
           score,
           needsDan: reviewItems,
           houseState,
+          dailyDecision,
           services,
           insights,
           intelligence,

@@ -729,6 +729,15 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data).toHaveProperty('visualEvidence');
     expect(data).toHaveProperty('houseState');
+    expect(data).toHaveProperty('dailyDecision');
+    expect(data.dailyDecision.slots.map(slot => slot.key)).toEqual(['now', 'watch', 'later']);
+    expect(data.dailyDecision.slots.map(slot => slot.label)).toEqual(['Now', 'Watch', 'Later']);
+    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
+    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/\b(?:bad|warn|ok)\s*->\s*(?:bad|warn|ok)\b/i);
+    if (data.needsDan.length === 0) {
+      expect(data.dailyDecision.slots[0].text).toBe('Nothing needs Dan.');
+      expect(data.dailyDecision.slots[0].text).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b|\b\d{2,5},\s*\d{2,5}\b|\b(?:\d+\.){2,}\d+\b|\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i);
+    }
     expect(data.houseState.headline).toEqual(expect.any(String));
     expect(data.houseState.zones.map(zone => zone.id)).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
     expect(data.intelligence).not.toHaveProperty('androidDesk');
@@ -736,6 +745,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.visualEvidence).toHaveProperty('latest');
     expect(data.visualEvidence.latest.visuals.readinessScore.type).toBe('computed-ring');
     expect(data.visualEvidence.latest.visuals.houseState.type).toBe('zone-state');
+    expect(data.visualEvidence.latest.visuals.dailyDecision.type).toBe('decision-strip');
+    expect(data.visualEvidence.latest.visuals.dailyDecision.inputs.map(slot => slot.key)).toEqual(['now', 'watch', 'later']);
     expect(data.visualEvidence.latest.visuals.houseState.inputs.map(zone => zone.id)).toEqual(data.presentation.defaultZoneKeys);
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
     expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
@@ -805,7 +816,44 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     const data = await res.json();
     expect(data.intelligence.systemLogs.state).toBe('ok');
     expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/System logs|Recent Mac logs need attention/);
+    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/System logs|Recent Mac logs need attention/);
     expect(data.timeline.some(event => event.title === 'System logs')).toBe(true);
+  }, 12000);
+
+  it('promotes active warnings into the daily decision Now slot', async () => {
+    const dataDir = join(srv.cwd, 'data', 'teddy-house');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v3',
+      state: 'warn',
+      detail: '1 critical diagnostic report in the last 24 hours.',
+      metric: '1',
+      check: 'System logs',
+      confidence: 'live'
+    }, null, 2));
+
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.dailyDecision.slots[0]).toEqual(expect.objectContaining({
+      key: 'now',
+      label: 'Now',
+      state: 'warn',
+      source: 'System logs'
+    }));
+    expect(data.dailyDecision.slots[0].text).toBe('Check Mac system logs first.');
+    expect(data.dailyDecision.slots[0].text).not.toMatch(/\b1 critical\b/);
+
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v3',
+      state: 'ok',
+      detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
+      metric: '0',
+      check: 'System logs',
+      confidence: 'live'
+    }, null, 2));
   }, 12000);
 
   it('keeps default graphs backed by real health signals', async () => {

@@ -214,6 +214,26 @@ function renderHouseState(houseState) {
   });
 }
 
+function renderDailyDecision(decision) {
+  const section = document.getElementById("daily-decision");
+  if (!section) return;
+  const fallback = [
+    { key: "now", label: "Now", text: "Nothing needs Dan.", state: "ok" },
+    { key: "watch", label: "Watch", text: "House evidence is current.", state: "info" },
+    { key: "later", label: "Later", text: "Maintenance can wait.", state: "info" }
+  ];
+  const slots = Array.isArray(decision && decision.slots) && decision.slots.length === 3 ? decision.slots : fallback;
+  slots.forEach(slot => {
+    const card = section.querySelector(`[data-decision-slot="${slot.key}"]`);
+    if (!card) return;
+    card.className = `decision-slot ${stateClass(slot.state)}`;
+    const label = card.querySelector(".eyebrow");
+    const title = card.querySelector("h3");
+    if (label) label.textContent = slot.label || slot.key;
+    if (title) title.textContent = slot.text || "No action.";
+  });
+}
+
 function primaryAction(needs) {
   if (!Array.isArray(needs) || needs.length === 0) return "Clear for now.";
   const first = String(needs[0] || "review item").split(":")[0].trim().toLowerCase();
@@ -392,6 +412,7 @@ async function loadHealth() {
     const data = await res.json();
     currentHealth = data;
     renderSummary(data);
+    renderDailyDecision(data.dailyDecision);
     renderNeeds(data.needsDan);
     renderHouseState(data.houseState);
     renderServices(data);
