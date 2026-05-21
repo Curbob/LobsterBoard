@@ -697,6 +697,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.intelligence.homebridge.doorLocks.detail).not.toMatch(/\bunlocked\b/i);
     expect(data.needsDan.join('\n')).not.toMatch(/^Door locks:/m);
     expect(data.intelligence.homebridge).toHaveProperty('logHealth');
+    expect(data.intelligence.homebridge.logHealth.detail).not.toMatch(/^\d+\s+recent warnings or errors\.$/);
+    expect(data.needsDan.join('\n')).not.toMatch(/^Homebridge Log: \d+$/m);
     expect(data.intelligence.homebridge).toHaveProperty('version');
     expect(data.intelligence.homebridge.version.items.map(item => item.name)).toEqual(['Homebridge', 'Homebridge UI']);
     if (data.intelligence.homebridge.version.items[0].state === 'ok') {
@@ -802,10 +804,24 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     writeFileSync(join(dataDir, 'timeline.json'), JSON.stringify({
       events: [
         {
+          at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          time: '9:57 PM',
+          title: 'Service logs',
+          detail: '130 service log signal changed.',
+          state: 'warn'
+        },
+        {
           at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
           time: '9:55 PM',
           title: 'System logs',
           detail: 'Recent Mac logs need attention.',
+          state: 'warn'
+        },
+        {
+          at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+          time: '1:53 AM',
+          title: 'adguard changed',
+          detail: 'bad -> ok',
           state: 'warn'
         }
       ]
@@ -816,7 +832,10 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     const data = await res.json();
     expect(data.intelligence.systemLogs.state).toBe('ok');
     expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/System logs|Recent Mac logs need attention/);
+    expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/Service logs|service log signal changed/);
+    expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/adguard changed|bad -> ok/);
     expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/System logs|Recent Mac logs need attention/);
+    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/Service logs|service log signal changed/);
     expect(data.timeline.some(event => event.title === 'System logs')).toBe(true);
   }, 12000);
 

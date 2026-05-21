@@ -1476,17 +1476,16 @@ async function serviceLogOverview(ctx) {
   const issueCount = countedItems.reduce((sum, item) => sum + (Number(item.issues) || 0), 0);
   const badCount = countedItems.filter(item => item.state === 'bad').length;
   const warnCount = countedItems.filter(item => item.state === 'warn').length;
-  const infoCount = countedItems.filter(item => item.state === 'info').length;
   const noisy = countedItems.filter(item => item.state === 'bad' || item.state === 'warn');
-  const state = badCount > 0 ? 'bad' : warnCount > 0 ? 'warn' : infoCount > 0 ? 'info' : 'ok';
+  const state = badCount > 0 ? 'bad' : warnCount > 0 ? 'warn' : 'ok';
   const detail = noisy.length > 0
     ? noisy.map(item => `${item.name}: ${item.detail}`).join(' ')
     : `Logs checked for ${normalizedItems.map(item => item.name).join(', ')}. No noisy service logs need action.`;
   const result = {
     checkedAt: nowIso(),
     state,
-    value: issueCount === 0 ? 'quiet' : `${issueCount}`,
-    label: issueCount === 0 ? 'quiet' : 'notable lines',
+    value: noisy.length > 0 ? `${issueCount}` : 'quiet',
+    label: noisy.length > 0 ? 'notable lines' : 'checked',
     detail,
     confidence: 'live',
     source: 'local service logs',
@@ -1904,6 +1903,30 @@ async function freshestHomebridgeLog() {
   return readable[0] ? readable[0].filePath : candidates[0];
 }
 
+function homebridgeTplinkUnreachable(cleanLines) {
+  const devices = new Set();
+  const ips = new Set();
+  for (const line of cleanLines) {
+    if (!/TplinkSmarthome/i.test(line) || !/\b(EHOSTUNREACH|ETIMEDOUT|timeout)\b/i.test(line)) continue;
+    const deviceMatch = line.match(/\[TplinkSmarthome(?:\.API)?\]\s+\[([^\]]+)\]/i);
+    if (deviceMatch && deviceMatch[1]) devices.add(deviceMatch[1].trim());
+    const ipMatch = line.match(/\b(192\.168\.\d+\.\d+):9999\b/);
+    if (ipMatch && ipMatch[1]) ips.add(ipMatch[1]);
+  }
+  const names = [...devices];
+  const count = names.length || ips.size;
+  if (count === 0) return null;
+  const shown = names.slice(0, 4);
+  const overflow = count > shown.length ? ` and ${count - shown.length} more` : '';
+  return {
+    count,
+    names,
+    detail: shown.length > 0
+      ? `TP-Link devices unreachable: ${shown.join(', ')}${overflow}.`
+      : `${count} TP-Link device${count === 1 ? '' : 's'} unreachable.`
+  };
+}
+
 async function homebridgeLogHealth() {
   try {
     const logPath = await freshestHomebridgeLog();
@@ -1911,6 +1934,7 @@ async function homebridgeLogHealth() {
     const lines = log.split('\n').slice(-500);
     const cleanLines = lines.map(stripAnsi);
     const issueLines = cleanLines.filter(line => /\b(error|warn|warning|failed|uncaught|exception)\b/i.test(line));
+    const tplinkOffline = homebridgeTplinkUnreachable(cleanLines);
     const credenzaTimeouts = cleanLines.filter(line => /Family Room Credenza|192\.168\.7\.242/i.test(line) && /timeout|error|failed/i.test(line));
     const newest = newestLogTimestamp(lines);
     const stale = newest ? Date.now() - newest.getTime() > 24 * HOUR_MS : true;
@@ -1920,6 +1944,15 @@ async function homebridgeLogHealth() {
         value: 'stale',
         label: 'last log',
         detail: newest ? `Newest visible entry is ${formatAgeFromDate(newest)}.` : 'No readable Homebridge log time.'
+      };
+    }
+    if (tplinkOffline && tplinkOffline.count >= 1) {
+      return {
+        state: 'warn',
+        value: 'TP-Link offline',
+        label: `${tplinkOffline.count} device${tplinkOffline.count === 1 ? '' : 's'}`,
+        detail: tplinkOffline.detail,
+        items: tplinkOffline.names.map(name => ({ name, state: 'warn' }))
       };
     }
     if (credenzaTimeouts.length >= 3) {
@@ -1933,9 +1966,9 @@ async function homebridgeLogHealth() {
     if (issueLines.length > 20) {
       return {
         state: 'warn',
-        value: `${issueLines.length}`,
-        label: 'recent issues',
-        detail: `${issueLines.length} recent warnings or errors.`
+        value: 'needs review',
+        label: 'repeated warnings',
+        detail: 'Homebridge log has repeated warnings; open Logs for examples.'
       };
     }
     return {
@@ -2106,7 +2139,7 @@ function buildWeirdThings(previous, current) {
     items.push({ state: current.systemLogState, title: 'System logs', detail: 'Recent Mac logs need attention.' });
   }
   if ((current.serviceLogState === 'bad' || current.serviceLogState === 'warn') && previous.serviceLogValue !== current.serviceLogValue) {
-    items.push({ state: current.serviceLogState, title: 'Service logs', detail: `${current.serviceLogValue} service log signal changed.` });
+    items.push({ state: current.serviceLogState, title: 'Service logs', detail: 'Service logs need attention.' });
   }
 
   if (items.length === 0) {
@@ -2214,8 +2247,16 @@ function translatePrimaryAction(needs) {
 function isResolvedRecentChange(event, current) {
   if (!event || (event.state !== 'warn' && event.state !== 'bad')) return false;
   const title = String(event.title || '').toLowerCase();
+  const services = current.services || {};
+  for (const key of Object.keys(services)) {
+    if (title === `${key} changed` || title.includes(`${key} changed`)) {
+      return services[key] && services[key].state !== 'warn' && services[key].state !== 'bad';
+    }
+  }
   if (title.includes('system logs')) return current.systemLogs && current.systemLogs.state === 'ok';
-  if (title.includes('service logs')) return current.serviceLogs && current.serviceLogs.state === 'ok';
+  if (title.includes('service logs')) {
+    return current.serviceLogs && current.serviceLogs.state !== 'warn' && current.serviceLogs.state !== 'bad';
+  }
   if (title.includes('updates') || title.includes('app versions')) {
     return current.softwareUpdates && current.softwareUpdates.state !== 'warn' && current.softwareUpdates.state !== 'bad';
   }
@@ -2231,7 +2272,10 @@ function meaningfulRecentChanges(timeline, current = {}) {
   const grouped = [];
   for (const event of (Array.isArray(timeline) ? timeline : [])) {
     if (!event || event.title === 'Status check' || event.title === 'No drift') continue;
+    const eventTime = new Date(event.at || 0).getTime();
+    if (Number.isFinite(eventTime) && Date.now() - eventTime > 24 * HOUR_MS) continue;
     if (/no changes/i.test(event.detail || '')) continue;
+    if (event.title === 'Service logs' && /\b\d+\s+service log signal changed\b/i.test(event.detail || '')) continue;
     if (isResolvedRecentChange(event, current)) continue;
     const key = `${event.title || 'Change'}|${event.detail || 'Change detected.'}|${event.state || 'info'}`;
     const existing = grouped.find(item => item.key === key);
@@ -2348,7 +2392,8 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       softwareUpdates: intelligence.softwareUpdates,
       macUpdates: intelligence.macUpdates,
       wanQuality: intelligence.wanQuality,
-      tailscaleFunnel: intelligence.tailscaleFunnel
+      tailscaleFunnel: intelligence.tailscaleFunnel,
+      services
     })
   };
 }
