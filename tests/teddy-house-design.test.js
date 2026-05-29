@@ -159,6 +159,24 @@ describe('Teddy Homebase design guardrails', () => {
     ].forEach(copy => expect(html).not.toContain(copy));
   });
 
+  it('keeps launcher shortcuts below the ranked health story', () => {
+    const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
+
+    const houseStateIndex = html.indexOf('id="house-state"');
+    const vitalsIndex = html.indexOf('id="server"');
+    const askIndex = html.indexOf('id="ask-teddy"');
+    const evidenceIndex = html.indexOf('id="evidence"');
+    const timelineIndex = html.indexOf('id="timeline"');
+    const localLinksIndex = html.indexOf('id="local-links"');
+
+    expect(houseStateIndex).toBeGreaterThan(-1);
+    expect(vitalsIndex).toBeGreaterThan(houseStateIndex);
+    expect(askIndex).toBeGreaterThan(vitalsIndex);
+    expect(evidenceIndex).toBeGreaterThan(askIndex);
+    expect(timelineIndex).toBeGreaterThan(evidenceIndex);
+    expect(localLinksIndex).toBeGreaterThan(timelineIndex);
+  });
+
   it('renders house state first and keeps service evidence subordinate', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = homebaseDom();

@@ -93,6 +93,14 @@
         </div>
       </section>
 
+      <section class="incident-ribbon hidden-until-loaded" id="incident-ribbon" hidden aria-live="polite">
+        <div>
+          <p class="eyebrow">Incident</p>
+          <h3 id="incident-title">Mac mini needs review</h3>
+        </div>
+        <p id="incident-detail">System evidence is being checked.</p>
+      </section>
+
       <section class="decision-strip hidden-until-loaded" id="daily-decision" aria-label="Daily decision">
         <article class="decision-slot state-ok" data-decision-slot="now">
           <p class="eyebrow">Now</p>
@@ -114,30 +122,6 @@
           <h3 id="needs-title">Checking for review items.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
-      </section>
-
-      <section class="panel link-panel" id="local-links" aria-labelledby="local-links-title">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Local Links</p>
-            <h3 id="local-links-title">Launcher shortcuts</h3>
-          </div>
-          <span class="state-pill">Local</span>
-        </div>
-        <div class="link-grid">
-          <a class="link-card" href="http://127.0.0.1:8081/" data-local-link="/" target="_blank" rel="noopener">
-            <span class="link-title">Teddy Launcher</span>
-            <span class="link-detail">All local apps</span>
-          </a>
-          <a class="link-card" href="http://127.0.0.1:8081/life-wiki/" data-local-link="/life-wiki/" target="_blank" rel="noopener">
-            <span class="link-title">Life Wiki</span>
-            <span class="link-detail">Personal knowledge base</span>
-          </a>
-          <a class="link-card" href="http://127.0.0.1:8081/cobraclaw/" data-local-link="/cobraclaw/" target="_blank" rel="noopener">
-            <span class="link-title">CobraClaw</span>
-            <span class="link-detail">Local doctrine files</span>
-          </a>
-        </div>
       </section>
 
       <section class="panel house-state-panel hidden-until-loaded" id="house-state" aria-labelledby="house-state-title">
@@ -213,6 +197,30 @@
           </div>
           <div class="events" id="events-list"></div>
         </article>
+      </section>
+
+      <section class="panel link-panel" id="local-links" aria-labelledby="local-links-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Local Links</p>
+            <h3 id="local-links-title">Launcher shortcuts</h3>
+          </div>
+          <span class="state-pill">Local</span>
+        </div>
+        <div class="link-grid">
+          <a class="link-card" href="http://127.0.0.1:8081/" data-local-link="/" target="_blank" rel="noopener">
+            <span class="link-title">Teddy Launcher</span>
+            <span class="link-detail">All local apps</span>
+          </a>
+          <a class="link-card" href="http://127.0.0.1:8081/life-wiki/" data-local-link="/life-wiki/" target="_blank" rel="noopener">
+            <span class="link-title">Life Wiki</span>
+            <span class="link-detail">Personal knowledge base</span>
+          </a>
+          <a class="link-card" href="http://127.0.0.1:8081/cobraclaw/" data-local-link="/cobraclaw/" target="_blank" rel="noopener">
+            <span class="link-title">CobraClaw</span>
+            <span class="link-detail">Local doctrine files</span>
+          </a>
+        </div>
       </section>
     </main>
   </div>

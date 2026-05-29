@@ -741,7 +741,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       expect(data.dailyDecision.slots[0].text).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b|\b\d{2,5},\s*\d{2,5}\b|\b(?:\d+\.){2,}\d+\b|\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i);
     }
     expect(data.houseState.headline).toEqual(expect.any(String));
-    expect(data.houseState.zones.map(zone => zone.id)).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
+    const zoneIds = data.houseState.zones.map(zone => zone.id);
+    expect(new Set(zoneIds)).toEqual(new Set(['outside-access', 'network', 'smart-home', 'mac-mini']));
+    if (data.houseState.incident) {
+      expect(zoneIds[0]).toBe('mac-mini');
+      expect(data.houseState.headline).toMatch(/Mac mini restarted/i);
+    }
     expect(data.intelligence).not.toHaveProperty('androidDesk');
     expect(JSON.stringify(data.houseState.zones)).not.toMatch(/Android desk|Front Door|Side Door|Door locks/i);
     expect(data.visualEvidence).toHaveProperty('latest');
@@ -749,7 +754,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.visualEvidence.latest.visuals.houseState.type).toBe('zone-state');
     expect(data.visualEvidence.latest.visuals.dailyDecision.type).toBe('decision-strip');
     expect(data.visualEvidence.latest.visuals.dailyDecision.inputs.map(slot => slot.key)).toEqual(['now', 'watch', 'later']);
-    expect(data.visualEvidence.latest.visuals.houseState.inputs.map(zone => zone.id)).toEqual(data.presentation.defaultZoneKeys);
+    expect(new Set(data.visualEvidence.latest.visuals.houseState.inputs.map(zone => zone.id))).toEqual(new Set(data.presentation.defaultZoneKeys));
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
     expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
     expect(data.visualEvidence.latest.visuals.dependencyMap.type).toBe('static-topology');
@@ -794,7 +799,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
       checkedAt: new Date().toISOString(),
-      schema: 'system-logs-v3',
+      schema: 'system-logs-v4',
       state: 'ok',
       detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
       metric: '0',
@@ -835,8 +840,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/Service logs|service log signal changed/);
     expect(JSON.stringify(data.houseState.recentChanges)).not.toMatch(/adguard changed|bad -> ok/);
     expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/System logs|Recent Mac logs need attention/);
-    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/Service logs|service log signal changed/);
-    expect(data.timeline.some(event => event.title === 'System logs')).toBe(true);
+    expect(JSON.stringify(data.dailyDecision.slots)).not.toMatch(/service log signal changed/);
+    expect(data.timeline.some(event => event.title === 'Mac restart incident')).toBe(true);
   }, 12000);
 
   it('promotes active warnings into the daily decision Now slot', async () => {
@@ -844,7 +849,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
       checkedAt: new Date().toISOString(),
-      schema: 'system-logs-v3',
+      schema: 'system-logs-v4',
       state: 'warn',
       detail: '1 critical diagnostic report in the last 24 hours.',
       metric: '1',
@@ -859,14 +864,101 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       key: 'now',
       label: 'Now',
       state: 'warn',
-      source: 'System logs'
+      source: 'Mac restart incident'
     }));
-    expect(data.dailyDecision.slots[0].text).toBe('Check Mac system logs first.');
+    expect(data.dailyDecision.slots[0].text).toBe('Review the Mac mini restart.');
     expect(data.dailyDecision.slots[0].text).not.toMatch(/\b1 critical\b/);
 
     writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
       checkedAt: new Date().toISOString(),
-      schema: 'system-logs-v3',
+      schema: 'system-logs-v4',
+      state: 'ok',
+      detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
+      metric: '0',
+      check: 'System logs',
+      confidence: 'live'
+    }, null, 2));
+  }, 12000);
+
+  it('promotes recent Mac restart incidents above lower-priority evidence', async () => {
+    const dataDir = join(srv.cwd, 'data', 'teddy-house');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v4',
+      state: 'warn',
+      detail: 'WindowServer watchdog panic in the last 24 hours.',
+      metric: '1',
+      check: 'System logs',
+      confidence: 'live',
+      incident: {
+        title: 'WindowServer watchdog panic',
+        reports: [{ file: 'panic-base+socd-example.panic', kind: 'WindowServer watchdog panic' }],
+        count: 1
+      }
+    }, null, 2));
+
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.houseState.headline).toBe('Mac mini restarted this morning.');
+    expect(data.houseState.summary).toBe('Start with the Mac mini restart; house services are online.');
+    expect(data.houseState.zones[0]).toEqual(expect.objectContaining({
+      id: 'mac-mini',
+      detail: expect.stringContaining('WindowServer watchdog panic')
+    }));
+    expect(data.needsDan[0]).toBe('Mac restart incident');
+
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v4',
+      state: 'ok',
+      detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
+      metric: '0',
+      check: 'System logs',
+      confidence: 'live'
+    }, null, 2));
+  }, 12000);
+
+  it('normalizes repeated system-log timeline entries into one incident lane', async () => {
+    const dataDir = join(srv.cwd, 'data', 'teddy-house');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v4',
+      state: 'warn',
+      detail: 'WindowServer watchdog panic in the last 24 hours.',
+      metric: '1',
+      check: 'System logs',
+      confidence: 'live',
+      incident: {
+        title: 'WindowServer watchdog panic',
+        reports: [{ file: 'panic-base+socd-example.panic', kind: 'WindowServer watchdog panic' }],
+        count: 1
+      }
+    }, null, 2));
+    writeFileSync(join(dataDir, 'timeline.json'), JSON.stringify({
+      events: [
+        {
+          at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          time: '9:57 PM',
+          title: 'System logs',
+          detail: 'Recent Mac logs need attention.',
+          state: 'warn'
+        }
+      ]
+    }, null, 2));
+
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const incidentEvents = data.timeline.filter(event => event.title === 'Mac restart incident');
+    expect(incidentEvents).toHaveLength(1);
+    expect(JSON.stringify(data.timeline)).not.toMatch(/Recent Mac logs need attention|System logs/);
+
+    writeFileSync(join(dataDir, 'system-logs.json'), JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      schema: 'system-logs-v4',
       state: 'ok',
       detail: 'No recent panic, kernel, thermal, watchdog, disk, or corruption diagnostic reports.',
       metric: '0',
@@ -980,6 +1072,23 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(api).toContain('function isCriticalDiagnosticReport');
     expect(api).toContain('i\\/o|\\bi[-_ ]?o\\b');
     expect(api).not.toContain('disk|io|i\\/o');
+  });
+
+  it('keeps Homebridge service-log counts tied to dated top-level entries', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain('requireDate: true');
+    expect(api).toContain('ignorePattern: /\\[EufySecurity\\]/i');
+    expect(api).toContain('Govee connection degraded');
+    expect(api).toContain('issueLabel');
+  });
+
+  it('segments vitals history by the current Mac boot session', () => {
+    const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
+
+    expect(api).toContain('uptimeSeconds');
+    expect(api).toContain('bootedAt');
+    expect(api).toContain('scopedToBoot');
   });
 
   it('keeps routine app update availability out of the health warning path', () => {

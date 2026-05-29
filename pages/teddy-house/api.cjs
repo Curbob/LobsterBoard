@@ -18,7 +18,7 @@ const UPDATE_CACHE_MS = 12 * HOUR_MS;
 const MAC_UPDATE_CACHE_MS = 6 * HOUR_MS;
 const SYSTEM_LOG_CACHE_MS = 10 * 60 * 1000;
 const MAC_UPDATE_CACHE_SCHEMA = 'mac-updates-v2';
-const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v3';
+const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v4';
 const EVIDENCE_LIMIT = 120;
 const VITALS_HISTORY_LIMIT = 500;
 const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
@@ -1049,6 +1049,16 @@ function isCriticalDiagnosticReport(file) {
   return /(panic|kernel|thermal|watchdog|shutdown|disk|i\/o|\bi[-_ ]?o\b|corrupt)/i.test(name);
 }
 
+function diagnosticReportKind(file) {
+  const name = String(file || '').toLowerCase();
+  if (/panic|watchdog|kernel/.test(name)) return 'WindowServer watchdog panic';
+  if (/cpu_resource/.test(name)) return 'Codex CPU report';
+  if (/disk|i\/o|\bi[-_ ]?o\b/.test(name)) return 'Disk or I/O diagnostic';
+  if (/thermal/.test(name)) return 'Thermal diagnostic';
+  if (/shutdown/.test(name)) return 'Shutdown diagnostic';
+  return 'System diagnostic';
+}
+
 async function recentCriticalReports() {
   const dirs = [
     '/Library/Logs/DiagnosticReports',
@@ -1056,7 +1066,7 @@ async function recentCriticalReports() {
   ];
   const since = Date.now() - 24 * HOUR_MS;
   let checked = 0;
-  let matches = 0;
+  const items = [];
   for (const dir of dirs) {
     try {
       const files = await fs.readdir(dir);
@@ -1065,12 +1075,20 @@ async function recentCriticalReports() {
         if (!isCriticalDiagnosticReport(file)) continue;
         try {
           const stat = await fs.stat(path.join(dir, file));
-          if (stat.mtimeMs >= since) matches += 1;
+          if (stat.mtimeMs >= since) {
+            items.push({
+              file,
+              kind: diagnosticReportKind(file),
+              at: stat.mtime.toISOString(),
+              age: formatAgeFromDate(stat.mtime)
+            });
+          }
         } catch (_) {}
       }
     } catch (_) {}
   }
-  return { checked, matches };
+  items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return { checked, matches: items.length, items };
 }
 
 async function checkSystemLogs(ctx) {
@@ -1079,12 +1097,19 @@ async function checkSystemLogs(ctx) {
 
   const reports = await recentCriticalReports();
   if (reports.matches > 0) {
+    const kinds = [...new Set(reports.items.map(item => item.kind))].slice(0, 2);
     const signal = warn(
-      `${reports.matches} critical diagnostic report${reports.matches === 1 ? '' : 's'} in the last 24 hours.`,
+      kinds.length > 0
+        ? `${kinds.join(' and ')} in the last 24 hours.`
+        : `${reports.matches} critical diagnostic report${reports.matches === 1 ? '' : 's'} in the last 24 hours.`,
       `${reports.matches}`,
       'System logs'
     );
-    const record = { checkedAt: nowIso(), schema: SYSTEM_LOG_CACHE_SCHEMA, ...signal };
+    const record = { checkedAt: nowIso(), schema: SYSTEM_LOG_CACHE_SCHEMA, ...signal, incident: {
+      title: kinds[0] || 'Mac restart incident',
+      reports: reports.items.slice(0, 4),
+      count: reports.matches
+    } };
     writeDataSafe(ctx, 'system-logs.json', record);
     return record;
   }
@@ -1374,13 +1399,16 @@ async function logFileSummary(name, candidates, options = {}) {
   const text = await fs.readFile(latest.filePath, 'utf8');
   const lines = text.split('\n').filter(Boolean).slice(-(options.window || 1200));
   const recentMs = options.recentMs || 6 * HOUR_MS;
+  const ignorePattern = options.ignorePattern || null;
   const issueLines = lines
     .filter(line => {
       const date = logLineDate(line);
+      if (options.requireDate && (!date || Number.isNaN(date.getTime()))) return false;
       return !date || Number.isNaN(date.getTime()) || Date.now() - date.getTime() <= recentMs;
     })
     .map(redactLogLine)
-    .filter(line => issuePattern.test(line));
+    .filter(line => issuePattern.test(line))
+    .filter(line => !ignorePattern || !ignorePattern.test(line));
   const ageMs = Date.now() - latest.stat.mtimeMs;
   const stale = ageMs > (options.staleMs || 24 * HOUR_MS);
   const warnAt = options.warnAt ?? 20;
@@ -1401,11 +1429,26 @@ async function logFileSummary(name, candidates, options = {}) {
     name,
     state,
     issues: issueLines.length,
+    issueLabel: options.issueLabel || null,
     source: latest.filePath,
     updatedAt: latest.stat.mtime.toISOString(),
     detail,
     examples: issueLines.slice(-3)
   };
+}
+
+function normalizeLogItem(item) {
+  if (!item || item.name !== 'Homebridge') return item;
+  const examples = Array.isArray(item.examples) ? item.examples : [];
+  const combined = `${item.detail || ''} ${examples.join(' ')}`;
+  if (/Govee|not using AWS connection|not connected to AWS|no connection method available/i.test(combined)) {
+    return {
+      ...item,
+      issueLabel: 'Govee connection degraded',
+      detail: 'Govee connection degraded in the recent Homebridge log window.'
+    };
+  }
+  return item;
 }
 
 async function tailscaleLogSummary() {
@@ -1452,7 +1495,7 @@ async function serviceLogOverview(ctx) {
     logFileSummary('Homebridge', [
       '/Users/teddyclaw/.homebridge/homebridge.log',
       '/Users/teddyclaw/.homebridge/logs/homebridge.log'
-    ], { warnAt: 60, badAt: 160 }),
+    ], { warnAt: 60, badAt: 160, requireDate: true, ignorePattern: /\[EufySecurity\]/i }),
     logFileSummary('Eufy plugin', [
       '/Users/teddyclaw/.homebridge/eufysecurity/eufy-security.log'
     ], { warnAt: 3, badAt: 10 }),
@@ -1463,7 +1506,7 @@ async function serviceLogOverview(ctx) {
     ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS }),
     tailscaleLogSummary()
   ]);
-  const normalizedItems = items.map(item => {
+  const normalizedItems = items.map(normalizeLogItem).map(item => {
     if (item.name !== 'Eufy plugin') return item;
     return {
       ...item,
@@ -1478,14 +1521,16 @@ async function serviceLogOverview(ctx) {
   const warnCount = countedItems.filter(item => item.state === 'warn').length;
   const noisy = countedItems.filter(item => item.state === 'bad' || item.state === 'warn');
   const state = badCount > 0 ? 'bad' : warnCount > 0 ? 'warn' : 'ok';
+  const noisyLabels = noisy.map(item => item.issueLabel || item.name);
   const detail = noisy.length > 0
-    ? noisy.map(item => `${item.name}: ${item.detail}`).join(' ')
+    ? noisy.map(item => `${item.issueLabel || item.name}: ${item.detail}`).join(' ')
     : `Logs checked for ${normalizedItems.map(item => item.name).join(', ')}. No noisy service logs need action.`;
   const result = {
     checkedAt: nowIso(),
     state,
-    value: noisy.length > 0 ? `${issueCount}` : 'quiet',
-    label: noisy.length > 0 ? 'notable lines' : 'checked',
+    value: noisy.length > 0 ? noisyLabels[0] : 'quiet',
+    metric: noisy.length > 0 ? noisyLabels[0] : 'quiet',
+    label: noisy.length > 0 ? 'needs review' : 'checked',
     detail,
     confidence: 'live',
     source: 'local service logs',
@@ -1513,6 +1558,9 @@ async function updateVitalsHistory(ctx, sample) {
   const cpu = Number.parseFloat(sample.cpu);
   const memoryUsedPct = Number.parseInt(sample.memory, 10);
   const diskUsedPct = Number.parseInt(sample.disk, 10);
+  const uptimeSeconds = Number(sample.uptimeSeconds || 0);
+  const bootedAt = uptimeSeconds > 0 ? new Date(Date.now() - uptimeSeconds * 1000).toISOString() : null;
+  const bootWindowMs = 2 * 60 * 1000;
   const history = readDataSafe(ctx, 'vitals-history.json', { entries: [] });
   const cutoff = Date.now() - 48 * HOUR_MS;
   const entries = (Array.isArray(history.entries) ? history.entries : [])
@@ -1520,22 +1568,32 @@ async function updateVitalsHistory(ctx, sample) {
       const time = new Date(entry.at).getTime();
       return Number.isFinite(time) && time >= cutoff && Number.isFinite(Number(entry.cpu));
     })
-    .concat([{ at, cpu, memoryUsedPct, diskUsedPct }])
+    .concat([{ at, cpu, memoryUsedPct, diskUsedPct, bootedAt, host: sample.host }])
     .slice(-VITALS_HISTORY_LIMIT);
   writeDataSafe(ctx, 'vitals-history.json', { entries });
 
   const peakCutoff = Date.now() - VITALS_PEAK_WINDOW_MS;
-  const recent = entries.filter(entry => new Date(entry.at).getTime() >= peakCutoff);
+  const currentBoot = bootedAt ? new Date(bootedAt).getTime() : null;
+  const recent = entries.filter(entry => {
+    const sampleTime = new Date(entry.at).getTime();
+    if (!Number.isFinite(sampleTime) || sampleTime < peakCutoff) return false;
+    if (!currentBoot) return true;
+    const entryBoot = new Date(entry.bootedAt || 0).getTime();
+    return Number.isFinite(entryBoot) && Math.abs(entryBoot - currentBoot) <= bootWindowMs;
+  });
   const cpuPeak = recent.reduce((max, entry) => Math.max(max, Number(entry.cpu) || 0), cpu);
   return {
     window: '6h',
     cpuPeak: cpuPeak.toFixed(2),
     samples: recent.length,
+    bootedAt,
+    scopedToBoot: Boolean(bootedAt),
     source: 'data/teddy-house/vitals-history.json'
   };
 }
 
 async function vitals(ctx) {
+  const uptimeSeconds = os.uptime();
   const total = os.totalmem();
   const free = os.freemem();
   const usedPct = Math.round(((total - free) / total) * 100);
@@ -1554,7 +1612,8 @@ async function vitals(ctx) {
     memory: `${usedPct}%`,
     memoryPressure: memorySignal.displayMetric || memorySignal.metric,
     disk,
-    uptime: formatUptime(os.uptime()),
+    uptime: formatUptime(uptimeSeconds),
+    uptimeSeconds,
     network: 'local',
     host: os.hostname(),
     health: {
@@ -2136,16 +2195,57 @@ function buildWeirdThings(previous, current) {
     items.push({ state: 'warn', title: 'macOS', detail: `${current.macUpdateMetric} macOS update signal changed.` });
   }
   if (current.systemLogState === 'bad' || current.systemLogState === 'warn') {
-    items.push({ state: current.systemLogState, title: 'System logs', detail: 'Recent Mac logs need attention.' });
+    items.push({ state: current.systemLogState, title: 'Mac restart incident', detail: 'Mac system incident is still open.' });
   }
   if ((current.serviceLogState === 'bad' || current.serviceLogState === 'warn') && previous.serviceLogValue !== current.serviceLogValue) {
-    items.push({ state: current.serviceLogState, title: 'Service logs', detail: 'Service logs need attention.' });
+    items.push({ state: current.serviceLogState, title: current.serviceLogValue || 'Service logs', detail: 'Service log signal is still open.' });
   }
 
   if (items.length === 0) {
     return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, accessory, WAN, update, or log changes since the last check.' }];
   }
   return items.slice(0, 5);
+}
+
+function normalizeTimelineEvent(event) {
+  if (!event || typeof event !== 'object') return event;
+  const title = String(event.title || '');
+  const detail = String(event.detail || '');
+  if (/system logs/i.test(title) || /recent mac logs need attention/i.test(detail)) {
+    return {
+      ...event,
+      title: 'Mac restart incident',
+      detail: 'Mac system incident is still open.'
+    };
+  }
+  if (/service logs/i.test(title) && /service logs? (need attention|signal changed)/i.test(detail)) {
+    return {
+      ...event,
+      title: 'Service log signal',
+      detail: 'Service log signal is still open.'
+    };
+  }
+  return event;
+}
+
+function compactTimeline(events) {
+  const compacted = [];
+  for (const event of events) {
+    const eventTime = new Date(event && event.at || 0).getTime();
+    const sameOpenIncident = compacted.some(previous => {
+      const previousTime = new Date(previous && previous.at || 0).getTime();
+      return previous
+        && previous.title === event.title
+        && previous.detail === event.detail
+        && previous.state === event.state
+        && Number.isFinite(previousTime)
+        && Number.isFinite(eventTime)
+        && Math.abs(previousTime - eventTime) <= HOUR_MS;
+    });
+    if (sameOpenIncident) continue;
+    compacted.push(event);
+  }
+  return compacted;
 }
 
 function eventFromWeird(item) {
@@ -2163,13 +2263,17 @@ function updateTimeline(ctx, services, intelligence, score) {
   const current = snapshotFor(services, intelligence, score);
   const weirdThings = buildWeirdThings(previous, current);
   const timelineData = readDataSafe(ctx, 'timeline.json', { events: [] });
-  const events = Array.isArray(timelineData.events) ? timelineData.events : [];
+  const events = compactTimeline((Array.isArray(timelineData.events) ? timelineData.events : []).map(normalizeTimelineEvent));
 
   const last = events[0];
   const shouldHeartbeat = !last || Date.now() - new Date(last.at || 0).getTime() > HOUR_MS;
   const meaningful = weirdThings.filter(item => item.title !== 'No drift' && item.title !== 'No new weird thing');
   const additions = meaningful.length
-    ? meaningful.map(eventFromWeird)
+    ? meaningful.map(eventFromWeird).filter(event => {
+        const lastTime = new Date(last && last.at || 0).getTime();
+        const repeated = last && last.title === event.title && last.detail === event.detail && last.state === event.state;
+        return !repeated || !Number.isFinite(lastTime) || Date.now() - lastTime > HOUR_MS;
+      })
     : shouldHeartbeat
       ? [eventFromWeird({ state: 'ok', title: 'Status check', detail: `Readiness ${score}; no changes.` })]
       : [];
@@ -2234,13 +2338,35 @@ function firstReviewDetail(signals, fallback) {
   return (match && match.detail) || fallback;
 }
 
+function hasMacRestartIncident(intelligence, systemVitals) {
+  const systemLogs = intelligence && intelligence.systemLogs;
+  if (!signalBadOrWarn(systemLogs)) return false;
+  if (systemLogs.incident && Array.isArray(systemLogs.incident.reports) && systemLogs.incident.reports.length > 0) return true;
+  const uptimeSeconds = Number(systemVitals && systemVitals.uptimeSeconds);
+  return Number.isFinite(uptimeSeconds) && uptimeSeconds > 0 && uptimeSeconds < 24 * 60 * 60;
+}
+
+function systemIncidentTitle(systemLogs) {
+  const incident = systemLogs && systemLogs.incident;
+  if (incident && incident.title) return incident.title;
+  const detail = String(systemLogs && systemLogs.detail || '');
+  if (/watchdog|panic|kernel/i.test(detail)) return 'WindowServer watchdog panic';
+  return 'Mac restart incident';
+}
+
+function macIncidentDetail(systemLogs, systemVitals) {
+  const title = systemIncidentTitle(systemLogs);
+  const uptime = systemVitals && systemVitals.uptime ? systemVitals.uptime : null;
+  return uptime ? `${title}; uptime is ${uptime}.` : `${title} needs review.`;
+}
+
 function translatePrimaryAction(needs) {
   if (!Array.isArray(needs) || needs.length === 0) return 'No review items.';
   const first = String(needs[0] || '').toLowerCase();
   if (/external|public|funnel|access|tailscale/.test(first)) return 'Start with public access.';
   if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
   if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
-  if (/mac|cpu|memory|disk|system logs|updates|openclaw|app versions/.test(first)) return 'Start with the Mac mini.';
+  if (/mac restart|watchdog|panic|mac|cpu|memory|disk|system logs|updates|openclaw|app versions/.test(first)) return 'Start with the Mac mini restart.';
   return 'Start with the first review item.';
 }
 
@@ -2277,7 +2403,17 @@ function meaningfulRecentChanges(timeline, current = {}) {
     if (/no changes/i.test(event.detail || '')) continue;
     if (event.title === 'Service logs' && /\b\d+\s+service log signal changed\b/i.test(event.detail || '')) continue;
     if (isResolvedRecentChange(event, current)) continue;
-    const key = `${event.title || 'Change'}|${event.detail || 'Change detected.'}|${event.state || 'info'}`;
+    let title = event.title || 'Change';
+    let detail = event.detail || 'Change detected.';
+    if (/system logs/i.test(title) && current.systemLogs && signalBadOrWarn(current.systemLogs)) {
+      title = 'Mac restart incident';
+      detail = 'Mac system incident is still open.';
+    }
+    if (/service logs/i.test(title) && current.serviceLogs && signalBadOrWarn(current.serviceLogs)) {
+      title = current.serviceLogs.value || 'Service logs';
+      detail = 'Service log signal is still open.';
+    }
+    const key = `${title}|${detail}|${event.state || 'info'}`;
     const existing = grouped.find(item => item.key === key);
     if (existing) {
       existing.count += 1;
@@ -2286,8 +2422,8 @@ function meaningfulRecentChanges(timeline, current = {}) {
     grouped.push({
       key,
       count: 1,
-      title: event.title || 'Change',
-      detail: event.detail || 'Change detected.',
+      title,
+      detail,
       state: event.state || 'info',
       at: event.at,
       time: event.time
@@ -2296,7 +2432,9 @@ function meaningfulRecentChanges(timeline, current = {}) {
   return grouped
     .map(({ key, ...event }) => ({
       ...event,
-      detail: event.count > 1 ? `${event.detail} Seen ${event.count} times.` : event.detail
+      detail: event.count > 1 && event.title !== 'Mac restart incident'
+        ? `${event.detail} Seen ${event.count} times.`
+        : event.detail
     }))
     .slice(0, 3);
 }
@@ -2304,6 +2442,7 @@ function meaningfulRecentChanges(timeline, current = {}) {
 function deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
+  const macIncident = hasMacRestartIncident(intelligence, systemVitals);
   const outsideState = worstState([intelligence.tailscaleFunnel]);
   const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality]);
   const smartHomeState = worstState([
@@ -2368,23 +2507,43 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       title: 'Mac mini',
       state: macMiniState,
       value: zoneValue(macMiniState, 'Healthy'),
-      detail: macMiniState === 'ok'
+      detail: macIncident
+        ? macIncidentDetail(intelligence.systemLogs, systemVitals)
+        : macMiniState === 'ok'
         ? 'System checks, updates, and service logs are quiet.'
         : firstReviewDetail(macMiniSignals, 'Mac mini checks need review.'),
       evidence: ['OpenClaw', 'macOS', 'System logs', 'Service logs']
     }
   ];
+  if (macIncident) {
+    zones.sort((a, b) => {
+      if (a.id === 'mac-mini') return -1;
+      if (b.id === 'mac-mini') return 1;
+      return 0;
+    });
+  }
   const hasBad = zones.some(zone => zone.state === 'bad') || score < 70;
   const hasReview = hasBad || zones.some(zone => zone.state === 'warn') || (Array.isArray(reviewItems) && reviewItems.length > 0);
-  return {
-    headline: hasBad ? 'Homebase found an issue.' : hasReview ? 'Something needs a look.' : "Dan's house is steady.",
-    summary: hasBad
+  const headline = macIncident
+    ? 'Mac mini restarted this morning.'
+    : hasBad ? 'Homebase found an issue.' : hasReview ? 'Something needs a look.' : "Dan's house is steady.";
+  const summary = macIncident
+    ? 'Start with the Mac mini restart; house services are online.'
+    : hasBad
       ? `${translatePrimaryAction(reviewItems)} Core evidence is still available below.`
       : hasReview
         ? `${translatePrimaryAction(reviewItems)} Everything else is responding.`
-        : 'Internet, automations, public access, and the Mac mini are quiet.',
+        : 'Internet, automations, public access, and the Mac mini are quiet.';
+  return {
+    headline,
+    summary,
     tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
-    primaryAction: translatePrimaryAction(reviewItems),
+    primaryAction: macIncident ? 'Start with the Mac mini restart.' : translatePrimaryAction(reviewItems),
+    incident: macIncident ? {
+      title: systemIncidentTitle(intelligence.systemLogs),
+      detail: macIncidentDetail(intelligence.systemLogs, systemVitals),
+      source: 'System logs'
+    } : null,
     zones,
     recentChanges: meaningfulRecentChanges(timeline, {
       systemLogs: intelligence.systemLogs,
@@ -2401,14 +2560,14 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
 function usefulSignals(intelligence) {
   if (!intelligence) return [];
   return [
+    ['Mac restart incident', intelligence.systemLogs],
     ['External access', intelligence.tailscaleFunnel],
     ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
     ['Service Logs', intelligence.serviceLogs],
     ['Homebridge Log', intelligence.homebridge && intelligence.homebridge.logHealth],
     ['App Versions', intelligence.softwareUpdates],
-    ['macOS', intelligence.macUpdates],
-    ['System Logs', intelligence.systemLogs]
+    ['macOS', intelligence.macUpdates]
   ]
     .filter(([, signal]) => signal && signal.hidden !== true && (signal.state === 'warn' || signal.state === 'bad'))
     .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch' }));
@@ -2431,7 +2590,10 @@ function needsDan(services, intelligence, systemVitals) {
     .map(([key, service]) => {
       return `${SERVICE_NAMES[key] || key}: ${service.metric}`;
     });
-  const signalItems = usefulSignals(intelligence).map(item => `${item.name}: ${item.metric}`);
+  const signalItems = usefulSignals(intelligence).map(item => {
+    if (item.name === 'Mac restart incident') return item.name;
+    return `${item.name}: ${item.metric}`;
+  });
   const vitalItems = usefulVitals(systemVitals).map(item => `${item.name}: ${item.metric}`);
   return [...serviceItems, ...signalItems, ...vitalItems];
 }
@@ -2498,13 +2660,13 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const candidates = [
+    ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.'],
     ['Public access', intelligence.tailscaleFunnel, 'Check public access first.'],
     ['Internet', intelligence.wanQuality, 'Check internet quality first.'],
     ['DNS', services.adguard, 'Check DNS first.'],
     ['Homebridge', services.homebridge, 'Check Homebridge first.'],
     ['OpenClaw', services.openclaw, 'Check OpenClaw first.'],
-    ['System logs', intelligence.systemLogs, 'Check Mac system logs first.'],
-    ['Service logs', intelligence.serviceLogs, 'Check service logs first.'],
+    ['Service logs', intelligence.serviceLogs, 'Check named service-log issue.'],
     ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.'],
     ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.'],
     ['Memory', reviewVital(health.memory), 'Check Mac mini memory pressure first.'],

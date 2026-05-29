@@ -170,8 +170,9 @@ function formatNeedLabel(item) {
   const [rawName, rawValue] = String(item || "").split(":").map(part => part.trim());
   const name = rawName || "Review item";
   const value = rawValue || "";
-  if (/system logs/i.test(name)) return value ? `System logs: ${value} finding` : "System logs need review";
-  if (/service logs/i.test(name)) return value ? `Service logs: ${value} findings` : "Service logs need review";
+  if (/mac restart|watchdog|panic/i.test(name)) return "Mac restart incident";
+  if (/system logs/i.test(name)) return value ? `Mac system logs: ${value}` : "Mac system logs need review";
+  if (/service logs/i.test(name)) return value && !/^\d+$/.test(value) ? value : "Service logs need review";
   if (/external access/i.test(name)) return value ? `Public access: ${value}` : "Public access needs review";
   return value ? `${name}: ${value}` : name;
 }
@@ -232,6 +233,21 @@ function renderDailyDecision(decision) {
     if (label) label.textContent = slot.label || slot.key;
     if (title) title.textContent = slot.text || "No action.";
   });
+}
+
+function renderIncident(houseState) {
+  const ribbon = document.getElementById("incident-ribbon");
+  if (!ribbon) return;
+  const incident = houseState && houseState.incident;
+  if (!incident) {
+    ribbon.hidden = true;
+    return;
+  }
+  const title = document.getElementById("incident-title");
+  const detail = document.getElementById("incident-detail");
+  if (title) title.textContent = incident.title || "Mac mini needs review";
+  if (detail) detail.textContent = incident.detail || "System evidence needs review.";
+  ribbon.hidden = false;
 }
 
 function primaryAction(needs) {
@@ -413,6 +429,7 @@ async function loadHealth() {
     currentHealth = data;
     renderSummary(data);
     renderDailyDecision(data.dailyDecision);
+    renderIncident(data.houseState);
     renderNeeds(data.needsDan);
     renderHouseState(data.houseState);
     renderServices(data);

@@ -310,6 +310,7 @@ h3 {
 }
 
 .status-band,
+.incident-ribbon,
 .decision-strip,
 .needs-lane,
 .panel,
@@ -320,6 +321,39 @@ h3 {
   background: var(--panel);
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(22px) saturate(140%);
+}
+
+.incident-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-color: rgba(241, 182, 76, 0.34);
+  background:
+    linear-gradient(135deg, rgba(241, 182, 76, 0.12), rgba(255, 255, 255, 0.035)),
+    var(--panel);
+}
+
+.incident-ribbon[hidden] {
+  display: none;
+}
+
+.incident-ribbon h3 {
+  margin-top: 4px;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.incident-ribbon p:last-child {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .status-band {
@@ -1193,6 +1227,35 @@ h3 {
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .badge,
+  .last-check,
+  .toolbar-link,
+  #refresh-button {
+    flex: 0 1 auto;
+  }
+
+  .incident-ribbon {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .incident-ribbon p:last-child {
+    max-width: none;
+    text-align: left;
   }
 
   h2 {

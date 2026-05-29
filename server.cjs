@@ -133,6 +133,12 @@ const server = http.createServer(async (req, res) => {
 
   if ((req.method === 'GET' || req.method === 'HEAD') && servePublicInstallAsset(pathname, res)) return;
 
+  if (DASHBOARD_PASSWORD && (req.method === 'GET' || req.method === 'HEAD') && pathname === '/') {
+    res.writeHead(302, { 'Location': '/pages/teddy-house/' });
+    res.end();
+    return;
+  }
+
   // ── Auth: enforce session for all other routes ──
   if (DASHBOARD_PASSWORD) {
     const token = getSessionCookie(req);
