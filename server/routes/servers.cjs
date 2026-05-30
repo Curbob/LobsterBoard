@@ -3,6 +3,7 @@ const path = require('path');
 const { sendJson } = require('../response.cjs');
 const { CWD } = require('../config.cjs');
 const { generateEcdhKeyPair, deriveSharedSecret, decryptPayload } = require('../crypto.cjs');
+const { validateServerProfile } = require('../validation.cjs');
 
 const SERVERS_FILE = path.join(CWD, 'data', 'servers.json');
 
@@ -37,10 +38,12 @@ function handle(req, res, pathname) {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { name, url, apiKey } = JSON.parse(body);
-        if (!name || !url || !apiKey) {
-          return sendJson(res, 400, { error: 'name, url, and apiKey required' });
+        const parsed = JSON.parse(body);
+        const validation = validateServerProfile(parsed);
+        if (!validation.valid) {
+          return sendJson(res, 400, { error: validation.errors.join('; ') });
         }
+        const { name, url, apiKey } = parsed;
         const servers = loadServers();
         const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         if (servers.find(s => s.id === id)) {
