@@ -309,12 +309,14 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         .join("\\n");
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
       const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
+      const historyCount = document.querySelectorAll("#history-grid .history-card").length;
       return {
         width: window.innerWidth,
         summaryTitle: textOf("#summary-title"),
         summaryCopy: textOf("#summary-copy"),
         firstZone,
         zoneCount,
+        historyCount,
         firstScreenText: visibleSectionText,
         positions: {
           overview: topOf("#overview"),
@@ -325,6 +327,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
           ask: topOf("#ask-teddy"),
           evidence: topOf("#evidence"),
           signals: topOf("#signals"),
+          history: topOf("#history"),
           timeline: topOf("#timeline")
         }
       };
@@ -335,9 +338,11 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   assert(value.summaryTitle && !/Checking|Could not refresh/i.test(value.summaryTitle), `rendered summary is not loaded at ${width}px: ${JSON.stringify(value)}`);
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.firstZone, `rendered first house zone missing at ${width}px`);
+  assert(value.historyCount >= 1, `rendered history summaries missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.positions.houseState !== null, `house-state section missing at ${width}px`);
   assert(value.positions.evidence === null || value.positions.houseState < value.positions.evidence, `evidence appears before house state at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.signals === null || value.positions.houseState < value.positions.signals, `signals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.history === null || value.positions.signals === null || value.positions.signals < value.positions.history, `history appears before evidence signals at ${width}px: ${JSON.stringify(value.positions)}`);
   for (const pattern of RENDERED_FIRST_SCREEN_COPY_BLACKLIST) {
     assert(!pattern.test(value.firstScreenText || ''), `rendered first-screen copy matched blacklist ${pattern} at ${width}px: ${value.firstScreenText}`);
   }

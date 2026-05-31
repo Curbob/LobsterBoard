@@ -45,6 +45,7 @@
         <a href="#house-state">House state</a>
         <a href="#ask-teddy">Ask</a>
         <a href="#evidence">Evidence</a>
+        <a href="#history">Memory</a>
         <a href="#timeline">Changes</a>
       </nav>
       <div class="teddy-card">
@@ -185,6 +186,17 @@
           <span class="state-pill">Fresh check</span>
         </div>
         <div class="signal-grid" id="signal-grid"></div>
+      </section>
+
+      <section class="panel history-panel hidden-until-loaded" id="history" aria-labelledby="history-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Memory</p>
+            <h3 id="history-title">Persisted summaries</h3>
+          </div>
+          <span class="state-pill">Source backed</span>
+        </div>
+        <div class="history-grid" id="history-grid"></div>
       </section>
 
       <section class="lower-grid hidden-until-loaded">

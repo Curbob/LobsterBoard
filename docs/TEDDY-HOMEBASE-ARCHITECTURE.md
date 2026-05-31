@@ -92,6 +92,7 @@ Evidence stays lower on the page:
 - Tailscale public route state
 - WAN quality
 - service logs
+- persisted memory summaries for boot sessions, WAN latency, public access, automation logs, CPU peaks, and house changes
 - app/macOS/system updates
 - Mac mini vitals
 - grouped recent changes

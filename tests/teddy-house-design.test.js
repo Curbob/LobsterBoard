@@ -61,6 +61,9 @@ function homebaseDom() {
         <span class="state-pill"></span>
         <div id="signal-grid"></div>
       </section>
+      <section id="history" class="history-panel hidden-until-loaded">
+        <div id="history-grid"></div>
+      </section>
       <section class="lower-grid hidden-until-loaded">
         <div id="events-list"></div>
       </section>
@@ -133,6 +136,11 @@ function healthyWithOneWarning() {
       systemLogs: { state: 'ok', metric: '0', check: 'System logs', detail: 'Logs are quiet.' },
       weirdThings: []
     },
+    historicalSummaries: [
+      { id: 'cpu-peak-6h', title: 'CPU peak', window: '6h', value: 'Peak 8.20', detail: 'Scoped to the current Mac mini boot session.', sampleCount: 12, source: 'data/teddy-house/vitals-history.json', confidence: 'persisted' },
+      { id: 'mac-boot-7d', title: 'Mac boot', window: '7d', value: 'Current boot stable', detail: 'Current boot started 5d ago.', sampleCount: 1, source: 'data/teddy-house/boot-history.json', confidence: 'persisted' },
+      { id: 'wan-latency-24h', title: 'WAN latency', window: '24h', value: '20 ms now', detail: 'Worst check 32.0 ms across 8 persisted samples.', sampleCount: 8, source: 'data/teddy-house/wan-history.json', confidence: 'persisted' }
+    ],
     timeline: []
   };
 }
@@ -166,6 +174,7 @@ describe('Teddy Homebase design guardrails', () => {
     const vitalsIndex = html.indexOf('id="server"');
     const askIndex = html.indexOf('id="ask-teddy"');
     const evidenceIndex = html.indexOf('id="evidence"');
+    const historyIndex = html.indexOf('id="history"');
     const timelineIndex = html.indexOf('id="timeline"');
     const localLinksIndex = html.indexOf('id="local-links"');
 
@@ -173,7 +182,8 @@ describe('Teddy Homebase design guardrails', () => {
     expect(vitalsIndex).toBeGreaterThan(houseStateIndex);
     expect(askIndex).toBeGreaterThan(vitalsIndex);
     expect(evidenceIndex).toBeGreaterThan(askIndex);
-    expect(timelineIndex).toBeGreaterThan(evidenceIndex);
+    expect(historyIndex).toBeGreaterThan(evidenceIndex);
+    expect(timelineIndex).toBeGreaterThan(historyIndex);
     expect(localLinksIndex).toBeGreaterThan(timelineIndex);
   });
 
@@ -234,6 +244,13 @@ describe('Teddy Homebase design guardrails', () => {
     expect(signalDetails.join('\n')).not.toContain('Apps are current');
     expect(signalDetails.join('\n')).not.toContain('No updates');
     expect(signalDetails.join('\n')).not.toContain('Logs are quiet');
+    expect([...document.querySelectorAll('#history-grid .tiny-label')].map(el => el.textContent)).toEqual([
+      'CPU peak',
+      'Mac boot',
+      'WAN latency'
+    ]);
+    expect(document.getElementById('history-grid').textContent).toContain('Persisted');
+    expect(document.getElementById('history-grid').textContent).toContain('8 samples');
     expect(document.getElementById('next-action').textContent).toBe('No review items.');
   });
 });

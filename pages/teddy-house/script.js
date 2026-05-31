@@ -352,6 +352,43 @@ function renderSignals(intelligence) {
     .forEach(([title, signal, label, detailOverride]) => renderSignalCard(grid, title, signal, label, detailOverride));
 }
 
+function renderHistoricalSummaries(summaries) {
+  const grid = document.getElementById("history-grid");
+  if (!grid) return;
+  clear(grid);
+  const items = Array.isArray(summaries) ? summaries.filter(summary => summary && summary.source).slice(0, 6) : [];
+  items.forEach(summary => {
+    const card = document.createElement("article");
+    card.className = "history-card";
+    const top = div("history-top");
+    const copy = div();
+    copy.append(div("tiny-label", summary.title || "Memory"), div("history-value", summary.value || "--"));
+    const windowLabel = summary.window ? span("history-window", summary.window) : null;
+    top.append(copy);
+    if (windowLabel) top.append(windowLabel);
+    card.append(top);
+    if (summary.detail) {
+      const detail = document.createElement("p");
+      detail.textContent = summary.detail;
+      card.append(detail);
+    }
+    const meta = div("history-meta");
+    meta.append(span("", summary.confidence === "persisted" ? "Persisted" : "Source backed"));
+    meta.append(span("", `${summary.sampleCount || 0} sample${Number(summary.sampleCount) === 1 ? "" : "s"}`));
+    card.title = summary.source;
+    card.append(meta);
+    grid.append(card);
+  });
+  if (!grid.children.length) {
+    const item = div("history-card quiet-history");
+    item.append(div("tiny-label", "Memory"), div("history-value", "No summaries yet"));
+    const detail = document.createElement("p");
+    detail.textContent = "Homebase will show historical context after persisted evidence exists.";
+    item.append(detail);
+    grid.append(item);
+  }
+}
+
 function renderEvents(events) {
   const list = document.getElementById("events-list");
   clear(list);
@@ -444,6 +481,7 @@ async function loadHealth() {
     renderServices(data);
     renderVitals(data.vitals || {});
     renderSignals(data.intelligence);
+    renderHistoricalSummaries(data.historicalSummaries);
     renderEvents((data.houseState && data.houseState.recentChanges) || data.timeline || data.events || []);
     setLoadedState(true);
   } catch (err) {
