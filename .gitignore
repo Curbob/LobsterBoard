@@ -6,6 +6,7 @@ data/
 node_modules/
 .env
 .clawpatch/
+artifacts/qa/homebase-latest-*.png
 
 # Security - never commit
 auth.json

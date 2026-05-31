@@ -11,7 +11,7 @@ npm run check -- --runInBand
 npm run check:homebase
 ```
 
-Use `npm run check:homebase` as the preferred Homebase release gate. It includes lint/tests, replay fixtures, local Homebase route smokes, first-screen copy blacklist checks, and public Funnel auth smoke when reachable.
+Use `npm run check:homebase` as the preferred Homebase release gate. It includes lint/tests, replay fixtures, local Homebase route smokes, first-screen copy blacklist checks, phone/iPad/desktop screenshot capture, and public Funnel auth smoke when reachable.
 
 Live local proof:
 

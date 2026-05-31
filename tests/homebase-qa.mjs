@@ -1,12 +1,23 @@
 #!/usr/bin/env node
 
 import { readFileSync } from 'node:fs';
+import { mkdir, rm, stat } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { startServer } from '../helpers/server.js';
 
 const LOCAL_TIMEOUT_MS = 12000;
 const REMOTE_TIMEOUT_MS = 5000;
 const PUBLIC_BASE = process.env.HOMEBASE_PUBLIC_URL || 'https://openclaw-mac-mini.tail02a3b6.ts.net:10000';
+const CHROME_BIN = process.env.HOMEBASE_CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const SCREENSHOT_DIR = join(process.cwd(), 'artifacts', 'qa');
+const SCREENSHOT_VIEWPORTS = [
+  ['phone', 390, 844],
+  ['ipad', 820, 1180],
+  ['desktop', 1440, 1000]
+];
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -58,6 +69,210 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = LOCAL_TIMEOUT_MS)
   }
 }
 
+async function captureScreenshots(baseUrl) {
+  if (process.env.HOMEBASE_SKIP_SCREENSHOTS === '1') return { status: 'skipped' };
+  await mkdir(SCREENSHOT_DIR, { recursive: true });
+  const userDataDir = join(tmpdir(), `homebase-chrome-${Date.now()}`);
+  const chrome = await startChrome(userDataDir);
+  const outputs = [];
+  try {
+    for (const [name, width, height] of SCREENSHOT_VIEWPORTS) {
+      const file = join(SCREENSHOT_DIR, `homebase-latest-${name}.png`);
+      const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height);
+      const fileStat = await stat(file);
+      assert(fileStat.size > 5000, `${name} screenshot is too small to be useful`);
+      outputs.push({ name, width, height, file, bytes: fileStat.size, scrollWidth: layout.rootScrollWidth });
+    }
+    return { status: 'captured', outputs };
+  } catch (err) {
+    if (process.env.HOMEBASE_REQUIRE_SCREENSHOTS === '1') throw err;
+    return { status: `skipped (${err.message})` };
+  } finally {
+    await stopChrome(chrome);
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+}
+
+async function startChrome(userDataDir) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(CHROME_BIN, [
+      '--headless=new',
+      '--disable-gpu',
+      '--disable-background-networking',
+      '--hide-scrollbars',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=0',
+      `--user-data-dir=${userDataDir}`,
+      'about:blank'
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { child.kill('SIGKILL'); } catch (_) {}
+      reject(new Error('Chrome DevTools endpoint did not start'));
+    }, 12000);
+    child.stderr.on('data', chunk => {
+      const text = chunk.toString();
+      const match = text.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match && !settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ child, wsUrl: match[1], ws: null, nextId: 1, callbacks: new Map(), waiters: [] });
+      }
+    });
+    child.on('error', err => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('exit', code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(`Chrome exited before DevTools started: ${code}`));
+    });
+  });
+}
+
+async function connectChrome(chrome) {
+  if (chrome.ws) return chrome.ws;
+  const ws = new WebSocket(chrome.wsUrl);
+  chrome.ws = ws;
+  ws.addEventListener('message', event => {
+    const message = JSON.parse(event.data);
+    if (message.id && chrome.callbacks.has(message.id)) {
+      const { resolve, reject } = chrome.callbacks.get(message.id);
+      chrome.callbacks.delete(message.id);
+      if (message.error) reject(new Error(message.error.message || 'Chrome DevTools command failed'));
+      else resolve(message.result || {});
+      return;
+    }
+    for (const waiter of [...chrome.waiters]) {
+      if (waiter.method === message.method && (!waiter.sessionId || waiter.sessionId === message.sessionId)) {
+        clearTimeout(waiter.timer);
+        chrome.waiters.splice(chrome.waiters.indexOf(waiter), 1);
+        waiter.resolve(message);
+      }
+    }
+  });
+  await new Promise((resolve, reject) => {
+    ws.addEventListener('open', resolve, { once: true });
+    ws.addEventListener('error', reject, { once: true });
+  });
+  return ws;
+}
+
+async function chromeCommand(chrome, method, params = {}, sessionId = null) {
+  const ws = await connectChrome(chrome);
+  const id = chrome.nextId++;
+  const payload = { id, method, params };
+  if (sessionId) payload.sessionId = sessionId;
+  const promise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.callbacks.delete(id);
+      reject(new Error(`${method} timed out`));
+    }, 12000);
+    chrome.callbacks.set(id, {
+      resolve: value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      reject: err => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    });
+  });
+  ws.send(JSON.stringify(payload));
+  return promise;
+}
+
+function waitForChromeEvent(chrome, method, sessionId, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const waiter = {
+      method,
+      sessionId,
+      resolve,
+      timer: setTimeout(() => {
+        chrome.waiters.splice(chrome.waiters.indexOf(waiter), 1);
+        reject(new Error(`${method} timed out`));
+      }, timeoutMs)
+    };
+    chrome.waiters.push(waiter);
+  });
+}
+
+async function captureViewport(chrome, url, file, width, height) {
+  const { targetId } = await chromeCommand(chrome, 'Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await chromeCommand(chrome, 'Target.attachToTarget', { targetId, flatten: true });
+  await chromeCommand(chrome, 'Page.enable', {}, sessionId);
+  await chromeCommand(chrome, 'Runtime.enable', {}, sessionId);
+  await chromeCommand(chrome, 'Emulation.setDeviceMetricsOverride', {
+    width,
+    height,
+    deviceScaleFactor: 1,
+    mobile: width <= 430
+  }, sessionId);
+  const loadPromise = waitForChromeEvent(chrome, 'Page.loadEventFired', sessionId).catch(() => null);
+  await chromeCommand(chrome, 'Page.navigate', { url }, sessionId);
+  await loadPromise;
+  await waitForHomebaseReady(chrome, sessionId);
+  const layout = await assertNoHorizontalOverflow(chrome, sessionId, width);
+  const screenshot = await chromeCommand(chrome, 'Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId);
+  await writeFile(file, Buffer.from(screenshot.data, 'base64'));
+  await chromeCommand(chrome, 'Target.closeTarget', { targetId }).catch(() => null);
+  return layout;
+}
+
+async function waitForHomebaseReady(chrome, sessionId) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const result = await chromeCommand(chrome, 'Runtime.evaluate', {
+      expression: `(() => {
+        const title = document.getElementById("summary-title")?.textContent || "";
+        const status = document.getElementById("last-check")?.textContent || "";
+        const zones = document.getElementById("house-zone-grid")?.children.length || 0;
+        const ready = zones === 4 && !/Checking|Could not refresh/i.test(title) && !/Waiting|Refreshing/i.test(status);
+        return { ready, title, status, zones };
+      })()`,
+      returnByValue: true
+    }, sessionId);
+    if (result.result && result.result.value && result.result.value.ready) return result.result.value;
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  throw new Error('Homebase did not render loaded health state before screenshot');
+}
+
+async function assertNoHorizontalOverflow(chrome, sessionId, width) {
+  const result = await chromeCommand(chrome, 'Runtime.evaluate', {
+    expression: `(() => {
+      const root = document.documentElement;
+      const body = document.body;
+      return {
+        viewport: window.innerWidth,
+        rootScrollWidth: root.scrollWidth,
+        bodyScrollWidth: body.scrollWidth,
+        title: document.getElementById("summary-title")?.textContent || ""
+      };
+    })()`,
+    returnByValue: true
+  }, sessionId);
+  const value = result.result && result.result.value ? result.result.value : {};
+  const overflow = Math.max(value.rootScrollWidth || 0, value.bodyScrollWidth || 0) - (value.viewport || width);
+  assert(overflow <= 1, `horizontal overflow at ${width}px viewport: ${JSON.stringify(value)}`);
+  return value;
+}
+
+async function stopChrome(chrome) {
+  if (!chrome) return;
+  try { chrome.ws?.close(); } catch (_) {}
+  try { chrome.child?.kill('SIGTERM'); } catch (_) {}
+  await new Promise(resolve => setTimeout(resolve, 200));
+  try { chrome.child?.kill('SIGKILL'); } catch (_) {}
+}
+
 async function smokeLocalRoutes() {
   const srv = await startServer({ password: 'Danno' });
   try {
@@ -80,12 +295,14 @@ async function smokeLocalRoutes() {
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
     assert(Array.isArray(logData.serviceLogs?.items), 'grouped service logs are missing');
+    const screenshots = await captureScreenshots(srv.baseUrl);
 
     return {
       score: data.score,
       headline: data.houseState.headline,
       firstZone: data.houseState.zones[0].id,
-      firstDecision: data.dailyDecision.slots[0].text
+      firstDecision: data.dailyDecision.slots[0].text,
+      screenshots
     };
   } finally {
     await srv.kill();

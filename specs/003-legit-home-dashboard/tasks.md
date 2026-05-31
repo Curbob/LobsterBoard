@@ -37,7 +37,7 @@
 - [x] Add `npm run check:homebase` or equivalent one-command QA.
 - [x] Smoke local health and logs routes.
 - [x] Smoke public Tailscale auth when reachable, with strict mode available.
-- [ ] Capture desktop, iPad, and phone screenshots.
+- [x] Capture desktop, iPad, and phone screenshots.
 - [x] Add copy blacklist checks for raw/sloppy strings.
 - [x] Document the QA path in README and architecture docs.
 
@@ -46,4 +46,4 @@
 - [x] Implement Phase 1 service-log domain rollups.
 - [x] Add the replay harness skeleton with healthy, Govee loop, and Mac panic fixtures.
 - [x] Run `npm run check -- --runInBand`.
-- [ ] Browser QA the live Homebase page at phone/iPad/desktop widths.
+- [x] Browser QA the Homebase page at phone/iPad/desktop widths.
