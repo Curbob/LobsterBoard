@@ -21,6 +21,18 @@ const replayFixtureNames = [
   'wan-dns-degraded',
   'teddy-bridge-fallback'
 ];
+const firstScreenCopyBlacklist = [
+  /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
+  /\b\d{2,5},\s*\d{2,5}\b/,
+  /\b(?:\d+\.){2,}\d+\b/,
+  /\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i,
+  /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
+  /\bService Logs:\s*\d+\b/i,
+  /\bSystem Logs:\s*\d+\b/i,
+  /\bRecent Mac logs need attention\b/i,
+  /\bWHAT'?S EXPOSED\s+\d{2,5}/i,
+  /Eufy|Door locks|Garage side door|Front Door|Side Door/i
+];
 
 function loadReplayFixture(name) {
   return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
@@ -66,6 +78,13 @@ function firstScreenText(result) {
   ].join('\n');
 }
 
+function expectCleanFirstScreen(result) {
+  const copy = firstScreenText(result);
+  for (const pattern of firstScreenCopyBlacklist) {
+    expect(copy).not.toMatch(pattern);
+  }
+}
+
 beforeAll(async () => {
   srv = await startServer();
 });
@@ -92,10 +111,8 @@ describe('Teddy Homebase page', () => {
     }));
   });
 
-  it('keeps raw telemetry out of the healthy replay first screen', () => {
-    const result = replayHouseState(loadReplayFixture('healthy'));
-    expect(firstScreenText(result)).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b|\b\d{2,5},\s*\d{2,5}\b|\b(?:\d+\.){2,}\d+\b|\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i);
-    expect(firstScreenText(result)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
+  it.each(replayFixtureNames)('keeps raw telemetry out of the %s replay first screen', (fixtureName) => {
+    expectCleanFirstScreen(replayHouseState(loadReplayFixture(fixtureName)));
   });
 
   it('keeps a concrete Mac restart above automation noise in mixed replay data', () => {
@@ -151,7 +168,7 @@ describe('Teddy Homebase page', () => {
       state: 'ok',
       detail: 'Homebridge and accessories are responding.'
     }));
-    expect(firstScreenText(result)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
+    expectCleanFirstScreen(result);
   });
 
   it('serves the custom page with LobsterBoard shared nav and custom icon', async () => {
