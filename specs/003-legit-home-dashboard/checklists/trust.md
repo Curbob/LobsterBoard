@@ -3,7 +3,7 @@
 ## Data Truth
 
 - [x] Every visible warning has a source, timestamp, freshness, and confidence.
-- [ ] Healthy first screen does not show stale data as current.
+- [x] Healthy first screen does not show stale data as current.
 - [x] No fake trends, fake graphs, fake room state, or inferred device state.
 - [x] Eufy lock data remains ignored/degraded until the source is trustworthy.
 - [x] Cached update data is labeled as cached.

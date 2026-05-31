@@ -914,6 +914,27 @@ function copyQualityCoverage(fixtureContracts) {
   };
 }
 
+function healthyFreshnessCoverage() {
+  const fixture = readFixture('healthy');
+  const copy = [
+    fixture.expected?.headline,
+    fixture.expected?.summary,
+    fixture.expected?.primaryAction,
+    fixture.expected?.nowText,
+    ...(Array.isArray(fixture.expected?.dailySlots) ? fixture.expected.dailySlots.map(slot => `${slot.text} ${slot.source}`) : [])
+  ].filter(Boolean).join('\n');
+  const staleLanguageClear = !/\b(stale|cached|degraded|ignored|unknown|last check unavailable)\b/i.test(copy);
+  const steadySpecific = fixture.expected?.headline === "Dan's house is steady."
+    && fixture.expected?.nowText === 'Nothing needs Dan.'
+    && fixture.expected?.summary === 'Internet, automations, public access, and the Mac mini are quiet.';
+  return {
+    status: staleLanguageClear && steadySpecific ? 'ok' : 'fail',
+    detail: `${steadySpecific ? 'steady copy specific' : 'steady copy drifted'}; ${staleLanguageClear ? 'no stale-source language' : 'stale-source language found'}`,
+    staleLanguageClear,
+    steadySpecific
+  };
+}
+
 function trustChecks(local, publicAuth) {
   const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
     ? local.screenshots.outputs
@@ -1006,6 +1027,7 @@ async function main() {
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
+  const healthyFreshness = healthyFreshnessCoverage();
   const checks = trustChecks(local, publicAuth);
   gates.push({
     name: 'zone-ranking-coverage',
@@ -1027,6 +1049,16 @@ async function main() {
     status: copyCoverage.status,
     detail: 'Replay fixtures lock clean first-screen copy, specific incident language, and the Now / Watch / Later strip.'
   });
+  gates.push({
+    name: 'healthy-freshness-copy',
+    status: healthyFreshness.status,
+    detail: healthyFreshness.detail
+  });
+  checks.push({
+    name: 'healthy-freshness-copy',
+    status: healthyFreshness.status,
+    detail: 'Healthy replay first screen does not present stale, cached, degraded, or ignored sources as current.'
+  });
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
@@ -1037,6 +1069,7 @@ async function main() {
     trustChecks: checks,
     zoneRankingCoverage: zoneCoverage.items,
     copyQualityCoverage: copyCoverage,
+    healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
