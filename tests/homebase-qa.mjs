@@ -6,6 +6,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import http from 'node:http';
 import { startServer } from '../helpers/server.js';
 
 const LOCAL_TIMEOUT_MS = 12000;
@@ -118,6 +119,23 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = LOCAL_TIMEOUT_MS)
   } finally {
     clearTimeout(timer);
   }
+}
+
+function requestStatus({ port, path, host = '127.0.0.1', method = 'GET' }) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path,
+      method,
+      headers: { Host: host }
+    }, res => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode));
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 async function captureScreenshots(baseUrl) {
@@ -491,6 +509,13 @@ async function smokeLocalRoutes() {
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
     assertLogsDetailContract(logData);
+    const nonLoopbackHost = 'openclaw-mac-mini.tail02a3b6.ts.net:10000';
+    const remoteHostHealth = await requestStatus({ port: srv.port, path: '/api/pages/teddy-house/health', host: nonLoopbackHost });
+    const remoteHostLogs = await requestStatus({ port: srv.port, path: '/api/pages/teddy-house/logs', host: nonLoopbackHost });
+    const remoteHostScript = await requestStatus({ port: srv.port, path: '/pages/teddy-house/logs.js', host: nonLoopbackHost });
+    assert(remoteHostHealth === 401, `non-loopback Host health probe returned ${remoteHostHealth}, expected 401`);
+    assert(remoteHostLogs === 401, `non-loopback Host logs probe returned ${remoteHostLogs}, expected 401`);
+    assert(remoteHostScript === 302, `non-loopback Host script probe returned ${remoteHostScript}, expected login redirect`);
     const screenshots = await captureScreenshots(srv.baseUrl);
     const persisted = assertPersistedHomebaseData(srv.cwd, data);
 
@@ -509,6 +534,13 @@ async function smokeLocalRoutes() {
         prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
           && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
           && /exact approval needed/.test(String(prepareData.promptPreview || ''))
+      },
+      loopbackProbe: {
+        localHealth: health.status,
+        localLogs: logs.status,
+        remoteHostHealth,
+        remoteHostLogs,
+        remoteHostScript
       },
       screenshots,
       persisted
@@ -736,6 +768,18 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       detail: publicAuth
     },
     {
+      name: 'loopback-probe-boundary',
+      status: local && local.loopbackProbe
+        && local.loopbackProbe.localHealth === 200
+        && local.loopbackProbe.localLogs === 200
+        && local.loopbackProbe.remoteHostHealth === 401
+        && local.loopbackProbe.remoteHostLogs === 401
+        && local.loopbackProbe.remoteHostScript === 302 ? 'ok' : 'fail',
+      detail: local && local.loopbackProbe
+        ? `local health/logs ${local.loopbackProbe.localHealth}/${local.loopbackProbe.localLogs}; remote-looking Host ${local.loopbackProbe.remoteHostHealth}/${local.loopbackProbe.remoteHostLogs}/${local.loopbackProbe.remoteHostScript}.`
+        : 'Loopback probe boundary was not checked.'
+    },
+    {
       name: 'live-first-story',
       status: local && local.firstZone && local.firstDecision ? 'ok' : 'fail',
       detail: `${local && local.firstZone ? local.firstZone : 'unknown'}: ${local && local.firstDecision ? local.firstDecision : 'missing decision'}`
@@ -774,6 +818,18 @@ function trustChecks(local, publicAuth) {
       detail: publicAuth === 'enforced'
         ? 'Public page redirects to login and public health API returns 401.'
         : publicAuth
+    },
+    {
+      name: 'loopback-probe-boundary',
+      status: local && local.loopbackProbe
+        && local.loopbackProbe.localHealth === 200
+        && local.loopbackProbe.localLogs === 200
+        && local.loopbackProbe.remoteHostHealth === 401
+        && local.loopbackProbe.remoteHostLogs === 401
+        && local.loopbackProbe.remoteHostScript === 302 ? 'ok' : 'fail',
+      detail: local && local.loopbackProbe
+        ? 'Only loopback Host plus loopback socket can use unauthenticated Homebase probes.'
+        : 'Loopback probe boundary was not checked.'
     },
     {
       name: 'ask-action-safety',

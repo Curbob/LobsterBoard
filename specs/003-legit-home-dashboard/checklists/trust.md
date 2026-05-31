@@ -30,7 +30,7 @@
 
 - [x] Remote Homebase remains passworded.
 - [x] Public API returns `401` when unauthenticated.
-- [ ] Loopback probe allowance remains narrow.
+- [x] Loopback probe allowance remains narrow.
 - [x] Ask Teddy may explain and prepare plans, but does not mutate services.
 - [x] Any write action requires explicit approval.
 
