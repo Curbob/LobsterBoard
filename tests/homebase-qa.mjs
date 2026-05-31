@@ -406,6 +406,15 @@ async function smokeLocalRoutes() {
     assert(data.houseState.zones.length === 4, `expected 4 house zones, got ${data.houseState.zones.length}`);
     assert(data.dailyDecision?.slots?.map(slot => slot.key).join(',') === 'now,watch,later', 'daily decision slots are wrong');
     assert(data.visualEvidence?.latest?.visuals?.houseState?.type === 'zone-state', 'house-state visual evidence is missing');
+    assert(Array.isArray(data.needsDan), 'health payload needsDan must be an array');
+    assert(Array.isArray(data.reviewEvidence), 'health payload reviewEvidence must be an array');
+    assert(data.reviewEvidence.map(item => item.label).join('\n') === data.needsDan.join('\n'), 'review evidence labels must match visible review items');
+    for (const item of data.reviewEvidence) {
+      assert(item.source, `review evidence for ${item.label} is missing source`);
+      assert(item.checkedAt, `review evidence for ${item.label} is missing checkedAt`);
+      assert(item.confidence, `review evidence for ${item.label} is missing confidence`);
+      assert(item.freshness, `review evidence for ${item.label} is missing freshness`);
+    }
     assertFirstScreenCopyClean(data, 'local health');
 
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
@@ -420,6 +429,8 @@ async function smokeLocalRoutes() {
       headline: data.houseState.headline,
       firstZone: data.houseState.zones[0].id,
       firstDecision: data.dailyDecision.slots[0].text,
+      reviewItems: data.needsDan.length,
+      reviewEvidenceItems: data.reviewEvidence.length,
       screenshots,
       persisted
     };
@@ -614,6 +625,11 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       name: 'persisted-evidence',
       status: persisted.timelineEvents > 0 && persisted.visualEvidenceEntries > 0 && persisted.vitalsSamples > 0 ? 'ok' : 'fail',
       detail: `${persisted.timelineEvents || 0} timeline events, ${persisted.visualEvidenceEntries || 0} visual entries, ${persisted.vitalsSamples || 0} vitals samples.`
+    },
+    {
+      name: 'review-provenance',
+      status: local && local.reviewItems === local.reviewEvidenceItems ? 'ok' : 'fail',
+      detail: `${local && Number.isFinite(local.reviewEvidenceItems) ? local.reviewEvidenceItems : 0} review item${local && local.reviewEvidenceItems === 1 ? '' : 's'} source-backed.`
     },
     {
       name: 'public-auth',
