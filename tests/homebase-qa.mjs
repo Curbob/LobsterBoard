@@ -871,6 +871,30 @@ function acceptanceStatus(gates) {
   return 'ok';
 }
 
+function zoneRankingCoverage(fixtureContracts) {
+  const byName = new Map((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => [contract.name, contract]));
+  const expected = [
+    ['govee-loop', 'smart-home', 'Automations'],
+    ['mac-panic', 'mac-mini', 'Mac mini'],
+    ['public-exposure-drift', 'outside-access', 'Public access'],
+    ['wan-dns-degraded', 'network', 'Internet']
+  ];
+  const items = expected.map(([fixture, zone, label]) => {
+    const contract = byName.get(fixture);
+    return {
+      fixture,
+      zone,
+      label,
+      ok: Boolean(contract && contract.firstZone === zone)
+    };
+  });
+  return {
+    status: items.every(item => item.ok) ? 'ok' : 'fail',
+    detail: items.map(item => `${item.label}:${item.ok ? 'ok' : 'fail'}`).join(', '),
+    items
+  };
+}
+
 function trustChecks(local, publicAuth) {
   const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
     ? local.screenshots.outputs
@@ -961,7 +985,18 @@ async function main() {
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
+  const zoneCoverage = zoneRankingCoverage(fixtureContracts);
   const checks = trustChecks(local, publicAuth);
+  gates.push({
+    name: 'zone-ranking-coverage',
+    status: zoneCoverage.status,
+    detail: zoneCoverage.detail
+  });
+  checks.push({
+    name: 'zone-ranking-coverage',
+    status: zoneCoverage.status,
+    detail: 'Replay fixtures prove Automations, Mac mini, Public access, and Internet warning ownership.'
+  });
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
@@ -970,6 +1005,7 @@ async function main() {
     acceptanceStatus: acceptanceStatus(gates),
     acceptanceGates: gates,
     trustChecks: checks,
+    zoneRankingCoverage: zoneCoverage.items,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
