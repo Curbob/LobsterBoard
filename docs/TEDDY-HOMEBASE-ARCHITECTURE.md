@@ -62,6 +62,7 @@ Homebase stores operational evidence in `data/teddy-house/`.
 | `vitals-history.json` | Real local vitals samples used for CPU peak summaries |
 | `wan-history.json` | Real WAN latency samples used for 24h internet-quality summaries |
 | `public-access-history.json` | Accepted and unexpected public route states with last-change evidence |
+| `automation-log-history.json` | Current Homebridge/accessory log state with first-seen and last-seen evidence |
 | `ask-history.json` | Ask Teddy responses and fallback answers |
 | `manual-verifications.json` | Short-lived human verification notes |
 

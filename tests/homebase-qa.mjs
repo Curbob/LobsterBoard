@@ -426,6 +426,7 @@ function assertPersistedHomebaseData(cwd, data) {
   const vitals = readJsonFile(cwd, 'vitals-history.json');
   const wan = readJsonFile(cwd, 'wan-history.json');
   const publicAccess = readJsonFile(cwd, 'public-access-history.json');
+  const automationLogs = readJsonFile(cwd, 'automation-log-history.json');
   const snapshot = readJsonFile(cwd, 'snapshot.json');
   const serviceLogs = readJsonFile(cwd, 'service-logs.json');
 
@@ -460,10 +461,16 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(publicAccess.entries.length <= 120, `public-access-history.json exceeded retention limit: ${publicAccess.entries.length}`);
   assert(publicAccess.entries[0].changedAt && publicAccess.entries[0].routeKey, 'latest public access history entry is missing changedAt/routeKey');
   assert(data.intelligence?.publicAccess?.publicAccessHistory?.source === 'data/teddy-house/public-access-history.json', 'health payload must cite persisted public access history source');
+  assert(Array.isArray(automationLogs.entries), 'automation-log-history.json must contain an entries array');
+  assert(automationLogs.entries.length > 0, 'automation-log-history.json must retain at least one automation log state');
+  assert(automationLogs.entries.length <= 120, `automation-log-history.json exceeded retention limit: ${automationLogs.entries.length}`);
+  assert(automationLogs.entries[0].firstSeenAt && automationLogs.entries[0].stateKey, 'latest automation log history entry is missing firstSeenAt/stateKey');
+  assert(data.intelligence?.automationLogs?.automationLogHistory?.source === 'data/teddy-house/automation-log-history.json', 'health payload must cite persisted automation log history source');
   assert(Array.isArray(data.historicalSummaries), 'health payload must include persisted historical summaries');
   const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
   const wanSummary = data.historicalSummaries.find(summary => summary.id === 'wan-latency-24h');
   const publicAccessSummary = data.historicalSummaries.find(summary => summary.id === 'public-access-routes');
+  const automationSummary = data.historicalSummaries.find(summary => summary.id === 'automation-log-state');
   const changesSummary = data.historicalSummaries.find(summary => summary.id === 'house-changes-24h');
   assert(cpuSummary?.source === 'data/teddy-house/vitals-history.json', 'CPU history summary must cite vitals-history.json');
   assert(cpuSummary.window === '6h', 'CPU history summary must use the 6h window');
@@ -474,6 +481,9 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(publicAccessSummary?.source === 'data/teddy-house/public-access-history.json', 'public access summary must cite public-access-history.json');
   assert(publicAccessSummary.window === 'current', 'public access summary must use the current route window');
   assert(Number(publicAccessSummary.sampleCount) > 0, 'public access summary must include persisted samples');
+  assert(automationSummary?.source === 'data/teddy-house/automation-log-history.json', 'automation log summary must cite automation-log-history.json');
+  assert(automationSummary.window === 'current', 'automation log summary must use the current state window');
+  assert(Number(automationSummary.sampleCount) > 0, 'automation log summary must include persisted samples');
   assert(changesSummary?.source === 'data/teddy-house/timeline.json', 'changes history summary must cite timeline.json');
   assert(changesSummary.window === '24h', 'changes history summary must use the 24h window');
   assert(Number(changesSummary.sampleCount) > 0, 'changes history summary must include persisted samples');
@@ -494,6 +504,7 @@ function assertPersistedHomebaseData(cwd, data) {
     vitalsSamples: vitals.entries.length,
     wanSamples: wan.entries.length,
     publicAccessStates: publicAccess.entries.length,
+    automationLogStates: automationLogs.entries.length,
     serviceLogItems: serviceLogs.items.length
   };
 }

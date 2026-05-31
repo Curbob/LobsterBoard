@@ -1290,7 +1290,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
     expect(visuals.timeline.count).toBe(data.timeline.length);
     expect(Array.isArray(data.historicalSummaries)).toBe(true);
-    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(4);
+    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(5);
     const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
     expect(cpuSummary).toEqual(expect.objectContaining({
       title: 'CPU peak',
@@ -1335,6 +1335,22 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.intelligence.publicAccess.publicAccessHistory).toEqual(expect.objectContaining({
       window: 'current',
       source: 'data/teddy-house/public-access-history.json',
+      sampleCount: expect.any(Number),
+      currentLabel: expect.any(String)
+    }));
+    const automationSummary = data.historicalSummaries.find(summary => summary.id === 'automation-log-state');
+    expect(automationSummary).toEqual(expect.objectContaining({
+      title: 'Automation logs',
+      window: 'current',
+      source: 'data/teddy-house/automation-log-history.json',
+      confidence: 'persisted',
+      sampleCount: expect.any(Number),
+      issueCount: expect.any(Number)
+    }));
+    expect(automationSummary.sampleCount).toBeGreaterThan(0);
+    expect(data.intelligence.automationLogs.automationLogHistory).toEqual(expect.objectContaining({
+      window: 'current',
+      source: 'data/teddy-house/automation-log-history.json',
       sampleCount: expect.any(Number),
       currentLabel: expect.any(String)
     }));

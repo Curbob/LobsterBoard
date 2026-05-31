@@ -25,6 +25,7 @@ const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
 const WAN_HISTORY_LIMIT = 500;
 const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
+const AUTOMATION_LOG_HISTORY_LIMIT = 120;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
@@ -478,6 +479,23 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         : 'Current public route state is persisted.',
       sampleCount: publicAccessHistory.sampleCount,
       source: publicAccessHistory.source,
+      confidence: 'persisted'
+    });
+  }
+
+  const automationLogHistory = intelligence && intelligence.automationLogs && intelligence.automationLogs.automationLogHistory;
+  if (automationLogHistory && Number(automationLogHistory.sampleCount) > 0 && automationLogHistory.source) {
+    summaries.push({
+      id: 'automation-log-state',
+      title: 'Automation logs',
+      window: 'current',
+      value: automationLogHistory.currentLabel || 'Quiet',
+      detail: automationLogHistory.firstSeenAt && automationLogHistory.lastSeenAt
+        ? `${automationLogHistory.currentLabel || 'Automation log state'} first seen ${formatAgeFromDate(new Date(automationLogHistory.firstSeenAt))}; last checked ${formatAgeFromDate(new Date(automationLogHistory.lastSeenAt))}.`
+        : 'Current automation log state is persisted.',
+      sampleCount: automationLogHistory.sampleCount,
+      issueCount: automationLogHistory.issueCount,
+      source: automationLogHistory.source,
       confidence: 'persisted'
     });
   }
@@ -1722,6 +1740,64 @@ function domainServiceLogs(serviceLogs) {
   };
 }
 
+function automationLogStateKey(automationLogs) {
+  const state = automationLogs && automationLogs.state || 'info';
+  const value = automationLogs && (automationLogs.value || automationLogs.metric || 'unknown');
+  const issueLabels = Array.isArray(automationLogs && automationLogs.items)
+    ? automationLogs.items
+      .filter(item => item && item.ignored !== true)
+      .map(item => item.issueLabel || item.name || item.detail)
+      .filter(Boolean)
+      .sort()
+    : [];
+  return JSON.stringify({ state, value, issueLabels });
+}
+
+function updateAutomationLogHistory(ctx, automationLogs) {
+  if (!automationLogs || typeof automationLogs !== 'object') return null;
+  const at = nowIso();
+  const history = readDataSafe(ctx, 'automation-log-history.json', { entries: [] });
+  const existing = (Array.isArray(history.entries) ? history.entries : [])
+    .filter(entry => entry && entry.stateKey && entry.firstSeenAt)
+    .slice(0, AUTOMATION_LOG_HISTORY_LIMIT);
+  const stateKey = automationLogStateKey(automationLogs);
+  const current = {
+    stateKey,
+    firstSeenAt: at,
+    lastSeenAt: at,
+    state: automationLogs.state || 'info',
+    value: automationLogs.value || automationLogs.metric || 'unknown',
+    detail: automationLogs.detail || null,
+    issueCount: Number(automationLogs.issues || 0),
+    source: automationLogs.source || 'local service logs',
+    observations: 1
+  };
+  const [latest, ...rest] = existing;
+  const entries = latest && latest.stateKey === stateKey
+    ? [{
+        ...latest,
+        lastSeenAt: at,
+        issueCount: Number(automationLogs.issues || latest.issueCount || 0),
+        detail: automationLogs.detail || latest.detail || null,
+        observations: Number(latest.observations || 1) + 1
+      }, ...rest]
+    : [current, ...existing];
+  const retained = entries.slice(0, AUTOMATION_LOG_HISTORY_LIMIT);
+  writeDataSafe(ctx, 'automation-log-history.json', { entries: retained });
+  const active = retained[0] || current;
+  return {
+    window: 'current',
+    currentLabel: active.value || 'unknown',
+    state: active.state || 'info',
+    firstSeenAt: active.firstSeenAt || null,
+    lastSeenAt: active.lastSeenAt || at,
+    issueCount: Number(active.issueCount || 0),
+    observations: Number(active.observations || 1),
+    sampleCount: retained.length,
+    source: 'data/teddy-house/automation-log-history.json'
+  };
+}
+
 async function tailscaleLogSummary() {
   const status = await tryRun(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
   if (!status.ok) {
@@ -2454,6 +2530,8 @@ async function buildIntelligence(ctx) {
   const publicAccessRaw = publicAccessRollup(funnel);
   const publicAccessHistory = updatePublicAccessHistory(ctx, publicAccessRaw);
   const publicAccess = publicAccessHistory ? { ...publicAccessRaw, publicAccessHistory } : publicAccessRaw;
+  const automationLogHistory = updateAutomationLogHistory(ctx, serviceLogs.automationLogs);
+  const automationLogs = automationLogHistory ? { ...serviceLogs.automationLogs, automationLogHistory } : serviceLogs.automationLogs;
 
   return {
     adguard,
@@ -2462,7 +2540,7 @@ async function buildIntelligence(ctx) {
     publicAccess,
     wanQuality,
     serviceLogs,
-    automationLogs: serviceLogs.automationLogs,
+    automationLogs,
     macMiniLogs: serviceLogs.macMiniLogs,
     networkLogs: serviceLogs.networkLogs,
     softwareUpdates,
@@ -3115,6 +3193,7 @@ teddyHouseApi._internals = {
   buildHistoricalSummaries,
   updateWanHistory,
   updatePublicAccessHistory,
+  updateAutomationLogHistory,
   publicAccessRollup,
   needsDan,
   scoreServices

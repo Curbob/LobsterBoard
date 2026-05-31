@@ -28,7 +28,7 @@ Approved remote route:
 https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/
 ```
 
-Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, OpenClaw, service logs, macOS/system logs, public route exposure and route changes, WAN latency, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
+Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, OpenClaw, Homebridge/accessory log state, service logs, macOS/system logs, public route exposure and route changes, WAN latency, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
 
 Before changing Homebase behavior, read:
 
