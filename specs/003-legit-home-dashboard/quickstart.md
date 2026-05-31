@@ -67,5 +67,6 @@ Expected:
 - Ask Teddy assertions confirm the `/ask` route answers from current dashboard context without hanging, persists bounded `ask-history.json` evidence, and keeps `prepare-fix` as a dry-run plan with approval language.
 - Persisted evidence assertions confirm `timeline.json`, `visual-evidence.json`, `vitals-history.json`, `snapshot.json`, and `service-logs.json` are created, parseable, bounded, and source-linked.
 - No-fake home-state assertions confirm historical summaries cite persisted JSON sources, fake trend UI is absent, and untrusted Eufy/door-lock evidence stays ignored.
+- Cached-update assertions confirm software and macOS update signals carry confidence, and cached values render with a `Cached` label.
 - Public Homebase auth is verified when the Funnel route is reachable. Set `HOMEBASE_REQUIRE_PUBLIC_SMOKE=1` to make that mandatory.
 - Loopback probe boundary assertions confirm local health/log probes work without a browser session while remote-looking Host requests stay passworded.

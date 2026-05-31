@@ -172,6 +172,27 @@ function assertNoFakeHomeState(data) {
   };
 }
 
+function assertCachedUpdateLabels(data) {
+  const script = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
+  assert(script.includes('if (value === "cached") return "Cached";'), 'cached signal renderer must label cached data as Cached');
+  const signals = [
+    ['softwareUpdates', data.intelligence?.softwareUpdates],
+    ['macUpdates', data.intelligence?.macUpdates]
+  ];
+  for (const [name, signal] of signals) {
+    assert(signal && signal.confidence, `${name} update signal is missing confidence`);
+    if (signal.confidence === 'cached') {
+      assert(signal.detail, `${name} cached update signal is missing detail`);
+      assert(signal.checkedAt || signal.source || signal.check, `${name} cached update signal is missing source/check timestamp context`);
+    }
+  }
+  return {
+    updateSignals: signals.length,
+    cachedUpdateSignals: signals.filter(([, signal]) => signal && signal.confidence === 'cached').length,
+    cachedLabelRenderer: true
+  };
+}
+
 async function captureScreenshots(baseUrl) {
   if (process.env.HOMEBASE_SKIP_SCREENSHOTS === '1') return { status: 'skipped' };
   await mkdir(SCREENSHOT_DIR, { recursive: true });
@@ -505,6 +526,7 @@ async function smokeLocalRoutes() {
     assertFirstReviewMatchesFirstZone(data.houseState.zones[0].id, data.needsDan[0], data.reviewEvidence[0]?.source, 'local health');
     assertFirstScreenCopyClean(data, 'local health');
     const noFakeHomeState = assertNoFakeHomeState(data);
+    const cachedUpdateLabels = assertCachedUpdateLabels(data);
 
     const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
       method: 'POST',
@@ -578,6 +600,7 @@ async function smokeLocalRoutes() {
         remoteHostScript
       },
       noFakeHomeState,
+      cachedUpdateLabels,
       screenshots,
       persisted
     };
@@ -826,6 +849,15 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
         : 'No-fake home state checks did not run.'
     },
     {
+      name: 'cached-update-labels',
+      status: local && local.cachedUpdateLabels
+        && local.cachedUpdateLabels.updateSignals === 2
+        && local.cachedUpdateLabels.cachedLabelRenderer ? 'ok' : 'fail',
+      detail: local && local.cachedUpdateLabels
+        ? `${local.cachedUpdateLabels.cachedUpdateSignals} cached update signal${local.cachedUpdateLabels.cachedUpdateSignals === 1 ? '' : 's'}; Cached label renderer present.`
+        : 'Cached update label checks did not run.'
+    },
+    {
       name: 'live-first-story',
       status: local && local.firstZone && local.firstDecision ? 'ok' : 'fail',
       detail: `${local && local.firstZone ? local.firstZone : 'unknown'}: ${local && local.firstDecision ? local.firstDecision : 'missing decision'}`
@@ -886,6 +918,15 @@ function trustChecks(local, publicAuth) {
       detail: local && local.noFakeHomeState
         ? 'Historical summaries cite persisted JSON sources and untrusted lock state stays ignored.'
         : 'No-fake home state checks did not run.'
+    },
+    {
+      name: 'cached-update-labels',
+      status: local && local.cachedUpdateLabels
+        && local.cachedUpdateLabels.updateSignals === 2
+        && local.cachedUpdateLabels.cachedLabelRenderer ? 'ok' : 'fail',
+      detail: local && local.cachedUpdateLabels
+        ? 'Software and macOS update signals carry confidence, and cached values render as Cached.'
+        : 'Cached update label checks did not run.'
     },
     {
       name: 'ask-action-safety',

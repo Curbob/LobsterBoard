@@ -6,7 +6,7 @@
 - [ ] Healthy first screen does not show stale data as current.
 - [x] No fake trends, fake graphs, fake room state, or inferred device state.
 - [x] Eufy lock data remains ignored/degraded until the source is trustworthy.
-- [ ] Cached update data is labeled as cached.
+- [x] Cached update data is labeled as cached.
 - [x] Replay fixtures cover healthy, Govee/Homebridge loop, Mac panic, public exposure drift, WAN/DNS degradation, and Teddy bridge fallback.
 
 ## Ranking Truth
