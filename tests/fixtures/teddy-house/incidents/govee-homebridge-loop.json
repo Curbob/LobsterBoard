@@ -1,0 +1,38 @@
+{
+  "id": "govee-homebridge-loop",
+  "title": "Govee Homebridge loop",
+  "recordedAt": "2026-05-31T02:18:00.000Z",
+  "fixture": "govee-loop",
+  "sourceSnapshots": [
+    {
+      "path": "data/teddy-house/service-logs.json",
+      "checkedAt": "2026-05-31T02:18:00.000Z",
+      "redacted": true,
+      "summary": "Grouped Homebridge log evidence showed a repeated Govee connection issue."
+    },
+    {
+      "path": "data/teddy-house/timeline.json",
+      "checkedAt": "2026-05-31T02:18:00.000Z",
+      "redacted": true,
+      "summary": "Timeline grouped the automation issue instead of repeating raw log-count churn."
+    }
+  ],
+  "logExcerpts": [
+    {
+      "source": "Homebridge",
+      "redacted": true,
+      "text": "[Govee] connection timeout while refreshing accessory state"
+    },
+    {
+      "source": "Homebase service-log rollup",
+      "redacted": true,
+      "text": "issueLabel=Govee connection degraded; domain=automation"
+    }
+  ],
+  "expected": {
+    "headline": "Homebase found an issue.",
+    "firstZone": "smart-home",
+    "firstReview": "Automation logs: Govee connection degraded",
+    "firstAction": "Check automations first."
+  }
+}

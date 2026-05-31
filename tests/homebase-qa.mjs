@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -24,6 +24,7 @@ const SCREENSHOT_VIEWPORTS = [
   ['desktop', 1440, 1000]
 ];
 const DATA_DIR = join('data', 'teddy-house');
+const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incidents');
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const FIRST_SCREEN_COPY_BLACKLIST = [
@@ -72,6 +73,10 @@ function gitMetadata() {
 
 function readFixture(name) {
   return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
+}
+
+function readIncidentBundle(file) {
+  return JSON.parse(readFileSync(join(INCIDENT_FIXTURE_DIR, file), 'utf8'));
 }
 
 function readJsonFile(cwd, file) {
@@ -1054,6 +1059,62 @@ function replayStoryAgreementCoverage(fixtureContracts) {
   };
 }
 
+function verifyRecordedIncidentBundles() {
+  const files = readdirSync(INCIDENT_FIXTURE_DIR).filter(file => file.endsWith('.json')).sort();
+  assert(files.length >= 1, 'recorded incident bundles are missing');
+  return files.map(file => {
+    const bundle = readIncidentBundle(file);
+    assert(bundle.id && /^[a-z0-9-]+$/.test(bundle.id), `${file} incident bundle is missing a stable id`);
+    assert(bundle.title, `${file} incident bundle is missing title`);
+    assert(bundle.recordedAt && !Number.isNaN(Date.parse(bundle.recordedAt)), `${file} incident bundle is missing recordedAt`);
+    assert(bundle.fixture, `${file} incident bundle is missing replay fixture pointer`);
+    assert(bundle.expected && bundle.expected.headline && bundle.expected.firstZone && bundle.expected.firstAction, `${file} incident bundle is missing expected story`);
+    assert(Array.isArray(bundle.sourceSnapshots) && bundle.sourceSnapshots.length > 0, `${file} incident bundle is missing source snapshots`);
+    assert(Array.isArray(bundle.logExcerpts) && bundle.logExcerpts.length > 0, `${file} incident bundle is missing log excerpts`);
+    for (const snapshot of bundle.sourceSnapshots) {
+      assert(snapshot.path && /^data\/teddy-house\/.+\.json$/.test(snapshot.path), `${file} snapshot has invalid source path`);
+      assert(snapshot.checkedAt && !Number.isNaN(Date.parse(snapshot.checkedAt)), `${file} snapshot ${snapshot.path} is missing checkedAt`);
+      assert(snapshot.redacted === true, `${file} snapshot ${snapshot.path} must be marked redacted`);
+      assert(snapshot.summary, `${file} snapshot ${snapshot.path} is missing summary`);
+    }
+    for (const excerpt of bundle.logExcerpts) {
+      assert(excerpt.source, `${file} log excerpt is missing source`);
+      assert(excerpt.redacted === true, `${file} log excerpt must be marked redacted`);
+      assert(excerpt.text && excerpt.text.length > 10, `${file} log excerpt is too thin`);
+      assert(!/\b(?:\d{1,3}\.){3}\d{1,3}\b/.test(excerpt.text), `${file} log excerpt includes an IP address`);
+    }
+    const fixture = readFixture(bundle.fixture);
+    const replayData = replayHealthFromFixture(fixture);
+    const storyAgreement = assertReplayStoryAgreement(bundle.id, fixture, replayData);
+    assert(storyAgreement.headline === bundle.expected.headline, `${file} incident headline drifted from expected bundle`);
+    assert(storyAgreement.firstZone === bundle.expected.firstZone, `${file} incident first zone drifted from expected bundle`);
+    assert(storyAgreement.firstAction === bundle.expected.firstAction, `${file} incident first action drifted from expected bundle`);
+    if (bundle.expected.firstReview) {
+      assert(storyAgreement.firstReview === bundle.expected.firstReview, `${file} incident first review drifted from expected bundle`);
+    }
+    return {
+      id: bundle.id,
+      title: bundle.title,
+      fixture: bundle.fixture,
+      recordedAt: bundle.recordedAt,
+      sourceSnapshots: bundle.sourceSnapshots.length,
+      logExcerpts: bundle.logExcerpts.length,
+      firstZone: storyAgreement.firstZone,
+      firstAction: storyAgreement.firstAction,
+      ok: true
+    };
+  });
+}
+
+function recordedIncidentCoverage(incidents) {
+  const items = Array.isArray(incidents) ? incidents : [];
+  return {
+    status: items.length >= 1 && items.every(item => item.ok) ? 'ok' : 'fail',
+    detail: items.length ? items.map(item => `${item.id}:${item.ok ? 'ok' : 'fail'}`).join(', ') : 'no recorded incidents',
+    items
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -1188,11 +1249,13 @@ async function smokePublicAuth() {
 
 async function main() {
   const fixtureContracts = verifyReplayFixtures();
+  const recordedIncidents = verifyRecordedIncidentBundles();
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
   const replayStoryCoverage = replayStoryAgreementCoverage(fixtureContracts);
+  const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const checks = trustChecks(local, publicAuth);
@@ -1215,6 +1278,16 @@ async function main() {
     name: 'replay-story-agreement',
     status: replayStoryCoverage.status,
     detail: 'Replay fixtures prove API, locked first-screen contract, and Ask agree on the first action.'
+  });
+  gates.push({
+    name: 'recorded-incident-replay',
+    status: recordedIncidentStoryCoverage.status,
+    detail: recordedIncidentStoryCoverage.detail
+  });
+  checks.push({
+    name: 'recorded-incident-replay',
+    status: recordedIncidentStoryCoverage.status,
+    detail: 'Redacted incident bundles replay through the same story agreement path.'
   });
   gates.push({
     name: 'copy-quality-coverage',
@@ -1246,6 +1319,7 @@ async function main() {
     trustChecks: checks,
     zoneRankingCoverage: zoneCoverage.items,
     replayStoryAgreementCoverage: replayStoryCoverage.items,
+    recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     copyQualityCoverage: copyCoverage,
     healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,

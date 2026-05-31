@@ -1,0 +1,38 @@
+{
+  "id": "windowserver-restart",
+  "title": "WindowServer restart incident",
+  "recordedAt": "2026-05-29T14:24:00.000Z",
+  "fixture": "mac-panic",
+  "sourceSnapshots": [
+    {
+      "path": "data/teddy-house/system-logs.json",
+      "checkedAt": "2026-05-29T14:24:00.000Z",
+      "redacted": true,
+      "summary": "Recent panic diagnostic reported a WindowServer watchdog panic."
+    },
+    {
+      "path": "data/teddy-house/snapshot.json",
+      "checkedAt": "2026-05-29T14:24:00.000Z",
+      "redacted": true,
+      "summary": "Latest compact snapshot showed low uptime with core services online."
+    }
+  ],
+  "logExcerpts": [
+    {
+      "source": "system diagnostics",
+      "redacted": true,
+      "text": "panic(cpu ...): watchdog timeout: WindowServer did not check in"
+    },
+    {
+      "source": "Homebase snapshot",
+      "redacted": true,
+      "text": "uptimeSeconds below incident threshold; services online"
+    }
+  ],
+  "expected": {
+    "headline": "Mac mini restarted this morning.",
+    "firstZone": "mac-mini",
+    "firstReview": "Mac restart incident",
+    "firstAction": "Review the Mac mini restart."
+  }
+}

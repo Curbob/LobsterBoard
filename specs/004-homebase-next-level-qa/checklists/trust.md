@@ -9,10 +9,10 @@
 
 ## Incident Replay
 
-- [ ] At least one recorded real incident bundle is replayed in QA.
-- [ ] Redacted incident bundles preserve timestamps and source paths.
-- [ ] Recorded incidents do not depend on the live Mac mini being in the same state.
-- [ ] Incident tests fail when raw log counts replace decision copy.
+- [x] At least one recorded real incident bundle is replayed in QA.
+- [x] Redacted incident bundles preserve timestamps and source paths.
+- [x] Recorded incidents do not depend on the live Mac mini being in the same state.
+- [x] Incident tests fail when raw log counts replace decision copy.
 
 ## Parser Trust
 

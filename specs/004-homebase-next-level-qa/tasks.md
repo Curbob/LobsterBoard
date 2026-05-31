@@ -11,12 +11,12 @@
 
 ## Phase 2: Recorded Incident Bundles
 
-- [ ] Define the redacted incident bundle schema.
-- [ ] Add a WindowServer/system restart bundle.
-- [ ] Add a Govee/Homebridge noisy loop bundle.
+- [x] Define the redacted incident bundle schema.
+- [x] Add a WindowServer/system restart bundle.
+- [x] Add a Govee/Homebridge noisy loop bundle.
 - [ ] Add a Teddy bridge fallback bundle.
 - [ ] Add a public access drift bundle.
-- [ ] Assert each bundle has source paths, timestamps, expected top story, and expected action.
+- [x] Assert each bundle has source paths, timestamps, expected top story, and expected action.
 
 ## Phase 3: Parser Golden Fixtures
 

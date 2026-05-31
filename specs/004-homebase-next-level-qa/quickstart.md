@@ -15,6 +15,7 @@ Expected today:
 - unit/API/design tests pass
 - replay contracts pass
 - replay story agreement proves fixture API state, locked first-screen contract, and Ask Teddy name the same first action
+- recorded incident replay proves redacted bad-day bundles still produce the expected first action
 - live local story agreement proves API, rendered page, and Ask Teddy name the same first action
 - local Homebase page, health, logs, and Ask smoke
 - public Funnel auth smoke when reachable
