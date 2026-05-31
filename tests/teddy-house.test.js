@@ -119,6 +119,22 @@ describe('Teddy Homebase page', () => {
     const data = await apiRes.json();
     expect(data.serviceLogs).toHaveProperty('items');
     expect(Array.isArray(data.serviceLogs.items)).toBe(true);
+    expect(data.serviceLogs.items.length).toBeGreaterThan(0);
+    expect(data.serviceLogs.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Homebase', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
+      expect.objectContaining({ name: 'Homebridge', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
+      expect.objectContaining({ name: 'Eufy plugin', ignored: true, source: expect.any(String), detail: expect.stringContaining('ignored') }),
+      expect.objectContaining({ name: 'OpenClaw', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
+      expect.objectContaining({ name: 'AdGuard', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
+      expect.objectContaining({ name: 'Tailscale', source: 'tailscale status --json', detail: expect.any(String), examples: expect.any(Array) })
+    ]));
+    expect(data.serviceLogs).toHaveProperty('automationLogs');
+    expect(data.serviceLogs).toHaveProperty('macMiniLogs');
+    expect(data.serviceLogs).toHaveProperty('networkLogs');
+    expect(data.storage).toEqual(expect.objectContaining({
+      latestSnapshot: 'data/teddy-house/service-logs.json',
+      visualEvidence: 'data/teddy-house/visual-evidence.json'
+    }));
     expect(data.framework.codexTake).toContain('Normalize every source');
     expect(data.framework.teddyTake).toContain('Daily Homebase should feel calm');
     expect(data.framework.architecture.map(step => step.layer)).toEqual([

@@ -376,7 +376,7 @@ async function smokeLocalRoutes() {
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
-    assert(Array.isArray(logData.serviceLogs?.items), 'grouped service logs are missing');
+    assertLogsDetailContract(logData);
     const screenshots = await captureScreenshots(srv.baseUrl);
     const persisted = assertPersistedHomebaseData(srv.cwd, data);
 
@@ -391,6 +391,24 @@ async function smokeLocalRoutes() {
   } finally {
     await srv.kill();
   }
+}
+
+function assertLogsDetailContract(logData) {
+  const logs = logData.serviceLogs || {};
+  const items = Array.isArray(logs.items) ? logs.items : [];
+  assert(items.length > 0, 'grouped service logs are missing');
+  for (const name of ['Homebase', 'Homebridge', 'Eufy plugin', 'OpenClaw', 'AdGuard', 'Tailscale']) {
+    const item = items.find(entry => entry.name === name);
+    assert(item, `logs detail is missing ${name}`);
+    assert(item.source, `${name} log item is missing source`);
+    assert(item.detail, `${name} log item is missing detail`);
+    assert(Array.isArray(item.examples), `${name} log item examples must be an array`);
+  }
+  assert(items.some(item => item.name === 'Eufy plugin' && item.ignored === true), 'logs detail must keep Eufy marked ignored');
+  assert(logs.automationLogs && logs.macMiniLogs && logs.networkLogs, 'logs detail must keep domain rollups');
+  assert(logData.storage?.latestSnapshot === 'data/teddy-house/service-logs.json', 'logs detail must name latest snapshot storage');
+  assert(logData.storage?.visualEvidence === 'data/teddy-house/visual-evidence.json', 'logs detail must name visual evidence storage');
+  assert(Array.isArray(logData.framework?.architecture), 'logs detail must include the unified logging framework');
 }
 
 function assertPersistedHomebaseData(cwd, data) {

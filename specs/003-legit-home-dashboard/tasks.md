@@ -8,7 +8,7 @@
 - [x] Route Tailscale/AdGuard/WAN failures to `network` or `outside-access`.
 - [x] Update `needsDan` labels to use house language for service-log domains.
 - [x] Update `dailyDecision` copy for domain-specific service-log warnings.
-- [ ] Keep the logs page source-level detail intact.
+- [x] Keep the logs page source-level detail intact.
 - [x] Add direct public-access rollup helpers beyond the existing Funnel signal.
 
 ## Phase 2: Replay Harness
