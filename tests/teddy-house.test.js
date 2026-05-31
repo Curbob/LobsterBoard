@@ -96,6 +96,62 @@ describe('Teddy Homebase page', () => {
     expect(firstScreenText(result)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
   });
 
+  it('keeps a concrete Mac restart above automation noise in mixed replay data', () => {
+    const fixture = loadReplayFixture('mac-panic');
+    const govee = loadReplayFixture('govee-loop');
+    fixture.intelligence.serviceLogs = structuredClone(govee.intelligence.serviceLogs);
+
+    const result = replayHouseState(fixture);
+
+    expect(result.houseState.headline).toBe('Mac mini restarted this morning.');
+    expect(result.houseState.zones[0]).toEqual(expect.objectContaining({
+      id: 'mac-mini',
+      state: 'warn'
+    }));
+    expect(result.reviewItems[0]).toBe('Mac restart incident');
+    expect(result.dailyDecision.slots[0]).toEqual(expect.objectContaining({
+      source: 'Mac restart incident',
+      text: 'Review the Mac mini restart.'
+    }));
+    expect(result.houseState.zones.find(zone => zone.id === 'smart-home')).toEqual(expect.objectContaining({
+      state: 'bad',
+      detail: expect.stringContaining('Govee connection degraded')
+    }));
+  });
+
+  it('keeps ignored Eufy noise out of house-state replay decisions', () => {
+    const fixture = loadReplayFixture('healthy');
+    fixture.intelligence.serviceLogs = {
+      checkedAt: '2026-05-31T00:00:00.000Z',
+      state: 'warn',
+      value: 'Eufy plugin',
+      metric: 'Eufy plugin',
+      label: 'ignored',
+      detail: 'Ignored Eufy evidence is noisy and not trusted for house state.',
+      confidence: 'fixture',
+      source: 'fixture',
+      items: [
+        {
+          name: 'Eufy plugin',
+          state: 'bad',
+          issues: 999,
+          ignored: true,
+          detail: 'Eufy plugin timeout loop is ignored as untrusted lock evidence.'
+        }
+      ]
+    };
+
+    const result = replayHouseState(fixture);
+
+    expect(result.reviewItems).toHaveLength(0);
+    expect(result.houseState.headline).toBe("Dan's house is steady.");
+    expect(result.houseState.zones.find(zone => zone.id === 'smart-home')).toEqual(expect.objectContaining({
+      state: 'ok',
+      detail: 'Homebridge and accessories are responding.'
+    }));
+    expect(firstScreenText(result)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
+  });
+
   it('serves the custom page with LobsterBoard shared nav and custom icon', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
