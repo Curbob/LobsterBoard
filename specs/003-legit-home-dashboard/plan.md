@@ -27,7 +27,8 @@ Create a lightweight replay harness so scary states can be tested on demand.
   - WAN/DNS degradation
   - Teddy bridge fallback
 - Add API/design tests that feed each fixture through the same derivation code used by live health.
-- Capture expected visible copy and zone order for each state.
+- Capture expected visible copy, primary action, full zone order, and the complete `Now / Watch / Later` strip for each state.
+- Apply the first-screen copy blacklist to every replay fixture, including warning states, so scary states stay human-readable.
 
 ## Phase 3: Add Real Historical Summaries
 
@@ -60,6 +61,7 @@ Make regressions hard to ship.
   - public auth smoke
   - mobile/iPad/desktop screenshot capture
   - copy blacklist
+  - replay fixture contracts for headline, summary, action, zone order, and decision strip
 - Keep proof artifacts under `artifacts/qa/` only when they document a shipped change.
 - Add CI or a local pre-push check for `npm run check -- --runInBand`.
 

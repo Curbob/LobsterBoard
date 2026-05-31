@@ -57,6 +57,7 @@ Expected:
 - Public route drift fixture promotes `Public access`.
 - WAN/DNS degradation fixture promotes `Internet`.
 - Teddy fallback fixture says the bridge is degraded instead of pretending it worked.
+- Each replay fixture locks headline, summary, primary action, full zone order, and all three `Now / Watch / Later` slots.
 - Local Homebase page, health API, and logs API render.
 - Phone, iPad, and desktop screenshots are captured to `artifacts/qa/homebase-latest-*.png` when local Chrome is available.
 - Rendered first-screen assertions confirm loaded copy, house-state ordering, no horizontal overflow, and no raw/scaffold labels in the visible viewport.

@@ -15,8 +15,8 @@
 
 - [x] Add redacted fixtures for six core home states.
 - [x] Add a test helper that runs fixtures through health derivation without touching live services.
-- [x] Assert headline, review item, zone order, and daily strip for each fixture.
-- [x] Assert healthy fixtures hide raw telemetry from the first screen.
+- [x] Assert headline, summary, primary action, review item, zone order, and daily strip for each fixture.
+- [x] Assert every replay fixture hides raw telemetry and ignored Eufy/door-lock evidence from the first screen.
 
 ## Phase 3: Real Historical Summaries
 

@@ -68,7 +68,9 @@ Out of scope for this slice:
 - Public route drift promotes `Public access`.
 - WAN/DNS/Tailscale trouble promotes `Internet`.
 - Healthy first screen does not show raw ports, IPs, versions, or log counts.
+- Warning first screens also avoid raw ports, IPs, versions, generic log counts, stale system-log phrasing, and ignored Eufy/door-lock evidence.
 - Timeline shows meaningful grouped events, not repeated heartbeat spam.
 - Mobile and iPad views have no horizontal overflow.
 - Ask Teddy answers with live dashboard context and marks fallback honestly.
-- Tests can replay at least five known home states without depending on the live Mac mini.
+- Tests can replay six known home states without depending on the live Mac mini.
+- Each replay fixture locks headline, summary, primary action, review item, full zone order, and the complete `Now / Watch / Later` decision strip.
