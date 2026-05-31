@@ -391,7 +391,7 @@ async function stopChrome(chrome) {
 }
 
 async function smokeLocalRoutes() {
-  const srv = await startServer({ password: 'Danno' });
+  const srv = await startServer({ password: 'Danno', env: { TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '1' } });
   try {
     const page = await fetchWithTimeout(`${srv.baseUrl}/pages/teddy-house/`);
     assert(page.status === 200, `local Homebase page returned ${page.status}`);
@@ -417,6 +417,21 @@ async function smokeLocalRoutes() {
     }
     assertFirstScreenCopyClean(data, 'local health');
 
+    const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'status',
+        prompt: 'Summarize the current Homebase status and explain what needs review.',
+        context: data
+      })
+    });
+    assert(ask.status === 200, `local Ask Teddy returned ${ask.status}`);
+    const askData = await ask.json();
+    assert(askData.status === 'complete', `Ask Teddy did not complete: ${JSON.stringify(askData)}`);
+    assert(['local', 'local-fallback', 'teddy'].includes(askData.source), `Ask Teddy returned unexpected source ${askData.source}`);
+    assert(String(askData.answer || '').includes('Readiness'), 'Ask Teddy answer did not use dashboard readiness context');
+
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
@@ -431,6 +446,11 @@ async function smokeLocalRoutes() {
       firstDecision: data.dailyDecision.slots[0].text,
       reviewItems: data.needsDan.length,
       reviewEvidenceItems: data.reviewEvidence.length,
+      ask: {
+        status: askData.status,
+        source: askData.source,
+        answerLength: String(askData.answer || '').length
+      },
       screenshots,
       persisted
     };
@@ -630,6 +650,11 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       name: 'review-provenance',
       status: local && local.reviewItems === local.reviewEvidenceItems ? 'ok' : 'fail',
       detail: `${local && Number.isFinite(local.reviewEvidenceItems) ? local.reviewEvidenceItems : 0} review item${local && local.reviewEvidenceItems === 1 ? '' : 's'} source-backed.`
+    },
+    {
+      name: 'ask-teddy',
+      status: local && local.ask && local.ask.status === 'complete' && local.ask.answerLength > 0 ? 'ok' : 'fail',
+      detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars.` : 'Ask Teddy did not answer.'
     },
     {
       name: 'public-auth',
