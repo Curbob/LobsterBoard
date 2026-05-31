@@ -152,16 +152,25 @@ function renderNeeds(needs) {
   needs.forEach(item => {
     const chip = span("need-chip");
     chip.append(span("", formatNeedLabel(item)));
-    const ask = document.createElement("button");
-    ask.className = "ask-mini";
-    ask.type = "button";
-    ask.textContent = "Ask";
-    ask.addEventListener("click", () => askTeddy({
+    const explain = document.createElement("button");
+    explain.className = "ask-mini";
+    explain.type = "button";
+    explain.textContent = "Explain";
+    explain.addEventListener("click", () => askTeddy({
       action: "explain",
       prompt: `Explain this Homebase review item: ${item}`,
       clicked: { type: "review", label: item }
     }));
-    chip.append(ask);
+    const prepare = document.createElement("button");
+    prepare.className = "ask-mini";
+    prepare.type = "button";
+    prepare.textContent = "Prepare fix";
+    prepare.addEventListener("click", () => askTeddy({
+      action: "prepare-fix",
+      prompt: `Prepare a dry-run fix plan for this Homebase review item. Do not run commands or change settings: ${item}`,
+      clicked: { type: "review", label: item }
+    }));
+    chip.append(explain, prepare);
     list.append(chip);
   });
 }

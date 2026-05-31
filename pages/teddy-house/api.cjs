@@ -278,6 +278,9 @@ async function askTeddy(ctx, body) {
     'Never mention Axon, work pipeline, family, birthdays, email, calendar, or other personal context unless the user explicitly asks for that topic.',
     'If the Dashboard context has no review items and the house state is steady, say that clearly and do not invent commands, null fields, logs, or extra checks.',
     'Answer in 3-5 short bullets. If a fix would require action, say what you would check first and what approval would be needed.',
+    action === 'prepare-fix'
+      ? 'For prepare-fix, produce a dry-run plan only: likely cause, read-only checks, exact approval needed, and what must not be touched yet.'
+      : 'For explain, diagnose the signal in plain language without proposing any write action as already approved.',
     '',
     `Action: ${action}`,
     `Prompt: ${prompt || 'Summarize current status and review items.'}`,
@@ -385,12 +388,17 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
       : `Readiness ${score}. ${review}`);
   }
   if (clicked) lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
+  if (action === 'prepare-fix') {
+    lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or files.');
+  }
   if (wan && wan.state !== 'ok' && wan.detail) lines.push(`Internet: ${wan.detail}`);
   if (systemLogs && systemLogs.state !== 'ok' && systemLogs.detail) lines.push(`System logs: ${systemLogs.detail}`);
   lines.push(hasReview
     ? (action === 'status'
         ? 'Next: verify the first ranked warning, then leave the rest alone.'
-        : 'Next: start with the first ranked warning.')
+        : action === 'prepare-fix'
+          ? 'Next: prepare the read-only checks and required approval.'
+          : 'Next: start with the first ranked warning.')
     : 'Next: nothing needs action right now.');
   return lines.slice(0, 4).map(line => `- ${line}`).join('\n');
 }

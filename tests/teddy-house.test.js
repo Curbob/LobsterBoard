@@ -447,6 +447,11 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('context: currentHealth');
     expect(script).toContain('credentials: "same-origin"');
     expect(script).toContain('setTimeout(() => controller.abort(), 75000)');
+    expect(script).toContain('Explain');
+    expect(script).toContain('Prepare fix');
+    expect(script).toContain('action: "prepare-fix"');
+    expect(script).toContain('Do not run commands or change settings');
+    expect(script).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
 
   it('has iPhone home-screen metadata and install icons', async () => {
@@ -543,6 +548,40 @@ describe('Teddy Homebase health API', () => {
     expect(data.promptPreview).toContain('What should I check first?');
     expect(data.promptPreview).toContain('WAN: 120 ms');
     expect(data.promptPreview).toContain('Dashboard context');
+  });
+
+  it('prepares fixes as read-only plans with explicit approval language', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dryRun: true,
+        action: 'prepare-fix',
+        prompt: 'Prepare a dry-run fix plan for Automation logs: Govee connection degraded.',
+        clicked: { type: 'review', label: 'Automation logs: Govee connection degraded' },
+        context: {
+          score: 78,
+          needsDan: ['Automation logs: Govee connection degraded'],
+          houseState: {
+            headline: 'Homebase found an issue.',
+            tone: 'issue',
+            primaryAction: 'Start with automations.'
+          },
+          intelligence: {
+            serviceLogs: { state: 'bad', value: 'Govee connection degraded', detail: 'Govee sync failed repeatedly.' }
+          }
+        }
+      })
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe('complete');
+    expect(data.dryRun).toBe(true);
+    expect(data.promptPreview).toContain('Action: prepare-fix');
+    expect(data.promptPreview).toContain('dry-run plan only');
+    expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.');
+    expect(data.promptPreview).toContain('exact approval needed');
+    expect(data.promptPreview).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
 
   it('can answer Ask Teddy locally for offline tests', async () => {
