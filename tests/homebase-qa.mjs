@@ -417,6 +417,9 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(vitals.entries.length <= 500, `vitals-history.json exceeded retention limit: ${vitals.entries.length}`);
   assert(vitals.entries[0].at && Number.isFinite(Number(vitals.entries[0].cpu)), 'latest vitals sample is missing at/cpu');
   assert(data.vitals?.vitalsHistory?.source === 'data/teddy-house/vitals-history.json', 'health payload must cite persisted vitals source');
+  assert(data.vitals?.vitalsHistory?.window === '6h', 'health payload must name the vitals history window');
+  assert(Number(data.vitals?.vitalsHistory?.samples) > 0, 'health payload must include persisted vitals samples for peak copy');
+  assert(/^Peak \d+\.\d{2} \/ 6h$/.test(data.vitals?.health?.cpu?.secondary || ''), 'CPU peak copy must use the persisted 6h history format');
 
   assert(snapshot.score === data.score, 'snapshot.json score should match latest health score');
   assert(snapshot.services?.homebridge === data.services?.homebridge?.state, 'snapshot.json should retain compact service states');

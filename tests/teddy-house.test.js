@@ -1179,6 +1179,28 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
   }, 12000);
 
+  it('backs every visible history-style metric with persisted source evidence', async () => {
+    const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const visuals = data.visualEvidence.latest.visuals;
+
+    expect(data.vitals.health.cpu.secondary).toMatch(/^Peak \d+\.\d{2} \/ 6h$/);
+    expect(data.vitals.vitalsHistory).toEqual(expect.objectContaining({
+      window: '6h',
+      source: 'data/teddy-house/vitals-history.json',
+      scopedToBoot: expect.any(Boolean),
+      samples: expect.any(Number)
+    }));
+    expect(data.vitals.vitalsHistory.samples).toBeGreaterThan(0);
+    expect(visuals.vitalsGrid.inputs.vitalsHistory.source).toBe('data/teddy-house/vitals-history.json');
+    expect(visuals.vitalsGrid.inputs.vitalsHistory.window).toBe('6h');
+    expect(visuals.vitalsGrid.inputs.vitalsHistory.samples).toBeGreaterThan(0);
+    expect(visuals.timeline.type).toBe('persistent-events');
+    expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
+    expect(visuals.timeline.count).toBe(data.timeline.length);
+  }, 12000);
+
   it('keeps the default dashboard view quiet', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');

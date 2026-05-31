@@ -22,7 +22,7 @@
 
 - [x] Define and test retention limits for vitals, visual evidence, service-log snapshots, route drift, and incident timeline evidence.
 - [ ] Add 6h/24h summaries only where persisted samples exist.
-- [ ] Add tests that fail if chart-like UI appears without persisted backing data.
+- [x] Add tests that fail if history-style visible metrics appear without persisted backing data.
 - [ ] Add visual evidence metadata for each historical summary.
 
 ## Phase 4: Guided Action
