@@ -131,7 +131,7 @@ npm run check -- --runInBand
 npm run check:homebase
 ```
 
-`npm run check:homebase` is the canonical Homebase release gate. It covers the full test suite, replayed house-state fixtures, local page/health/log route smokes, first-screen copy blacklist checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, and public Funnel auth smoke when reachable.
+`npm run check:homebase` is the canonical Homebase release gate. It covers the full test suite, replayed house-state fixtures, local page/health/log route smokes, first-screen copy blacklist checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, and public Funnel auth smoke when reachable.
 
 Rendered UI proof is required when changing:
 
@@ -168,6 +168,5 @@ Rollback is git-first:
 ## Current Hardening Backlog
 
 1. Add CI for `npm run check -- --runInBand` and `npm run check:homebase`.
-2. Add explicit retention checks for `data/teddy-house/*history*.json` and `visual-evidence.json`.
-3. Add guarded, dry-run-first action hooks for update tasks.
-4. Keep the daily screen quiet as new evidence sources arrive.
+2. Add guarded, dry-run-first action hooks for update tasks.
+3. Keep the daily screen quiet as new evidence sources arrive.

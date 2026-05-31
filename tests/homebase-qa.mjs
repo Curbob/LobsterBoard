@@ -18,6 +18,7 @@ const SCREENSHOT_VIEWPORTS = [
   ['ipad', 820, 1180],
   ['desktop', 1440, 1000]
 ];
+const DATA_DIR = join('data', 'teddy-house');
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -46,6 +47,10 @@ function assert(condition, message) {
 
 function readFixture(name) {
   return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
+}
+
+function readJsonFile(cwd, file) {
+  return JSON.parse(readFileSync(join(cwd, DATA_DIR, file), 'utf8'));
 }
 
 function firstScreenCopy(data) {
@@ -373,17 +378,59 @@ async function smokeLocalRoutes() {
     const logData = await logs.json();
     assert(Array.isArray(logData.serviceLogs?.items), 'grouped service logs are missing');
     const screenshots = await captureScreenshots(srv.baseUrl);
+    const persisted = assertPersistedHomebaseData(srv.cwd, data);
 
     return {
       score: data.score,
       headline: data.houseState.headline,
       firstZone: data.houseState.zones[0].id,
       firstDecision: data.dailyDecision.slots[0].text,
-      screenshots
+      screenshots,
+      persisted
     };
   } finally {
     await srv.kill();
   }
+}
+
+function assertPersistedHomebaseData(cwd, data) {
+  const timeline = readJsonFile(cwd, 'timeline.json');
+  const evidence = readJsonFile(cwd, 'visual-evidence.json');
+  const vitals = readJsonFile(cwd, 'vitals-history.json');
+  const snapshot = readJsonFile(cwd, 'snapshot.json');
+  const serviceLogs = readJsonFile(cwd, 'service-logs.json');
+
+  assert(Array.isArray(timeline.events), 'timeline.json must contain an events array');
+  assert(timeline.events.length > 0, 'timeline.json must retain at least one event after health check');
+  assert(timeline.events.length <= 80, `timeline.json exceeded retention limit: ${timeline.events.length}`);
+  assert(timeline.events[0].at && timeline.events[0].title && timeline.events[0].detail, 'latest timeline event is missing at/title/detail');
+
+  assert(Array.isArray(evidence.entries), 'visual-evidence.json must contain an entries array');
+  assert(evidence.entries.length > 0, 'visual-evidence.json must retain at least one entry after health check');
+  assert(evidence.entries.length <= 120, `visual-evidence.json exceeded retention limit: ${evidence.entries.length}`);
+  assert(evidence.entries[0].visuals?.houseState?.type === 'zone-state', 'visual evidence must include house-state source proof');
+  assert(evidence.entries[0].visuals?.vitalsGrid?.inputs?.vitalsHistory?.source === 'data/teddy-house/vitals-history.json', 'visual evidence must cite vitals history source');
+  assert(evidence.entries[0].visuals?.timeline?.source === 'data/teddy-house/timeline.json', 'visual evidence must cite timeline source');
+
+  assert(Array.isArray(vitals.entries), 'vitals-history.json must contain an entries array');
+  assert(vitals.entries.length > 0, 'vitals-history.json must retain at least one vitals sample');
+  assert(vitals.entries.length <= 500, `vitals-history.json exceeded retention limit: ${vitals.entries.length}`);
+  assert(vitals.entries[0].at && Number.isFinite(Number(vitals.entries[0].cpu)), 'latest vitals sample is missing at/cpu');
+  assert(data.vitals?.vitalsHistory?.source === 'data/teddy-house/vitals-history.json', 'health payload must cite persisted vitals source');
+
+  assert(snapshot.score === data.score, 'snapshot.json score should match latest health score');
+  assert(snapshot.services?.homebridge === data.services?.homebridge?.state, 'snapshot.json should retain compact service states');
+  assert(snapshot.serviceLogState === data.intelligence?.serviceLogs?.state, 'snapshot.json should retain service-log drift state');
+  assert(Array.isArray(serviceLogs.items), 'service-logs.json must retain grouped service log items');
+  assert(serviceLogs.automationLogs && serviceLogs.macMiniLogs && serviceLogs.networkLogs, 'service-logs.json must retain domain log rollups');
+  assert(serviceLogs.items.some(item => item.name === 'Eufy plugin' && item.ignored === true), 'service-logs.json must preserve Eufy as ignored evidence');
+
+  return {
+    timelineEvents: timeline.events.length,
+    visualEvidenceEntries: evidence.entries.length,
+    vitalsSamples: vitals.entries.length,
+    serviceLogItems: serviceLogs.items.length
+  };
 }
 
 function verifyReplayFixtures() {

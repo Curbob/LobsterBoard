@@ -20,7 +20,7 @@
 
 ## Phase 3: Real Historical Summaries
 
-- [ ] Define retention limits for WAN, vitals, Homebridge loops, route drift, and incidents.
+- [x] Define and test retention limits for vitals, visual evidence, service-log snapshots, route drift, and incident timeline evidence.
 - [ ] Add 6h/24h summaries only where persisted samples exist.
 - [ ] Add tests that fail if chart-like UI appears without persisted backing data.
 - [ ] Add visual evidence metadata for each historical summary.
