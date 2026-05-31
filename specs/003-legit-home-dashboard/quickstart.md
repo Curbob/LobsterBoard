@@ -59,4 +59,5 @@ Expected:
 - Teddy fallback fixture says the bridge is degraded instead of pretending it worked.
 - Local Homebase page, health API, and logs API render.
 - Phone, iPad, and desktop screenshots are captured to `artifacts/qa/homebase-latest-*.png` when local Chrome is available.
+- Rendered first-screen assertions confirm loaded copy, house-state ordering, no horizontal overflow, and no raw/scaffold labels in the visible viewport.
 - Public Homebase auth is verified when the Funnel route is reachable. Set `HOMEBASE_REQUIRE_PUBLIC_SMOKE=1` to make that mandatory.

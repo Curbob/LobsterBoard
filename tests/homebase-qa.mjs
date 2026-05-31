@@ -30,6 +30,15 @@ const FIRST_SCREEN_COPY_BLACKLIST = [
   /\bEufy\b/i,
   /\bGarage side door\b/i
 ];
+const RENDERED_FIRST_SCREEN_COPY_BLACKLIST = [
+  ...FIRST_SCREEN_COPY_BLACKLIST,
+  /\bChecking the house\b/i,
+  /\bWaiting for first check\b/i,
+  /\bRunning checks\b/i,
+  /\bChecking for review items\b/i,
+  /\bService evidence\b/i,
+  /\bEvidence signals\b/i
+];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -81,7 +90,16 @@ async function captureScreenshots(baseUrl) {
       const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height);
       const fileStat = await stat(file);
       assert(fileStat.size > 5000, `${name} screenshot is too small to be useful`);
-      outputs.push({ name, width, height, file, bytes: fileStat.size, scrollWidth: layout.rootScrollWidth });
+      outputs.push({
+        name,
+        width,
+        height,
+        file,
+        bytes: fileStat.size,
+        scrollWidth: layout.rootScrollWidth,
+        firstZone: layout.firstZone,
+        firstScreenTextLength: layout.firstScreenTextLength
+      });
     }
     return { status: 'captured', outputs };
   } catch (err) {
@@ -221,10 +239,11 @@ async function captureViewport(chrome, url, file, width, height) {
   await loadPromise;
   await waitForHomebaseReady(chrome, sessionId);
   const layout = await assertNoHorizontalOverflow(chrome, sessionId, width);
+  const rendered = await assertRenderedFirstScreen(chrome, sessionId, width);
   const screenshot = await chromeCommand(chrome, 'Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId);
   await writeFile(file, Buffer.from(screenshot.data, 'base64'));
   await chromeCommand(chrome, 'Target.closeTarget', { targetId }).catch(() => null);
-  return layout;
+  return { ...layout, ...rendered };
 }
 
 async function waitForHomebaseReady(chrome, sessionId) {
@@ -263,6 +282,64 @@ async function assertNoHorizontalOverflow(chrome, sessionId, width) {
   const overflow = Math.max(value.rootScrollWidth || 0, value.bodyScrollWidth || 0) - (value.viewport || width);
   assert(overflow <= 1, `horizontal overflow at ${width}px viewport: ${JSON.stringify(value)}`);
   return value;
+}
+
+async function assertRenderedFirstScreen(chrome, sessionId, width) {
+  const result = await chromeCommand(chrome, 'Runtime.evaluate', {
+    expression: `(() => {
+      const textOf = selector => document.querySelector(selector)?.innerText?.trim() || "";
+      const topOf = selector => {
+        const el = document.querySelector(selector);
+        if (!el || el.hidden) return null;
+        return Math.round(el.getBoundingClientRect().top);
+      };
+      const visibleSectionText = [...document.querySelectorAll("main > section, main > article")]
+        .filter(el => !el.hidden)
+        .filter(el => {
+          const rect = el.getBoundingClientRect();
+          return rect.bottom > 0 && rect.top < window.innerHeight;
+        })
+        .map(el => el.innerText.trim())
+        .filter(Boolean)
+        .join("\\n");
+      const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
+      const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
+      return {
+        width: window.innerWidth,
+        summaryTitle: textOf("#summary-title"),
+        summaryCopy: textOf("#summary-copy"),
+        firstZone,
+        zoneCount,
+        firstScreenText: visibleSectionText,
+        positions: {
+          overview: topOf("#overview"),
+          dailyDecision: topOf("#daily-decision"),
+          review: topOf("#review-lane"),
+          houseState: topOf("#house-state"),
+          vitals: topOf("#server"),
+          ask: topOf("#ask-teddy"),
+          evidence: topOf("#evidence"),
+          signals: topOf("#signals"),
+          timeline: topOf("#timeline")
+        }
+      };
+    })()`,
+    returnByValue: true
+  }, sessionId);
+  const value = result.result && result.result.value ? result.result.value : {};
+  assert(value.summaryTitle && !/Checking|Could not refresh/i.test(value.summaryTitle), `rendered summary is not loaded at ${width}px: ${JSON.stringify(value)}`);
+  assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
+  assert(value.firstZone, `rendered first house zone missing at ${width}px`);
+  assert(value.positions.houseState !== null, `house-state section missing at ${width}px`);
+  assert(value.positions.evidence === null || value.positions.houseState < value.positions.evidence, `evidence appears before house state at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.signals === null || value.positions.houseState < value.positions.signals, `signals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
+  for (const pattern of RENDERED_FIRST_SCREEN_COPY_BLACKLIST) {
+    assert(!pattern.test(value.firstScreenText || ''), `rendered first-screen copy matched blacklist ${pattern} at ${width}px: ${value.firstScreenText}`);
+  }
+  return {
+    firstZone: value.firstZone,
+    firstScreenTextLength: (value.firstScreenText || '').length
+  };
 }
 
 async function stopChrome(chrome) {

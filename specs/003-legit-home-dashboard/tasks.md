@@ -39,6 +39,7 @@
 - [x] Smoke public Tailscale auth when reachable, with strict mode available.
 - [x] Capture desktop, iPad, and phone screenshots.
 - [x] Add copy blacklist checks for raw/sloppy strings.
+- [x] Add rendered first-screen assertions for loaded copy, ordering, and overflow.
 - [x] Document the QA path in README and architecture docs.
 
 ## First Pull

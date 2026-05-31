@@ -43,7 +43,7 @@ Homebase proof command:
 npm run check:homebase
 ```
 
-That runs lint/tests, six replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, phone/iPad/desktop screenshot capture, and public Funnel auth smoke when reachable.
+That runs lint/tests, six replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, rendered first-screen assertions, phone/iPad/desktop screenshot capture, and public Funnel auth smoke when reachable.
 
 ![LobsterBoard](lobsterboard-logo-final.png)
 
