@@ -24,11 +24,11 @@
 
 ## Visual Trust
 
-- [ ] First viewport shows the top story on phone.
-- [ ] First viewport shows the review lane when warning exists.
-- [ ] Healthy first viewport stays short and free of raw telemetry.
-- [ ] Evidence stays below the decision story.
-- [ ] Recent changes are grouped and deduplicated.
+- [x] First viewport shows the top story on phone.
+- [x] First viewport shows the review lane when warning exists.
+- [x] Healthy first viewport stays short and free of raw telemetry.
+- [x] Evidence stays below the decision story.
+- [x] Recent changes are grouped and deduplicated.
 
 ## Login Trust
 

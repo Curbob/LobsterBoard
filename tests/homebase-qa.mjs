@@ -226,6 +226,7 @@ async function captureScreenshots(baseUrl) {
         firstDecision: layout.firstDecision,
         nowDecision: layout.nowDecision,
         firstReview: layout.firstReview,
+        visualContract: layout.visualContract,
         firstScreenTextLength: layout.firstScreenTextLength
       });
     }
@@ -421,6 +422,16 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         if (!el || el.hidden) return null;
         return Math.round(el.getBoundingClientRect().top);
       };
+      const rectOf = selector => {
+        const el = document.querySelector(selector);
+        if (!el || el.hidden) return null;
+        const rect = el.getBoundingClientRect();
+        return {
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+          visible: rect.bottom > 0 && rect.top < window.innerHeight
+        };
+      };
       const visibleSectionText = [...document.querySelectorAll("main > section, main > article")]
         .filter(el => !el.hidden)
         .filter(el => {
@@ -441,6 +452,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         .filter(Boolean);
       return {
         width: window.innerWidth,
+        viewportHeight: window.innerHeight,
         summaryTitle: textOf("#summary-title"),
         summaryCopy: textOf("#summary-copy"),
         firstZone,
@@ -463,6 +475,16 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
           history: topOf("#history"),
           timeline: topOf("#timeline"),
           localLinks: topOf("#local-links")
+        },
+        rects: {
+          overview: rectOf("#overview"),
+          dailyDecision: rectOf("#daily-decision"),
+          review: rectOf("#review-lane"),
+          houseState: rectOf("#house-state"),
+          vitals: rectOf("#server"),
+          ask: rectOf("#ask-teddy"),
+          evidence: rectOf("#evidence"),
+          timeline: rectOf("#timeline")
         }
       };
     })()`,
@@ -470,6 +492,11 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   }, sessionId);
   const value = result.result && result.result.value ? result.result.value : {};
   assert(value.summaryTitle && !/Checking|Could not refresh/i.test(value.summaryTitle), `rendered summary is not loaded at ${width}px: ${JSON.stringify(value)}`);
+  assert(value.rects?.overview?.visible === true, `top story is not visible in first viewport at ${width}px: ${JSON.stringify(value.rects?.overview)}`);
+  const warningState = !/steady/i.test(value.summaryTitle) || Boolean(value.firstReview);
+  if (warningState) {
+    assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
+  }
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.firstZone, `rendered first house zone missing at ${width}px`);
   assert(value.historyCount >= 1, `rendered history summaries missing at ${width}px: ${JSON.stringify(value)}`);
@@ -501,6 +528,16 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
     firstReview: value.firstReview,
     summaryTitle: value.summaryTitle,
     summaryCopy: value.summaryCopy,
+    visualContract: {
+      topStoryVisible: value.rects?.overview?.visible === true,
+      reviewVisibleWhenWarning: warningState ? value.rects?.review?.visible === true : true,
+      evidenceBelowDecision: value.positions.evidence === null || value.positions.ask < value.positions.evidence,
+      recentChangesGrouped: Array.isArray(value.recentChangeRows)
+        && value.recentChangeRows.length > 0
+        && value.recentChangeRows.length <= 3
+        && new Set(value.recentChangeRows).size === value.recentChangeRows.length,
+      firstViewportFreeOfRawTelemetry: RENDERED_FIRST_SCREEN_COPY_BLACKLIST.every(pattern => !pattern.test(value.firstScreenText || ''))
+    },
     firstScreenTextLength: (value.firstScreenText || '').length
   };
 }
@@ -1176,6 +1213,30 @@ function healthyFreshnessCoverage() {
   };
 }
 
+function visualContractCoverage(local, healthyFreshness) {
+  const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
+    ? local.screenshots.outputs
+    : [];
+  const items = screenshots.map(item => ({
+    name: item.name,
+    width: item.width,
+    ok: Boolean(item.visualContract
+      && item.visualContract.topStoryVisible
+      && item.visualContract.reviewVisibleWhenWarning
+      && item.visualContract.evidenceBelowDecision
+      && item.visualContract.recentChangesGrouped
+      && item.visualContract.firstViewportFreeOfRawTelemetry),
+    visualContract: item.visualContract || null
+  }));
+  const healthyQuiet = healthyFreshness && healthyFreshness.status === 'ok';
+  return {
+    status: items.length === SCREENSHOT_VIEWPORTS.length && items.every(item => item.ok) && healthyQuiet ? 'ok' : 'fail',
+    detail: `${items.map(item => `${item.name}:${item.ok ? 'ok' : 'fail'}`).join(', ')}; healthy:${healthyQuiet ? 'ok' : 'fail'}`,
+    items,
+    healthyQuiet
+  };
+}
+
 function trustChecks(local, publicAuth) {
   const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
     ? local.screenshots.outputs
@@ -1280,6 +1341,7 @@ async function main() {
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
+  const visualCoverage = visualContractCoverage(local, healthyFreshness);
   const checks = trustChecks(local, publicAuth);
   gates.push({
     name: 'zone-ranking-coverage',
@@ -1322,6 +1384,16 @@ async function main() {
     detail: 'Golden parser tests cover Homebridge, Govee, Eufy, macOS diagnostics, route drift, and timestamp freshness.'
   });
   gates.push({
+    name: 'visual-contracts',
+    status: visualCoverage.status,
+    detail: visualCoverage.detail
+  });
+  checks.push({
+    name: 'visual-contracts',
+    status: visualCoverage.status,
+    detail: 'Rendered first viewport keeps top story visible, review visible when warning exists, evidence below decisions, grouped changes, and healthy replay quiet.'
+  });
+  gates.push({
     name: 'copy-quality-coverage',
     status: copyCoverage.status,
     detail: copyCoverage.detail
@@ -1353,6 +1425,7 @@ async function main() {
     replayStoryAgreementCoverage: replayStoryCoverage.items,
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
+    visualContractCoverage: visualCoverage,
     copyQualityCoverage: copyCoverage,
     healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,
