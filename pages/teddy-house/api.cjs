@@ -3085,7 +3085,7 @@ function usefulSignals(intelligence) {
     ['macOS', intelligence.macUpdates]
   ]
     .filter(([, signal]) => signal && signal.hidden !== true && (signal.state === 'warn' || signal.state === 'bad'))
-    .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch' }));
+    .map(([name, signal]) => ({ name, state: signal.state, metric: signal.metric || signal.value || 'watch', signal }));
 }
 
 function usefulVitals(systemVitals) {
@@ -3095,7 +3095,8 @@ function usefulVitals(systemVitals) {
     .map(([key, signal]) => ({
       name: key === 'cpu' ? 'CPU' : key === 'memory' ? 'Memory' : 'Disk',
       state: signal.state,
-      metric: signal.metric || 'watch'
+      metric: signal.metric || 'watch',
+      signal
     }));
 }
 
@@ -3111,6 +3112,61 @@ function needsDan(services, intelligence, systemVitals) {
   });
   const vitalItems = usefulVitals(systemVitals).map(item => `${item.name}: ${item.metric}`);
   return [...serviceItems, ...signalItems, ...vitalItems];
+}
+
+function reviewEvidenceFor(services, intelligence, systemVitals, reviewItems) {
+  const checkedAt = nowIso();
+  const serviceEvidence = Object.entries(services || {})
+    .filter(([, service]) => service && service.state !== 'ok' && service.state !== 'info')
+    .map(([key, service]) => {
+      const label = `${SERVICE_NAMES[key] || key}: ${service.metric}`;
+      return {
+        label,
+        state: service.state || 'warn',
+        source: service.source || service.check || `${SERVICE_NAMES[key] || key} check`,
+        confidence: service.confidence || 'live',
+        checkedAt,
+        freshness: service.confidence || 'live',
+        detail: service.detail || null
+      };
+    });
+  const signalEvidence = usefulSignals(intelligence).map(item => {
+    const label = item.name === 'Mac restart incident' ? item.name : `${item.name}: ${item.metric}`;
+    const signal = item.signal || {};
+    return {
+      label,
+      state: item.state || signal.state || 'warn',
+      source: signal.source || signal.check || item.name,
+      confidence: signal.confidence || 'live',
+      checkedAt: signal.checkedAt || checkedAt,
+      freshness: signal.confidence || 'live',
+      detail: signal.detail || null
+    };
+  });
+  const vitalEvidence = usefulVitals(systemVitals).map(item => {
+    const label = `${item.name}: ${item.metric}`;
+    const signal = item.signal || {};
+    return {
+      label,
+      state: item.state || signal.state || 'warn',
+      source: 'Mac mini vitals',
+      confidence: signal.confidence || 'live',
+      checkedAt,
+      freshness: signal.confidence || 'live',
+      detail: signal.detail || null
+    };
+  });
+  const byLabel = new Map([...serviceEvidence, ...signalEvidence, ...vitalEvidence].map(item => [item.label, item]));
+  return (Array.isArray(reviewItems) ? reviewItems : [])
+    .map(label => byLabel.get(label) || {
+      label,
+      state: 'warn',
+      source: 'Homebase ranking',
+      confidence: 'derived',
+      checkedAt,
+      freshness: 'derived',
+      detail: null
+    });
 }
 
 function signalBadOrWarn(signal) {
@@ -3259,6 +3315,7 @@ function teddyHouseApi(ctx = {}) {
         const timeline = updateTimeline(ctx, services, intelligence, score);
         const insights = await buildInsights(services, systemVitals, intelligence);
         const reviewItems = needsDan(services, intelligence, systemVitals);
+        const reviewEvidence = reviewEvidenceFor(services, intelligence, systemVitals, reviewItems);
         const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
         const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
         const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
@@ -3270,6 +3327,7 @@ function teddyHouseApi(ctx = {}) {
           checkedAt: nowIso(),
           score,
           needsDan: reviewItems,
+          reviewEvidence,
           houseState,
           dailyDecision,
           services,
@@ -3298,6 +3356,7 @@ teddyHouseApi._internals = {
   updateAutomationLogHistory,
   publicAccessRollup,
   needsDan,
+  reviewEvidenceFor,
   scoreServices
 };
 

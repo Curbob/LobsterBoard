@@ -283,6 +283,17 @@ describe('Teddy Homebase page', () => {
             checkedAt: '2026-05-16T23:00:00.000Z',
             score: 82,
             needsDan: ['Homebridge needs review'],
+            reviewEvidence: [
+              {
+                label: 'Homebridge needs review',
+                state: 'bad',
+                source: 'Homebridge Port',
+                confidence: 'live',
+                checkedAt: '2026-05-16T23:00:00.000Z',
+                freshness: 'live',
+                detail: 'Homebridge did not answer.'
+              }
+            ],
             houseState: {
               headline: 'Something needs a look.',
               summary: 'Start with automations. Everything else is responding.',
@@ -350,6 +361,11 @@ describe('Teddy Homebase page', () => {
     expect(zones).toEqual(['Automations', 'Public access', 'Internet', 'Mac mini']);
     expect(dom.window.document.getElementById('summary-title').textContent).toBe('Something needs a look.');
     expect(dom.window.document.getElementById('next-action').textContent).toBe('Start with automations.');
+    const chip = dom.window.document.querySelector('#needs-list .need-chip');
+    expect(chip.dataset.source).toBe('Homebridge Port');
+    expect(chip.dataset.confidence).toBe('live');
+    expect(chip.dataset.checkedAt).toBe('2026-05-16T23:00:00.000Z');
+    expect(chip.title).toContain('Homebridge Port | live | Checked');
 
     const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
     expect(signals.slice(0, 4)).toEqual(['Homebridge log', 'DNS blocks', 'Homebridge version', "What's exposed"]);
@@ -830,6 +846,19 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.score).toBeGreaterThanOrEqual(0);
     expect(data.score).toBeLessThanOrEqual(100);
     expect(Array.isArray(data.needsDan)).toBe(true);
+    expect(Array.isArray(data.reviewEvidence)).toBe(true);
+    expect(data.reviewEvidence.map(item => item.label)).toEqual(data.needsDan);
+    for (const item of data.reviewEvidence) {
+      expect(item).toEqual(expect.objectContaining({
+        label: expect.any(String),
+        state: expect.stringMatching(/^(warn|bad)$/),
+        source: expect.any(String),
+        confidence: expect.any(String),
+        checkedAt: expect.any(String),
+        freshness: expect.any(String)
+      }));
+      expect(new Date(item.checkedAt).getTime()).not.toBeNaN();
+    }
     expect(data.vitals.health.cpu).toHaveProperty('review');
     expect(data.vitals.health.cpu.review).toBe(false);
     expect(data.vitals.health.cpu).toHaveProperty('peak6h');

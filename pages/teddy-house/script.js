@@ -137,10 +137,11 @@ function renderVitals(vitals) {
   });
 }
 
-function renderNeeds(needs) {
+function renderNeeds(needs, reviewEvidence) {
   const title = document.getElementById("needs-title");
   const list = document.getElementById("needs-list");
   const lane = document.getElementById("review-lane") || title.closest(".needs-lane");
+  const evidenceByLabel = new Map((Array.isArray(reviewEvidence) ? reviewEvidence : []).map(item => [item.label, item]));
   clear(list);
   if (!needs || needs.length === 0) {
     if (lane) lane.hidden = true;
@@ -150,7 +151,14 @@ function renderNeeds(needs) {
   if (lane) lane.hidden = false;
   title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} to review.`;
   needs.forEach(item => {
+    const evidence = evidenceByLabel.get(item) || null;
     const chip = span("need-chip");
+    if (evidence) {
+      chip.title = `${evidence.source || "Homebase"} | ${evidence.confidence || "derived"} | ${fmtCheckedAt(evidence.checkedAt)}`;
+      chip.dataset.source = evidence.source || "";
+      chip.dataset.confidence = evidence.confidence || "";
+      chip.dataset.checkedAt = evidence.checkedAt || "";
+    }
     chip.append(span("", formatNeedLabel(item)));
     const explain = document.createElement("button");
     explain.className = "ask-mini";
@@ -476,7 +484,7 @@ async function loadHealth() {
     renderSummary(data);
     renderDailyDecision(data.dailyDecision);
     renderIncident(data.houseState);
-    renderNeeds(data.needsDan);
+    renderNeeds(data.needsDan, data.reviewEvidence);
     renderHouseState(data.houseState);
     renderServices(data);
     renderVitals(data.vitals || {});
