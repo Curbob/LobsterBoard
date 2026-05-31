@@ -383,6 +383,7 @@ function renderHistoricalSummaries(summaries) {
     const meta = div("history-meta");
     meta.append(span("", summary.confidence === "persisted" ? "Persisted" : "Source backed"));
     meta.append(span("", `${summary.sampleCount || 0} sample${Number(summary.sampleCount) === 1 ? "" : "s"}`));
+    if (summary.freshness) meta.append(span("", summary.freshness));
     card.title = summary.source;
     card.append(meta);
     grid.append(card);

@@ -463,6 +463,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   const vitalsHistory = vitalsData && vitalsData.vitalsHistory;
   if (vitalsHistory && Number(vitalsHistory.samples) > 0 && vitalsHistory.source) {
     const sampleCount = Number(vitalsHistory.samples);
+    const checkedAt = vitalsHistory.lastSampleAt || null;
     summaries.push({
       id: 'cpu-peak-6h',
       title: 'CPU peak',
@@ -473,6 +474,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         : 'Based on retained local vitals samples.',
       sampleCount,
       bootedAt: vitalsHistory.bootedAt || null,
+      checkedAt,
+      freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: vitalsHistory.source,
       confidence: 'persisted'
     });
@@ -480,6 +483,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
 
   const bootHistory = vitalsData && vitalsData.bootHistory;
   if (bootHistory && Number(bootHistory.sampleCount) > 0 && bootHistory.source) {
+    const checkedAt = bootHistory.lastSeenAt || null;
     summaries.push({
       id: 'mac-boot-7d',
       title: 'Mac boot',
@@ -492,6 +496,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         : 'Current boot session is persisted.',
       sampleCount: bootHistory.sampleCount,
       restartCount7d: bootHistory.restartCount7d,
+      checkedAt,
+      freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: bootHistory.source,
       confidence: 'persisted'
     });
@@ -500,6 +506,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   const wanHistory = intelligence && intelligence.wanQuality && intelligence.wanQuality.wanHistory;
   if (wanHistory && Number(wanHistory.sampleCount) > 0 && wanHistory.source) {
     const worst = wanHistory.max24hMs === null ? 'unknown' : `${wanHistory.max24hMs} ms`;
+    const checkedAt = wanHistory.lastSampleAt || null;
     summaries.push({
       id: 'wan-latency-24h',
       title: 'WAN latency',
@@ -507,6 +514,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
       value: wanHistory.currentMs === null ? 'No live average' : `${wanHistory.currentMs} ms now`,
       detail: `Worst check ${worst} across ${wanHistory.sampleCount} persisted sample${wanHistory.sampleCount === 1 ? '' : 's'}.`,
       sampleCount: wanHistory.sampleCount,
+      checkedAt,
+      freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: wanHistory.source,
       confidence: 'persisted'
     });
@@ -514,6 +523,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
 
   const publicAccessHistory = intelligence && intelligence.publicAccess && intelligence.publicAccess.publicAccessHistory;
   if (publicAccessHistory && Number(publicAccessHistory.sampleCount) > 0 && publicAccessHistory.source) {
+    const checkedAt = publicAccessHistory.lastSeenAt || null;
     summaries.push({
       id: 'public-access-routes',
       title: 'Public access',
@@ -523,6 +533,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         ? `Route set last changed ${formatAgeFromDate(new Date(publicAccessHistory.lastChangedAt))}.`
         : 'Current public route state is persisted.',
       sampleCount: publicAccessHistory.sampleCount,
+      checkedAt,
+      freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: publicAccessHistory.source,
       confidence: 'persisted'
     });
@@ -530,6 +542,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
 
   const automationLogHistory = intelligence && intelligence.automationLogs && intelligence.automationLogs.automationLogHistory;
   if (automationLogHistory && Number(automationLogHistory.sampleCount) > 0 && automationLogHistory.source) {
+    const checkedAt = automationLogHistory.lastSeenAt || null;
     summaries.push({
       id: 'automation-log-state',
       title: 'Automation logs',
@@ -540,6 +553,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         : 'Current automation log state is persisted.',
       sampleCount: automationLogHistory.sampleCount,
       issueCount: automationLogHistory.issueCount,
+      checkedAt,
+      freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: automationLogHistory.source,
       confidence: 'persisted'
     });
@@ -558,6 +573,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
       return title !== 'Status check' && !/no changes/i.test(detail);
     });
     if (recent.length > 0) {
+      const checkedAt = recent[0] && recent[0].at || null;
       summaries.push({
         id: 'house-changes-24h',
         title: 'House changes',
@@ -568,6 +584,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
           : 'No meaningful persisted timeline events in the last 24 hours.',
         sampleCount: recent.length,
         meaningfulCount: meaningful.length,
+        checkedAt,
+        freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
         source: 'data/teddy-house/timeline.json',
         confidence: 'persisted'
       });
@@ -1975,6 +1993,7 @@ function updateWanHistory(ctx, signal) {
     max24hMs,
     maxLossPct,
     sampleCount: recent.length,
+    lastSampleAt: sample.at,
     source: 'data/teddy-house/wan-history.json'
   };
 }
@@ -2027,6 +2046,7 @@ async function updateVitalsHistory(ctx, sample) {
     samples: recent.length,
     bootedAt,
     scopedToBoot: Boolean(bootedAt),
+    lastSampleAt: at,
     source: 'data/teddy-house/vitals-history.json'
   };
 }
@@ -2081,6 +2101,7 @@ function updateBootHistory(ctx, sample, vitalsHistory) {
     currentBootedAt,
     restartCount7d,
     sampleCount: recentBoots.length,
+    lastSeenAt: retained[0] && retained[0].lastSeenAt || at,
     source: 'data/teddy-house/boot-history.json'
   };
 }

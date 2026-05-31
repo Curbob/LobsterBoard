@@ -1346,7 +1346,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       window: '6h',
       source: 'data/teddy-house/vitals-history.json',
       scopedToBoot: expect.any(Boolean),
-      samples: expect.any(Number)
+      samples: expect.any(Number),
+      lastSampleAt: expect.any(String)
     }));
     expect(data.vitals.vitalsHistory.samples).toBeGreaterThan(0);
     expect(visuals.vitalsGrid.inputs.vitalsHistory.source).toBe('data/teddy-house/vitals-history.json');
@@ -1363,9 +1364,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       window: '6h',
       source: 'data/teddy-house/vitals-history.json',
       confidence: 'persisted',
-      sampleCount: expect.any(Number)
+      sampleCount: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     expect(cpuSummary.sampleCount).toBeGreaterThan(0);
+    expect(new Date(cpuSummary.checkedAt).getTime()).not.toBeNaN();
     const bootSummary = data.historicalSummaries.find(summary => summary.id === 'mac-boot-7d');
     expect(bootSummary).toEqual(expect.objectContaining({
       title: 'Mac boot',
@@ -1373,14 +1377,18 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/boot-history.json',
       confidence: 'persisted',
       sampleCount: expect.any(Number),
-      restartCount7d: expect.any(Number)
+      restartCount7d: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     expect(bootSummary.sampleCount).toBeGreaterThan(0);
+    expect(new Date(bootSummary.checkedAt).getTime()).not.toBeNaN();
     expect(data.vitals.bootHistory).toEqual(expect.objectContaining({
       window: '7d',
       source: 'data/teddy-house/boot-history.json',
       sampleCount: expect.any(Number),
-      restartCount7d: expect.any(Number)
+      restartCount7d: expect.any(Number),
+      lastSeenAt: expect.any(String)
     }));
     const changesSummary = data.historicalSummaries.find(summary => summary.id === 'house-changes-24h');
     expect(changesSummary).toEqual(expect.objectContaining({
@@ -1389,7 +1397,9 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/timeline.json',
       confidence: 'persisted',
       sampleCount: expect.any(Number),
-      meaningfulCount: expect.any(Number)
+      meaningfulCount: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     const wanSummary = data.historicalSummaries.find(summary => summary.id === 'wan-latency-24h');
     expect(wanSummary).toEqual(expect.objectContaining({
@@ -1397,13 +1407,17 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       window: '24h',
       source: 'data/teddy-house/wan-history.json',
       confidence: 'persisted',
-      sampleCount: expect.any(Number)
+      sampleCount: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     expect(wanSummary.sampleCount).toBeGreaterThan(0);
+    expect(new Date(wanSummary.checkedAt).getTime()).not.toBeNaN();
     expect(data.intelligence.wanQuality.wanHistory).toEqual(expect.objectContaining({
       window: '24h',
       source: 'data/teddy-house/wan-history.json',
-      sampleCount: expect.any(Number)
+      sampleCount: expect.any(Number),
+      lastSampleAt: expect.any(String)
     }));
     const publicAccessSummary = data.historicalSummaries.find(summary => summary.id === 'public-access-routes');
     expect(publicAccessSummary).toEqual(expect.objectContaining({
@@ -1411,7 +1425,9 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       window: 'current',
       source: 'data/teddy-house/public-access-history.json',
       confidence: 'persisted',
-      sampleCount: expect.any(Number)
+      sampleCount: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     expect(publicAccessSummary.sampleCount).toBeGreaterThan(0);
     expect(data.intelligence.publicAccess.publicAccessHistory).toEqual(expect.objectContaining({
@@ -1427,7 +1443,9 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/automation-log-history.json',
       confidence: 'persisted',
       sampleCount: expect.any(Number),
-      issueCount: expect.any(Number)
+      issueCount: expect.any(Number),
+      checkedAt: expect.any(String),
+      freshness: expect.any(String)
     }));
     expect(automationSummary.sampleCount).toBeGreaterThan(0);
     expect(data.intelligence.automationLogs.automationLogHistory).toEqual(expect.objectContaining({
@@ -1445,6 +1463,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       expect(summary.source).toMatch(/^data\/teddy-house\//);
       expect(summary.window).toMatch(/^(6h|7d|24h|current)$/);
       expect(summary.sampleCount).toEqual(expect.any(Number));
+      expect(summary.freshness).toEqual(expect.any(String));
     }
   }, 12000);
 
