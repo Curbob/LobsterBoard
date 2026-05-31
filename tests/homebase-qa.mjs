@@ -588,6 +588,46 @@ function verifyReplayFixtures() {
   return contracts;
 }
 
+function acceptanceGates(fixtureContracts, local, publicAuth) {
+  const screenshots = local && local.screenshots ? local.screenshots : {};
+  const persisted = local && local.persisted ? local.persisted : {};
+  const headline = local && local.headline ? local.headline.replace(/[.]+$/, '') : 'no headline';
+  return [
+    {
+      name: 'replay-contracts',
+      status: fixtureContracts.length === 6 ? 'ok' : 'fail',
+      detail: `${fixtureContracts.length} house stories validated.`
+    },
+    {
+      name: 'local-routes',
+      status: local && local.headline && local.firstZone ? 'ok' : 'fail',
+      detail: `Health, logs, and page smoke returned ${headline}.`
+    },
+    {
+      name: 'screenshots',
+      status: screenshots.status === 'captured' ? 'ok' : 'skipped',
+      detail: screenshots.status === 'captured'
+        ? `${screenshots.outputs.length} responsive screenshots captured.`
+        : screenshots.status || 'not captured'
+    },
+    {
+      name: 'persisted-evidence',
+      status: persisted.timelineEvents > 0 && persisted.visualEvidenceEntries > 0 && persisted.vitalsSamples > 0 ? 'ok' : 'fail',
+      detail: `${persisted.timelineEvents || 0} timeline events, ${persisted.visualEvidenceEntries || 0} visual entries, ${persisted.vitalsSamples || 0} vitals samples.`
+    },
+    {
+      name: 'public-auth',
+      status: publicAuth === 'enforced' ? 'ok' : 'skipped',
+      detail: publicAuth
+    },
+    {
+      name: 'live-first-story',
+      status: local && local.firstZone && local.firstDecision ? 'ok' : 'fail',
+      detail: `${local && local.firstZone ? local.firstZone : 'unknown'}: ${local && local.firstDecision ? local.firstDecision : 'missing decision'}`
+    }
+  ];
+}
+
 async function smokePublicAuth() {
   const pageUrl = `${PUBLIC_BASE}/pages/teddy-house/`;
   const apiUrl = `${PUBLIC_BASE}/api/pages/teddy-house/health`;
@@ -610,11 +650,13 @@ async function main() {
   const fixtureContracts = verifyReplayFixtures();
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
+  const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
     reportFile: QA_REPORT_FILE,
     git: gitMetadata(),
+    acceptanceGates: gates,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
