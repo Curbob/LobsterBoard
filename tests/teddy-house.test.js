@@ -79,6 +79,8 @@ describe('Teddy Homebase page', () => {
     const expected = fixture.expected;
 
     expect(result.houseState.headline).toBe(expected.headline);
+    expect(result.houseState.summary).toBe(expected.summary);
+    expect(result.houseState.primaryAction).toBe(expected.primaryAction);
     expect(result.houseState.zones[0]).toEqual(expect.objectContaining({
       id: expected.firstZone,
       state: expected.firstZoneState

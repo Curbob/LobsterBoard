@@ -50,6 +50,8 @@
   "timeline": [],
   "expected": {
     "headline": "Homebase found an issue.",
+    "summary": "Start with automations. Core evidence is still available below.",
+    "primaryAction": "Start with automations.",
     "firstZone": "smart-home",
     "firstZoneState": "bad",
     "firstReview": "Automation logs: Govee connection degraded",

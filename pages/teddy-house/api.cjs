@@ -2893,7 +2893,9 @@ function translatePrimaryAction(needs) {
   if (/external|public|funnel|access|tailscale/.test(first)) return 'Start with public access.';
   if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
   if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
-  if (/mac restart|watchdog|panic|mac|cpu|memory|disk|system logs|updates|openclaw|app versions/.test(first)) return 'Start with the Mac mini restart.';
+  if (/openclaw/.test(first)) return 'Start with OpenClaw.';
+  if (/mac restart|watchdog|panic/.test(first)) return 'Start with the Mac mini restart.';
+  if (/mac|cpu|memory|disk|system logs|updates|app versions/.test(first)) return 'Start with the Mac mini.';
   return 'Start with the first review item.';
 }
 

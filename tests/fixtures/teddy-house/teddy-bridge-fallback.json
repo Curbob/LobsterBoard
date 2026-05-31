@@ -50,6 +50,8 @@
   "timeline": [],
   "expected": {
     "headline": "Something needs a look.",
+    "summary": "Start with OpenClaw. Everything else is responding.",
+    "primaryAction": "Start with OpenClaw.",
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "OpenClaw: bridge degraded",

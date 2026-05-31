@@ -50,6 +50,8 @@
   "timeline": [],
   "expected": {
     "headline": "Something needs a look.",
+    "summary": "Start with public access. Everything else is responding.",
+    "primaryAction": "Start with public access.",
     "firstZone": "outside-access",
     "firstZoneState": "warn",
     "firstReview": "Public access: route drift",

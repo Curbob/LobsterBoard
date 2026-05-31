@@ -60,6 +60,8 @@
   "timeline": [],
   "expected": {
     "headline": "Mac mini restarted this morning.",
+    "summary": "Start with the Mac mini restart; house services are online.",
+    "primaryAction": "Start with the Mac mini restart.",
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "Mac restart incident",
