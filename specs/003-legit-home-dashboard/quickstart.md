@@ -64,6 +64,6 @@ Expected:
 - Rendered first-screen assertions confirm loaded copy, decision-to-evidence ordering, house-state ordering, grouped recent changes, local links below recent changes, no horizontal overflow, and no raw/scaffold labels in the visible viewport.
 - Review provenance assertions confirm every visible review item has source, timestamp, freshness, and confidence metadata.
 - Ranking assertions confirm the first visible review item maps to the first warned house zone in replay fixtures and the live local health smoke.
-- Ask Teddy assertions confirm the `/ask` route answers from current dashboard context without hanging and persists bounded `ask-history.json` evidence.
+- Ask Teddy assertions confirm the `/ask` route answers from current dashboard context without hanging, persists bounded `ask-history.json` evidence, and keeps `prepare-fix` as a dry-run plan with approval language.
 - Persisted evidence assertions confirm `timeline.json`, `visual-evidence.json`, `vitals-history.json`, `snapshot.json`, and `service-logs.json` are created, parseable, bounded, and source-linked.
 - Public Homebase auth is verified when the Funnel route is reachable. Set `HOMEBASE_REQUIRE_PUBLIC_SMOKE=1` to make that mandatory.

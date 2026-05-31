@@ -468,6 +468,25 @@ async function smokeLocalRoutes() {
     assert(['local', 'local-fallback', 'teddy'].includes(askData.source), `Ask Teddy returned unexpected source ${askData.source}`);
     assert(String(askData.answer || '').includes('Readiness'), 'Ask Teddy answer did not use dashboard readiness context');
 
+    const prepare = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dryRun: true,
+        action: 'prepare-fix',
+        prompt: 'Prepare a dry-run fix plan for the first Homebase review item.',
+        clicked: { type: 'review', label: data.needsDan[0] || 'Homebase status' },
+        context: data
+      })
+    });
+    assert(prepare.status === 200, `Ask Teddy prepare-fix dry run returned ${prepare.status}`);
+    const prepareData = await prepare.json();
+    assert(prepareData.status === 'complete' && prepareData.dryRun === true, `Ask Teddy prepare-fix was not a dry run: ${JSON.stringify(prepareData)}`);
+    assert(String(prepareData.promptPreview || '').includes('dry-run plan only'), 'prepare-fix prompt is missing dry-run language');
+    assert(String(prepareData.promptPreview || '').includes('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.'), 'prepare-fix prompt is missing no-mutation guard');
+    assert(String(prepareData.promptPreview || '').includes('exact approval needed'), 'prepare-fix prompt is missing approval language');
+    assert(!/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/.test(String(prepareData.promptPreview || '')), 'prepare-fix dry run included a mutation command');
+
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
@@ -485,7 +504,11 @@ async function smokeLocalRoutes() {
       ask: {
         status: askData.status,
         source: askData.source,
-        answerLength: String(askData.answer || '').length
+        answerLength: String(askData.answer || '').length,
+        prepareFixDryRun: prepareData.dryRun === true,
+        prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
+          && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
+          && /exact approval needed/.test(String(prepareData.promptPreview || ''))
       },
       screenshots,
       persisted
@@ -701,6 +724,13 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars, ${persisted.askHistoryEntries || 0} persisted.` : 'Ask Teddy did not answer.'
     },
     {
+      name: 'ask-action-safety',
+      status: local && local.ask && local.ask.prepareFixDryRun && local.ask.prepareFixGuarded ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.prepareFixDryRun
+        ? 'Prepare fix dry-run includes no-mutation and approval language.'
+        : 'Prepare fix dry-run did not prove action safety.'
+    },
+    {
       name: 'public-auth',
       status: publicAuth === 'enforced' ? 'ok' : 'skipped',
       detail: publicAuth
@@ -744,6 +774,13 @@ function trustChecks(local, publicAuth) {
       detail: publicAuth === 'enforced'
         ? 'Public page redirects to login and public health API returns 401.'
         : publicAuth
+    },
+    {
+      name: 'ask-action-safety',
+      status: local && local.ask && local.ask.prepareFixDryRun && local.ask.prepareFixGuarded ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.prepareFixDryRun
+        ? 'Ask Teddy prepare-fix is dry-run only and names approval before mutation.'
+        : 'Ask Teddy prepare-fix safety was not proved.'
     }
   ];
 }
