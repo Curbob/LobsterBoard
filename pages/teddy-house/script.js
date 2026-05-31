@@ -507,11 +507,20 @@ async function loadHealth() {
 
 document.getElementById("refresh-button").addEventListener("click", loadHealth);
 
-function setAskState(state, text) {
+function setAskState(state, text, source = "") {
   const pill = document.getElementById("ask-state");
   const response = document.getElementById("ask-response");
-  if (pill) pill.textContent = state;
-  if (response && text !== undefined) response.textContent = text;
+  if (pill) {
+    pill.textContent = state;
+    if (source) pill.dataset.source = source;
+    else delete pill.dataset.source;
+  }
+  if (response) {
+    if (source) response.dataset.source = source;
+    else delete response.dataset.source;
+    response.classList.toggle("is-fallback", source === "local-fallback");
+    if (text !== undefined) response.textContent = text;
+  }
 }
 
 async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
@@ -557,7 +566,10 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
         : data.status === "complete"
           ? "Answered"
           : "Done";
-    setAskState(answerState, data.answer || "Teddy answered, but no text came back.");
+    const answerText = data.source === "local-fallback" && !/Teddy bridge/i.test(data.answer || "")
+      ? `Teddy bridge needs attention. ${data.answer || "I used the dashboard context instead."}`
+      : data.answer || "Teddy answered, but no text came back.";
+    setAskState(answerState, answerText, data.source || "");
     if (input && action !== "status") input.value = "";
   } catch (err) {
     const message = err.name === "AbortError"

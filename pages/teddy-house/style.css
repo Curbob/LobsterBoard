@@ -1061,6 +1061,10 @@ h3 {
   white-space: pre-wrap;
 }
 
+.ask-response.is-fallback {
+  color: var(--text);
+}
+
 .need-chip {
   display: inline-flex;
   align-items: center;

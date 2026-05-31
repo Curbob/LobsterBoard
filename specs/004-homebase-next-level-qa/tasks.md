@@ -6,7 +6,7 @@
 - [x] Assert API headline, rendered headline, first zone, and Ask Teddy first action agree for the live local Homebase smoke.
 - [x] Extend story-agreement assertions to replayed health states.
 - [x] Assert replayed first review item, first zone, and Ask Teddy first action agree.
-- [ ] Assert Teddy fallback copy is visibly labeled when the live bridge is unavailable.
+- [x] Assert Teddy fallback copy is visibly labeled when the live bridge is unavailable.
 - [x] Save a compact story-agreement report in `artifacts/qa/homebase-latest.json`.
 
 ## Phase 2: Recorded Incident Bundles

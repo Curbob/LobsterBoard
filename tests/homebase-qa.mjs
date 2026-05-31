@@ -296,6 +296,52 @@ async function smokeCachedLogin(baseUrl) {
   }
 }
 
+async function smokeAskFallback() {
+  const srv = await startServer({
+    env: {
+      TEDDY_HOMEBASE_OPENCLAW_BIN: '/private/tmp/homebase-missing-openclaw-bin',
+      TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '1000'
+    }
+  });
+  try {
+    const res = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'status',
+        prompt: 'What matters right now?',
+        context: {
+          score: 84,
+          needsDan: ['OpenClaw: bridge degraded'],
+          houseState: {
+            headline: 'Something needs a look.',
+            summary: 'Start with OpenClaw. Everything else is responding.',
+            tone: 'review',
+            primaryAction: 'Check OpenClaw first.'
+          },
+          services: {
+            openclaw: { state: 'warn', metric: '127.0.0.1', detail: 'Bridge degraded.' }
+          }
+        }
+      })
+    });
+    assert(res.status === 200, `Ask Teddy fallback smoke returned ${res.status}`);
+    const data = await res.json();
+    assert(data.status === 'complete', `Ask Teddy fallback smoke did not complete: ${JSON.stringify(data)}`);
+    assert(data.source === 'local-fallback', `Ask Teddy fallback smoke returned source ${data.source}, expected local-fallback`);
+    assert(/Teddy bridge did not answer cleanly/i.test(String(data.answer || '')), 'Ask Teddy fallback answer was not labeled honestly');
+    assert(/OpenClaw|bridge/i.test(String(data.answer || '')), 'Ask Teddy fallback answer did not preserve bridge context');
+    return {
+      status: 'ok',
+      source: data.source,
+      answerLength: String(data.answer || '').length,
+      labeled: /Teddy bridge did not answer cleanly/i.test(String(data.answer || ''))
+    };
+  } finally {
+    await srv.kill();
+  }
+}
+
 async function startChrome(userDataDir) {
   return new Promise((resolve, reject) => {
     const child = spawn(CHROME_BIN, [
@@ -787,6 +833,7 @@ async function smokeLocalRoutes() {
     assertFirstScreenCopyClean(data, 'local health');
     const noFakeHomeState = assertNoFakeHomeState(data);
     const cachedUpdateLabels = assertCachedUpdateLabels(data);
+    const askFallback = await smokeAskFallback();
 
     const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
       method: 'POST',
@@ -849,6 +896,9 @@ async function smokeLocalRoutes() {
         status: askData.status,
         source: askData.source,
         answerLength: String(askData.answer || '').length,
+        fallbackStatus: askFallback.status,
+        fallbackSource: askFallback.source,
+        fallbackLabeled: askFallback.labeled,
         prepareFixDryRun: prepareData.dryRun === true,
         prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
           && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
@@ -1078,8 +1128,8 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
     },
     {
       name: 'ask-teddy',
-      status: local && local.ask && local.ask.status === 'complete' && local.ask.answerLength > 0 ? 'ok' : 'fail',
-      detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars, ${persisted.askHistoryEntries || 0} persisted.` : 'Ask Teddy did not answer.'
+      status: local && local.ask && local.ask.status === 'complete' && local.ask.answerLength > 0 && local.ask.fallbackLabeled ? 'ok' : 'fail',
+      detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars, fallback ${local.ask.fallbackSource || 'missing'}, ${persisted.askHistoryEntries || 0} persisted.` : 'Ask Teddy did not answer.'
     },
     {
       name: 'ask-action-safety',
@@ -1087,6 +1137,13 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       detail: local && local.ask && local.ask.prepareFixDryRun
         ? 'Prepare fix dry-run includes no-mutation and approval language.'
         : 'Prepare fix dry-run did not prove action safety.'
+    },
+    {
+      name: 'ask-fallback-visibility',
+      status: local && local.ask && local.ask.fallbackLabeled ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.fallbackLabeled
+        ? 'Forced bridge failure returns local-fallback and labels the bridge failure.'
+        : 'Ask Teddy fallback visibility was not proved.'
     },
     {
       name: 'story-agreement',
@@ -1421,6 +1478,13 @@ function trustChecks(local, publicAuth) {
       detail: local && local.storyAgreement
         ? 'API, rendered page, and Ask Teddy agree on the first Homebase action.'
         : 'API, rendered page, and Ask Teddy story agreement was not proved.'
+    },
+    {
+      name: 'ask-fallback-visibility',
+      status: local && local.ask && local.ask.fallbackLabeled ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.fallbackLabeled
+        ? 'Forced bridge failure returns local-fallback and says the Teddy bridge did not answer cleanly.'
+        : 'Ask Teddy fallback visibility was not proved.'
     }
   ];
 }

@@ -561,6 +561,104 @@ describe('Teddy Homebase page', () => {
     expect(script).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
 
+  it('labels Ask Teddy fallback visibly in the dashboard UI', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="refresh-button"></button>
+      <form id="ask-form">
+        <input id="ask-input">
+        <button id="ask-submit"></button>
+      </form>
+      <button id="ask-status-button"></button>
+      <div id="ask-state"></div>
+      <div id="ask-response"></div>
+      <div id="summary-title"></div>
+      <div id="summary-copy"></div>
+      <div id="health-score"></div>
+      <div id="score-ring"></div>
+      <div id="next-action"></div>
+      <div id="last-check"></div>
+      <div id="teddy-line"></div>
+      <section id="review-lane" class="needs-lane">
+        <div id="needs-title"></div>
+        <div id="needs-list"></div>
+      </section>
+      <section id="daily-decision"><div id="decision-grid"></div></section>
+      <section id="house-state"><span id="house-state-pill"></span><div id="house-zone-grid"></div></section>
+      <div id="service-grid"></div>
+      <div id="vitals-grid"></div>
+      <div id="signal-grid"></div>
+      <div id="history-grid"></div>
+      <div id="events-list"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/health') {
+        return {
+          ok: true,
+          json: async () => ({
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            score: 84,
+            needsDan: ['OpenClaw: bridge degraded'],
+            reviewEvidence: [],
+            houseState: {
+              headline: 'Something needs a look.',
+              summary: 'Start with OpenClaw. Everything else is responding.',
+              tone: 'review',
+              primaryAction: 'Check OpenClaw first.',
+              zones: [
+                { id: 'mac-mini', title: 'Mac mini', state: 'warn', value: 'Review', detail: 'Bridge degraded.', evidence: ['OpenClaw'] },
+                { id: 'outside-access', title: 'Public access', state: 'info', value: 'Known', detail: 'Expected public routes are accounted for.', evidence: ['Tailscale Funnel'] },
+                { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet is responding.', evidence: ['Internet'] },
+                { id: 'smart-home', title: 'Automations', state: 'ok', value: 'Responding', detail: 'Homebridge is responding.', evidence: ['Homebridge'] }
+              ],
+              recentChanges: []
+            },
+            dailyDecision: {
+              slots: [
+                { key: 'now', label: 'Now', text: 'Check OpenClaw first.', state: 'warn', source: 'OpenClaw' },
+                { key: 'watch', label: 'Watch', text: 'Public access is known and passworded.', state: 'info', source: 'Tailscale Funnel' },
+                { key: 'later', label: 'Later', text: 'No maintenance needed.', state: 'ok', source: 'maintenance' }
+              ]
+            },
+            services: {},
+            vitals: { health: {} },
+            intelligence: {},
+            timeline: []
+          })
+        };
+      }
+      if (url === '/api/pages/teddy-house/ask') {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'complete',
+            source: 'local-fallback',
+            answer: 'I used the dashboard context instead.'
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+    dom.window.document.getElementById('ask-status-button').click();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const state = dom.window.document.getElementById('ask-state');
+    const response = dom.window.document.getElementById('ask-response');
+    expect(state.textContent).toBe('Fallback');
+    expect(state.dataset.source).toBe('local-fallback');
+    expect(response.dataset.source).toBe('local-fallback');
+    expect(response.classList.contains('is-fallback')).toBe(true);
+    expect(response.textContent).toContain('Teddy bridge needs attention.');
+    expect(response.textContent).toContain('I used the dashboard context instead.');
+  });
+
   it('has iPhone home-screen metadata and install icons', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
