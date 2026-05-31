@@ -20,11 +20,11 @@
 
 ## Copy Truth
 
-- [ ] No user-facing copy like `Service Logs: 70`, `System Logs: 2`, or `Recent Mac logs need attention`.
-- [ ] No generic `Something needs a look` when a specific incident is known.
-- [ ] No raw ports, IPs, versions, log counts, or ignored lock evidence on any replayed first screen.
-- [ ] Review copy names what Dan should check first.
-- [ ] The complete `Now / Watch / Later` strip is locked for each replay fixture.
+- [x] No user-facing copy like `Service Logs: 70`, `System Logs: 2`, or `Recent Mac logs need attention`.
+- [x] No generic `Something needs a look` when a specific incident is known.
+- [x] No raw ports, IPs, versions, log counts, or ignored lock evidence on any replayed first screen.
+- [x] Review copy names what Dan should check first.
+- [x] The complete `Now / Watch / Later` strip is locked for each replay fixture.
 
 ## Auth And Action Safety
 

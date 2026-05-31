@@ -62,6 +62,7 @@ Expected:
 - Phone, iPad, and desktop screenshots are captured to `artifacts/qa/homebase-latest-*.png` when local Chrome is available.
 - The latest QA proof JSON is saved to `artifacts/qa/homebase-latest.json` with git metadata, aggregate acceptance status, acceptance gates, trust checks, replay contracts, screenshot metadata, and persisted evidence counts.
 - Rendered first-screen assertions confirm loaded copy, decision-to-evidence ordering, house-state ordering, grouped recent changes, local links below recent changes, no horizontal overflow, and no raw/scaffold labels in the visible viewport.
+- Copy-quality assertions confirm raw telemetry labels stay off replayed first screens, known incidents get specific copy, review copy names the next check, and all `Now / Watch / Later` slots are locked.
 - Review provenance assertions confirm every visible review item has source, timestamp, freshness, and confidence metadata.
 - Ranking assertions confirm the first visible review item maps to the first warned house zone in replay fixtures and the live local health smoke.
 - Zone-ranking assertions confirm Automations, Mac mini, Public access, and Internet warning ownership across replay fixtures.

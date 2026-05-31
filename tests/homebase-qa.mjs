@@ -895,6 +895,25 @@ function zoneRankingCoverage(fixtureContracts) {
   };
 }
 
+function copyQualityCoverage(fixtureContracts) {
+  const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
+  const byName = new Map(contracts.map(contract => [contract.name, contract]));
+  const dailySlotsLocked = contracts.length === 6
+    && contracts.every(contract => Array.isArray(contract.dailySlots) && contract.dailySlots.length === 3);
+  const macIncidentSpecific = byName.get('mac-panic')?.headline === 'Mac mini restarted this morning.';
+  const reviewCopySpecific = contracts.every(contract => {
+    if (contract.name === 'healthy') return contract.nowText === 'Nothing needs Dan.';
+    return /^(Check|Review) /.test(String(contract.nowText || ''));
+  });
+  return {
+    status: dailySlotsLocked && macIncidentSpecific && reviewCopySpecific ? 'ok' : 'fail',
+    detail: `daily slots ${dailySlotsLocked ? 'locked' : 'missing'}; incident copy ${macIncidentSpecific ? 'specific' : 'generic'}; review copy ${reviewCopySpecific ? 'specific' : 'generic'}`,
+    dailySlotsLocked,
+    macIncidentSpecific,
+    reviewCopySpecific
+  };
+}
+
 function trustChecks(local, publicAuth) {
   const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
     ? local.screenshots.outputs
@@ -986,6 +1005,7 @@ async function main() {
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
+  const copyCoverage = copyQualityCoverage(fixtureContracts);
   const checks = trustChecks(local, publicAuth);
   gates.push({
     name: 'zone-ranking-coverage',
@@ -997,6 +1017,16 @@ async function main() {
     status: zoneCoverage.status,
     detail: 'Replay fixtures prove Automations, Mac mini, Public access, and Internet warning ownership.'
   });
+  gates.push({
+    name: 'copy-quality-coverage',
+    status: copyCoverage.status,
+    detail: copyCoverage.detail
+  });
+  checks.push({
+    name: 'copy-quality-coverage',
+    status: copyCoverage.status,
+    detail: 'Replay fixtures lock clean first-screen copy, specific incident language, and the Now / Watch / Later strip.'
+  });
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
@@ -1006,6 +1036,7 @@ async function main() {
     acceptanceGates: gates,
     trustChecks: checks,
     zoneRankingCoverage: zoneCoverage.items,
+    copyQualityCoverage: copyCoverage,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
