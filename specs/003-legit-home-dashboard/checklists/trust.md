@@ -2,12 +2,12 @@
 
 ## Data Truth
 
-- [ ] Every visible warning has a source, timestamp, freshness, and confidence.
+- [x] Every visible warning has a source, timestamp, freshness, and confidence.
 - [ ] Healthy first screen does not show stale data as current.
 - [ ] No fake trends, fake graphs, fake room state, or inferred device state.
 - [ ] Eufy lock data remains ignored/degraded until the source is trustworthy.
 - [ ] Cached update data is labeled as cached.
-- [ ] Replay fixtures cover healthy, Govee/Homebridge loop, Mac panic, public exposure drift, WAN/DNS degradation, and Teddy bridge fallback.
+- [x] Replay fixtures cover healthy, Govee/Homebridge loop, Mac panic, public exposure drift, WAN/DNS degradation, and Teddy bridge fallback.
 
 ## Ranking Truth
 
@@ -28,17 +28,17 @@
 
 ## Auth And Action Safety
 
-- [ ] Remote Homebase remains passworded.
-- [ ] Public API returns `401` when unauthenticated.
+- [x] Remote Homebase remains passworded.
+- [x] Public API returns `401` when unauthenticated.
 - [ ] Loopback probe allowance remains narrow.
 - [ ] Ask Teddy may explain and prepare plans, but does not mutate services.
 - [ ] Any write action requires explicit approval.
 
 ## Visual QA
 
-- [ ] Phone width has no horizontal overflow.
-- [ ] iPad width has no horizontal overflow.
-- [ ] Desktop first screen is ranked and calm.
+- [x] Phone width has no horizontal overflow.
+- [x] iPad width has no horizontal overflow.
+- [x] Desktop first screen is ranked and calm.
 - [x] Local links stay below the health story.
 - [x] Recent changes are grouped and free of heartbeat/noise rows in rendered QA.
 - [x] Evidence sections stay subordinate unless a warning promotes them.

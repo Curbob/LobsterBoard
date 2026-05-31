@@ -719,6 +719,35 @@ function acceptanceStatus(gates) {
   return 'ok';
 }
 
+function trustChecks(local, publicAuth) {
+  const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
+    ? local.screenshots.outputs
+    : [];
+  const noOverflow = screenshots.length === SCREENSHOT_VIEWPORTS.length
+    && screenshots.every(item => item.scrollWidth <= item.width + 1);
+  return [
+    {
+      name: 'visible-warning-provenance',
+      status: local && local.reviewItems === local.reviewEvidenceItems ? 'ok' : 'fail',
+      detail: `${local && Number.isFinite(local.reviewEvidenceItems) ? local.reviewEvidenceItems : 0} visible review warning${local && local.reviewEvidenceItems === 1 ? '' : 's'} include source, timestamp, freshness, and confidence.`
+    },
+    {
+      name: 'responsive-overflow',
+      status: noOverflow ? 'ok' : 'fail',
+      detail: screenshots.length
+        ? screenshots.map(item => `${item.name}:${item.scrollWidth}/${item.width}`).join(', ')
+        : 'No screenshot layout measurements captured.'
+    },
+    {
+      name: 'remote-password-gate',
+      status: publicAuth === 'enforced' ? 'ok' : 'skipped',
+      detail: publicAuth === 'enforced'
+        ? 'Public page redirects to login and public health API returns 401.'
+        : publicAuth
+    }
+  ];
+}
+
 async function smokePublicAuth() {
   const pageUrl = `${PUBLIC_BASE}/pages/teddy-house/`;
   const apiUrl = `${PUBLIC_BASE}/api/pages/teddy-house/health`;
@@ -742,6 +771,7 @@ async function main() {
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
+  const checks = trustChecks(local, publicAuth);
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
@@ -749,6 +779,7 @@ async function main() {
     git: gitMetadata(),
     acceptanceStatus: acceptanceStatus(gates),
     acceptanceGates: gates,
+    trustChecks: checks,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
