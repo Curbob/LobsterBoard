@@ -425,6 +425,7 @@ function assertPersistedHomebaseData(cwd, data) {
   const evidence = readJsonFile(cwd, 'visual-evidence.json');
   const vitals = readJsonFile(cwd, 'vitals-history.json');
   const wan = readJsonFile(cwd, 'wan-history.json');
+  const publicAccess = readJsonFile(cwd, 'public-access-history.json');
   const snapshot = readJsonFile(cwd, 'snapshot.json');
   const serviceLogs = readJsonFile(cwd, 'service-logs.json');
 
@@ -454,9 +455,15 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(wan.entries.length <= 500, `wan-history.json exceeded retention limit: ${wan.entries.length}`);
   assert(wan.entries[0].at && Number.isFinite(Number(wan.entries[0].avgMs)), 'latest WAN sample is missing at/avgMs');
   assert(data.intelligence?.wanQuality?.wanHistory?.source === 'data/teddy-house/wan-history.json', 'health payload must cite persisted WAN history source');
+  assert(Array.isArray(publicAccess.entries), 'public-access-history.json must contain an entries array');
+  assert(publicAccess.entries.length > 0, 'public-access-history.json must retain at least one route state');
+  assert(publicAccess.entries.length <= 120, `public-access-history.json exceeded retention limit: ${publicAccess.entries.length}`);
+  assert(publicAccess.entries[0].changedAt && publicAccess.entries[0].routeKey, 'latest public access history entry is missing changedAt/routeKey');
+  assert(data.intelligence?.publicAccess?.publicAccessHistory?.source === 'data/teddy-house/public-access-history.json', 'health payload must cite persisted public access history source');
   assert(Array.isArray(data.historicalSummaries), 'health payload must include persisted historical summaries');
   const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
   const wanSummary = data.historicalSummaries.find(summary => summary.id === 'wan-latency-24h');
+  const publicAccessSummary = data.historicalSummaries.find(summary => summary.id === 'public-access-routes');
   const changesSummary = data.historicalSummaries.find(summary => summary.id === 'house-changes-24h');
   assert(cpuSummary?.source === 'data/teddy-house/vitals-history.json', 'CPU history summary must cite vitals-history.json');
   assert(cpuSummary.window === '6h', 'CPU history summary must use the 6h window');
@@ -464,6 +471,9 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(wanSummary?.source === 'data/teddy-house/wan-history.json', 'WAN history summary must cite wan-history.json');
   assert(wanSummary.window === '24h', 'WAN history summary must use the 24h window');
   assert(Number(wanSummary.sampleCount) > 0, 'WAN history summary must include persisted samples');
+  assert(publicAccessSummary?.source === 'data/teddy-house/public-access-history.json', 'public access summary must cite public-access-history.json');
+  assert(publicAccessSummary.window === 'current', 'public access summary must use the current route window');
+  assert(Number(publicAccessSummary.sampleCount) > 0, 'public access summary must include persisted samples');
   assert(changesSummary?.source === 'data/teddy-house/timeline.json', 'changes history summary must cite timeline.json');
   assert(changesSummary.window === '24h', 'changes history summary must use the 24h window');
   assert(Number(changesSummary.sampleCount) > 0, 'changes history summary must include persisted samples');
@@ -483,6 +493,7 @@ function assertPersistedHomebaseData(cwd, data) {
     visualEvidenceEntries: evidence.entries.length,
     vitalsSamples: vitals.entries.length,
     wanSamples: wan.entries.length,
+    publicAccessStates: publicAccess.entries.length,
     serviceLogItems: serviceLogs.items.length
   };
 }

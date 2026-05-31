@@ -1290,7 +1290,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
     expect(visuals.timeline.count).toBe(data.timeline.length);
     expect(Array.isArray(data.historicalSummaries)).toBe(true);
-    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(3);
+    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(4);
     const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
     expect(cpuSummary).toEqual(expect.objectContaining({
       title: 'CPU peak',
@@ -1323,6 +1323,21 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/wan-history.json',
       sampleCount: expect.any(Number)
     }));
+    const publicAccessSummary = data.historicalSummaries.find(summary => summary.id === 'public-access-routes');
+    expect(publicAccessSummary).toEqual(expect.objectContaining({
+      title: 'Public access',
+      window: 'current',
+      source: 'data/teddy-house/public-access-history.json',
+      confidence: 'persisted',
+      sampleCount: expect.any(Number)
+    }));
+    expect(publicAccessSummary.sampleCount).toBeGreaterThan(0);
+    expect(data.intelligence.publicAccess.publicAccessHistory).toEqual(expect.objectContaining({
+      window: 'current',
+      source: 'data/teddy-house/public-access-history.json',
+      sampleCount: expect.any(Number),
+      currentLabel: expect.any(String)
+    }));
     expect(visuals.historicalSummaries).toEqual(expect.objectContaining({
       type: 'persisted-summaries',
       count: data.historicalSummaries.length,
@@ -1330,7 +1345,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     }));
     for (const summary of visuals.historicalSummaries.inputs) {
       expect(summary.source).toMatch(/^data\/teddy-house\//);
-      expect(summary.window).toMatch(/^(6h|24h)$/);
+      expect(summary.window).toMatch(/^(6h|24h|current)$/);
       expect(summary.sampleCount).toEqual(expect.any(Number));
     }
   }, 12000);

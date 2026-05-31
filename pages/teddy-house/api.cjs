@@ -24,6 +24,7 @@ const VITALS_HISTORY_LIMIT = 500;
 const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
 const WAN_HISTORY_LIMIT = 500;
 const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
+const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
@@ -465,6 +466,22 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
     });
   }
 
+  const publicAccessHistory = intelligence && intelligence.publicAccess && intelligence.publicAccess.publicAccessHistory;
+  if (publicAccessHistory && Number(publicAccessHistory.sampleCount) > 0 && publicAccessHistory.source) {
+    summaries.push({
+      id: 'public-access-routes',
+      title: 'Public access',
+      window: 'current',
+      value: publicAccessHistory.currentLabel || 'Unknown',
+      detail: publicAccessHistory.lastChangedAt
+        ? `Route set last changed ${formatAgeFromDate(new Date(publicAccessHistory.lastChangedAt))}.`
+        : 'Current public route state is persisted.',
+      sampleCount: publicAccessHistory.sampleCount,
+      source: publicAccessHistory.source,
+      confidence: 'persisted'
+    });
+  }
+
   const events = Array.isArray(timeline) ? timeline : [];
   if (events.length > 0) {
     const cutoff = Date.now() - 24 * HOUR_MS;
@@ -757,6 +774,63 @@ function publicAccessRollup(funnelSignal) {
     acceptedRoutes,
     unexpectedRoutes,
     rawSignal: stripSignal(signal)
+  };
+}
+
+function publicAccessRouteKey(publicAccess) {
+  const accepted = Array.isArray(publicAccess && publicAccess.acceptedRoutes)
+    ? publicAccess.acceptedRoutes.map(route => `${route.port}:${route.name}`).sort()
+    : [];
+  const unexpected = Array.isArray(publicAccess && publicAccess.unexpectedRoutes)
+    ? publicAccess.unexpectedRoutes.map(route => `${route.port}:${route.name}`).sort()
+    : [];
+  return JSON.stringify({
+    state: publicAccess && publicAccess.state || 'info',
+    metric: publicAccess && publicAccess.metric || 'unknown',
+    accepted,
+    unexpected
+  });
+}
+
+function updatePublicAccessHistory(ctx, publicAccess) {
+  if (!publicAccess || typeof publicAccess !== 'object') return null;
+  const at = nowIso();
+  const history = readDataSafe(ctx, 'public-access-history.json', { entries: [] });
+  const existing = (Array.isArray(history.entries) ? history.entries : [])
+    .filter(entry => entry && entry.routeKey && entry.changedAt)
+    .slice(0, PUBLIC_ACCESS_HISTORY_LIMIT);
+  const routeKey = publicAccessRouteKey(publicAccess);
+  const routeNames = [
+    ...(Array.isArray(publicAccess.acceptedRoutes) ? publicAccess.acceptedRoutes : []),
+    ...(Array.isArray(publicAccess.unexpectedRoutes) ? publicAccess.unexpectedRoutes : [])
+  ].map(route => `${route.name} ${route.port}`);
+  const current = {
+    routeKey,
+    changedAt: at,
+    lastSeenAt: at,
+    state: publicAccess.state || 'info',
+    metric: publicAccess.metric || 'unknown',
+    value: publicAccess.value || 'Unknown',
+    detail: publicAccess.detail || null,
+    routeNames,
+    observations: 1
+  };
+  const [latest, ...rest] = existing;
+  const entries = latest && latest.routeKey === routeKey
+    ? [{ ...latest, lastSeenAt: at, observations: Number(latest.observations || 1) + 1 }, ...rest]
+    : [current, ...existing];
+  const retained = entries.slice(0, PUBLIC_ACCESS_HISTORY_LIMIT);
+  writeDataSafe(ctx, 'public-access-history.json', { entries: retained });
+  const active = retained[0] || current;
+  return {
+    window: 'current',
+    currentLabel: active.value || publicAccess.value || 'Unknown',
+    currentMetric: active.metric || publicAccess.metric || 'unknown',
+    lastChangedAt: active.changedAt || null,
+    lastSeenAt: active.lastSeenAt || at,
+    sampleCount: retained.length,
+    routeNames: active.routeNames || [],
+    source: 'data/teddy-house/public-access-history.json'
   };
 }
 
@@ -2377,12 +2451,15 @@ async function buildIntelligence(ctx) {
   ]);
   const wanHistory = updateWanHistory(ctx, rawWanQuality);
   const wanQuality = wanHistory ? { ...rawWanQuality, wanHistory } : rawWanQuality;
+  const publicAccessRaw = publicAccessRollup(funnel);
+  const publicAccessHistory = updatePublicAccessHistory(ctx, publicAccessRaw);
+  const publicAccess = publicAccessHistory ? { ...publicAccessRaw, publicAccessHistory } : publicAccessRaw;
 
   return {
     adguard,
     homebridge: { accessories, doorLocks, logHealth, version: homebridgeVersion },
     tailscaleFunnel: funnel,
-    publicAccess: publicAccessRollup(funnel),
+    publicAccess,
     wanQuality,
     serviceLogs,
     automationLogs: serviceLogs.automationLogs,
@@ -3037,6 +3114,7 @@ teddyHouseApi._internals = {
   domainServiceLogs,
   buildHistoricalSummaries,
   updateWanHistory,
+  updatePublicAccessHistory,
   publicAccessRollup,
   needsDan,
   scoreServices
