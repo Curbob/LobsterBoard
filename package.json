@@ -68,6 +68,7 @@
     "dev": "node server.cjs",
     "lint": "node tests/static-lint.mjs",
     "check": "npm run lint && npm test",
+    "check:homebase": "npm run check -- --runInBand && node tests/homebase-qa.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -5,6 +5,7 @@
 ```bash
 cd /Users/teddyclaw/teddy-house-lobsterboard
 npm run check -- --runInBand
+npm run check:homebase
 curl -sS http://127.0.0.1:8080/api/pages/teddy-house/health
 curl -sS http://127.0.0.1:8080/api/pages/teddy-house/logs
 ```
@@ -42,7 +43,7 @@ Expected:
 
 ## Replay Harness Target
 
-Once Phase 2 exists, the quick smoke should include:
+The quick smoke includes:
 
 ```bash
 npm run check:homebase
@@ -56,3 +57,5 @@ Expected:
 - Public route drift fixture promotes `Public access`.
 - WAN/DNS degradation fixture promotes `Internet`.
 - Teddy fallback fixture says the bridge is degraded instead of pretending it worked.
+- Local Homebase page, health API, and logs API render.
+- Public Homebase auth is verified when the Funnel route is reachable. Set `HOMEBASE_REQUIRE_PUBLIC_SMOKE=1` to make that mandatory.
