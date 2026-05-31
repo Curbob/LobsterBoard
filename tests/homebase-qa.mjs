@@ -27,6 +27,7 @@ const DATA_DIR = join('data', 'teddy-house');
 const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incidents');
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
+const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -198,6 +199,44 @@ function assertCachedUpdateLabels(data) {
     updateSignals: signals.length,
     cachedUpdateSignals: signals.filter(([, signal]) => signal && signal.confidence === 'cached').length,
     cachedLabelRenderer: true
+  };
+}
+
+function assertSourceContracts(data) {
+  const sourceContracts = data.sourceContracts || {};
+  const contracts = Array.isArray(sourceContracts.contracts) ? sourceContracts.contracts : [];
+  assert(contracts.length > 0, 'source contracts are missing');
+  assert(JSON.stringify(sourceContracts.trustLevels) === JSON.stringify(EXPECTED_SOURCE_TRUST), 'source contract trust levels drifted');
+  for (const contract of contracts) {
+    assert(contract.id, 'source contract is missing id');
+    assert(contract.label, `${contract.id} source contract is missing label`);
+    assert(contract.source, `${contract.id} source contract is missing source`);
+    assert(contract.freshness, `${contract.id} source contract is missing freshness`);
+    assert(contract.confidence, `${contract.id} source contract is missing confidence`);
+    assert(EXPECTED_SOURCE_TRUST.includes(contract.trust), `${contract.id} source contract has unknown trust ${contract.trust}`);
+    assert(typeof contract.firstScreenEligible === 'boolean', `${contract.id} source contract is missing firstScreenEligible boolean`);
+    assert(Array.isArray(contract.usedBy), `${contract.id} source contract is missing usedBy array`);
+    if (contract.trust !== 'trusted') {
+      assert(contract.firstScreenEligible === false, `${contract.id} non-trusted source is first-screen eligible`);
+    }
+  }
+  const byLabel = new Map(contracts.map(contract => [contract.label, contract]));
+  const zoneEvidence = (data.houseState?.zones || []).flatMap(zone => Array.isArray(zone.evidence) ? zone.evidence : []);
+  for (const label of zoneEvidence) {
+    assert(byLabel.has(label), `house-state evidence ${label} is missing a source contract`);
+  }
+  const doorLocks = contracts.find(contract => contract.id === 'door-locks');
+  assert(doorLocks && doorLocks.trust === 'ignored' && doorLocks.firstScreenEligible === false, 'door-lock source contract must stay ignored and ineligible');
+  const dnsBlocks = contracts.find(contract => contract.id === 'adguard-blocks');
+  assert(dnsBlocks && ['needs-login', 'degraded', 'trusted'].includes(dnsBlocks.trust), 'AdGuard source contract has invalid trust');
+  const firstScreenContracts = contracts.filter(contract => contract.houseStateEvidence || contract.firstScreenEligible);
+  assert(firstScreenContracts.every(contract => contract.trust === 'trusted'), 'non-trusted source is allowed into house-state evidence');
+  return {
+    contracts: contracts.length,
+    trusted: contracts.filter(contract => contract.trust === 'trusted').length,
+    degraded: contracts.filter(contract => contract.trust === 'degraded').length,
+    ignored: contracts.filter(contract => contract.trust === 'ignored').length,
+    needsLogin: contracts.filter(contract => contract.trust === 'needs-login').length
   };
 }
 
@@ -833,6 +872,7 @@ async function smokeLocalRoutes() {
     assertFirstScreenCopyClean(data, 'local health');
     const noFakeHomeState = assertNoFakeHomeState(data);
     const cachedUpdateLabels = assertCachedUpdateLabels(data);
+    const sourceContracts = assertSourceContracts(data);
     const askFallback = await smokeAskFallback();
 
     const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
@@ -915,6 +955,7 @@ async function smokeLocalRoutes() {
       cachedLogin,
       noFakeHomeState,
       cachedUpdateLabels,
+      sourceContracts,
       screenshots,
       persisted
     };
@@ -1202,6 +1243,13 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
         : 'Cached update label checks did not run.'
     },
     {
+      name: 'source-contracts',
+      status: local && local.sourceContracts && local.sourceContracts.contracts > 0 ? 'ok' : 'fail',
+      detail: local && local.sourceContracts
+        ? `${local.sourceContracts.contracts} contracts; ${local.sourceContracts.trusted} trusted, ${local.sourceContracts.degraded} degraded, ${local.sourceContracts.ignored} ignored, ${local.sourceContracts.needsLogin} needs login.`
+        : 'Source contract checks did not run.'
+    },
+    {
       name: 'live-first-story',
       status: local && local.firstZone && local.firstDecision ? 'ok' : 'fail',
       detail: `${local && local.firstZone ? local.firstZone : 'unknown'}: ${local && local.firstDecision ? local.firstDecision : 'missing decision'}`
@@ -1451,6 +1499,13 @@ function trustChecks(local, publicAuth) {
       detail: local && local.cachedUpdateLabels
         ? 'Software and macOS update signals carry confidence, and cached values render as Cached.'
         : 'Cached update label checks did not run.'
+    },
+    {
+      name: 'source-contracts',
+      status: local && local.sourceContracts && local.sourceContracts.contracts > 0 ? 'ok' : 'fail',
+      detail: local && local.sourceContracts
+        ? 'Visible house-state evidence maps to known trusted source contracts; degraded, ignored, and needs-login sources stay out of first-screen truth.'
+        : 'Source contract checks did not run.'
     },
     {
       name: 'ask-action-safety',

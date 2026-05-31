@@ -21,6 +21,7 @@ Expected today:
 - live local story agreement proves API, rendered page, and Ask Teddy name the same first action
 - forced Ask Teddy bridge failure proves fallback is labeled honestly in API and UI
 - local browser login smoke proves protected API is `401` before sign-in, `200` after sign-in, and still `200` in a new tab
+- source contracts prove every house-state source declares trust, freshness, confidence, source, and first-screen eligibility
 - local Homebase page, health, logs, and Ask smoke
 - public Funnel auth smoke when reachable
 - phone/iPad/desktop screenshots when browser automation is available

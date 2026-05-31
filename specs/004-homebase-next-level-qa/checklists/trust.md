@@ -38,7 +38,7 @@
 
 ## Source Trust
 
-- [ ] Every source declares freshness, confidence, and source path.
-- [ ] Every source declares trusted, degraded, ignored, or needs-login status.
-- [ ] Unknown source states cannot render as trusted house state.
-- [ ] New charts require persisted backing data.
+- [x] Every source declares freshness, confidence, and source path.
+- [x] Every source declares trusted, degraded, ignored, or needs-login status.
+- [x] Unknown source states cannot render as trusted house state.
+- [x] New charts require persisted backing data.

@@ -41,6 +41,7 @@ const DEFAULT_SIGNAL_KEYS = [
   'macUpdates',
   'systemLogs'
 ];
+const SOURCE_TRUST_LEVELS = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const SERVICE_NAMES = {
   adguard: 'DNS',
   homebridge: 'Homebridge',
@@ -718,6 +719,106 @@ function buildPresentationContract() {
     defaultZoneKeys: DEFAULT_ZONE_KEYS,
     defaultSignalKeys: DEFAULT_SIGNAL_KEYS,
     hiddenByDefault: HIDDEN_BY_DEFAULT
+  };
+}
+
+function sourceFreshness(signal, fallback = 'live') {
+  if (!signal || typeof signal !== 'object') return fallback;
+  if (signal.freshness) return signal.freshness;
+  if (signal.confidence) return signal.confidence;
+  if (signal.checkedAt) return formatAgeFromDate(new Date(signal.checkedAt));
+  return fallback;
+}
+
+function sourceLabel(signal, fallback) {
+  if (!signal || typeof signal !== 'object') return fallback;
+  return signal.source || signal.check || fallback;
+}
+
+function sourceTrust(signal) {
+  if (!signal || typeof signal !== 'object') return 'degraded';
+  const text = `${signal.value || ''} ${signal.label || ''} ${signal.detail || ''} ${signal.confidence || ''}`.toLowerCase();
+  if (signal.hidden === true || signal.ignored === true || /\bignored\b/.test(text)) return 'ignored';
+  if (/\blocked\b|\bneeds login\b|\blogin needed\b/.test(text)) return 'needs-login';
+  if (signal.confidence === 'degraded' || signal.state === 'bad' && /\bunavailable|could not|unknown\b/i.test(signal.detail || '')) return 'degraded';
+  return 'trusted';
+}
+
+function sourceContract(id, label, signal, options = {}) {
+  const trust = options.trust || sourceTrust(signal);
+  const confidence = signal && signal.confidence ? signal.confidence : options.confidence || 'derived';
+  const source = sourceLabel(signal, options.source || label);
+  return {
+    id,
+    label,
+    trust,
+    confidence,
+    freshness: sourceFreshness(signal, confidence),
+    source,
+    firstScreenEligible: options.firstScreenEligible !== undefined
+      ? Boolean(options.firstScreenEligible)
+      : trust === 'trusted' && signal && signal.hidden !== true,
+    usedBy: options.usedBy || [],
+    state: signal && signal.state || 'info'
+  };
+}
+
+function buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries) {
+  const homebridge = intelligence.homebridge || {};
+  const health = systemVitals.health || {};
+  const publicAccess = intelligence.publicAccess || intelligence.tailscaleFunnel;
+  const contracts = [
+    sourceContract('dns', 'DNS', services.adguard, { trust: 'trusted', source: 'AdGuard DNS probe', usedBy: ['network', 'service-grid'] }),
+    sourceContract('homebridge', 'Homebridge', services.homebridge, { trust: 'trusted', source: 'Homebridge port probe', usedBy: ['smart-home', 'service-grid'] }),
+    sourceContract('tailscale', 'Tailscale', services.tailscale, { trust: 'trusted', source: 'Tailscale status probe', usedBy: ['network', 'service-grid'] }),
+    sourceContract('internet', 'Internet', services.internet, { trust: 'trusted', source: 'WAN ping probe', usedBy: ['network', 'service-grid'] }),
+    sourceContract('openclaw', 'OpenClaw', services.openclaw, { trust: 'trusted', source: 'OpenClaw gateway probe', usedBy: ['mac-mini', 'service-grid'] }),
+    sourceContract('public-access', 'Public access', publicAccess, { source: 'Tailscale Funnel route check', usedBy: ['outside-access', 'house-state'] }),
+    sourceContract('wan-quality', 'WAN latency', intelligence.wanQuality, { source: 'WAN quality probe', usedBy: ['network', 'evidence'] }),
+    sourceContract('homebridge-accessories', 'Accessories', homebridge.accessories, { source: 'Homebridge accessory cache', usedBy: ['smart-home', 'evidence'] }),
+    sourceContract('homebridge-log', 'Homebridge logs', homebridge.logHealth, { source: 'Homebridge log parser', usedBy: ['smart-home', 'evidence'] }),
+    sourceContract('automation-logs', 'Automation logs', intelligence.automationLogs, { source: 'Grouped service logs', usedBy: ['smart-home', 'house-state'] }),
+    sourceContract('macos-updates', 'macOS', intelligence.macUpdates, { source: 'macOS software update check', usedBy: ['mac-mini', 'evidence'] }),
+    sourceContract('system-logs', 'System logs', intelligence.systemLogs, { source: 'macOS diagnostics scan', usedBy: ['mac-mini', 'house-state'] }),
+    sourceContract('service-logs', 'Service logs', intelligence.serviceLogs, { source: 'Grouped service logs', usedBy: ['mac-mini', 'smart-home', 'network', 'house-state'] }),
+    sourceContract('mac-mini-service-logs', 'Mac mini service logs', intelligence.macMiniLogs, { source: 'Grouped service logs', usedBy: ['mac-mini', 'house-state'] }),
+    sourceContract('network-service-logs', 'Network service logs', intelligence.networkLogs, { source: 'Grouped service logs', usedBy: ['network', 'evidence'] }),
+    sourceContract('adguard-blocks', 'DNS blocks', intelligence.adguard, { source: 'AdGuard stats API', usedBy: ['evidence'], firstScreenEligible: false }),
+    sourceContract('door-locks', 'Door locks', homebridge.doorLocks, { source: 'Homebridge cached accessories', usedBy: ['hidden-evidence'], firstScreenEligible: false }),
+    sourceContract('cpu-vitals', 'CPU load', health.cpu, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
+    sourceContract('memory-vitals', 'Memory pressure', health.memory, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
+    sourceContract('disk-vitals', 'Disk usage', health.disk, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] })
+  ];
+  if (Array.isArray(historicalSummaries)) {
+    for (const summary of historicalSummaries) {
+      contracts.push(sourceContract(`history-${summary.id}`, summary.title || summary.id, summary, {
+        trust: 'trusted',
+        confidence: summary.confidence || 'persisted',
+        source: summary.source,
+        firstScreenEligible: false,
+        usedBy: ['historical-summary']
+      }));
+    }
+  }
+  if (publicAccess && Array.isArray(publicAccess.acceptedRoutes)) {
+    for (const route of publicAccess.acceptedRoutes) {
+      const label = route.name || `Port ${route.port}`;
+      contracts.push(sourceContract(`public-route-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label, publicAccess, {
+        source: 'Tailscale Funnel route check',
+        firstScreenEligible: true,
+        usedBy: ['outside-access', 'house-state']
+      }));
+    }
+  }
+  const zoneEvidence = new Set((houseState && Array.isArray(houseState.zones) ? houseState.zones : [])
+    .flatMap(zone => Array.isArray(zone.evidence) ? zone.evidence : []));
+  return {
+    trustLevels: SOURCE_TRUST_LEVELS,
+    defaultRule: 'Only trusted, non-hidden sources may shape house-state cards. Degraded, ignored, and needs-login sources stay in evidence unless promoted by explicit review logic.',
+    contracts: contracts.map(contract => ({
+      ...contract,
+      houseStateEvidence: zoneEvidence.has(contract.label) || contract.usedBy.some(key => ['outside-access', 'network', 'smart-home', 'mac-mini', 'house-state'].includes(key))
+    }))
   };
 }
 
@@ -3361,6 +3462,7 @@ function teddyHouseApi(ctx = {}) {
         const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
         const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
         const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
+        const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);
         const visualEvidence = updateVisualEvidenceLog(
           ctx,
           buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision, historicalSummaries)
@@ -3375,6 +3477,7 @@ function teddyHouseApi(ctx = {}) {
           services,
           insights,
           intelligence,
+          sourceContracts,
           historicalSummaries,
           visualEvidence,
           presentation: buildPresentationContract(),

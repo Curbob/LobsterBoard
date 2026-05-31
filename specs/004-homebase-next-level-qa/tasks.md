@@ -44,7 +44,7 @@
 
 ## Phase 6: Source Contract
 
-- [ ] Add a source contract checklist template.
-- [ ] Require every new home-state source to state trusted/degraded/ignored/needs-login status.
-- [ ] Require every new source to state first-screen eligibility.
-- [ ] Add a lint or QA assertion that unknown source states cannot render as trusted house state.
+- [x] Add a source contract checklist template.
+- [x] Require every new home-state source to state trusted/degraded/ignored/needs-login status.
+- [x] Require every new source to state first-screen eligibility.
+- [x] Add a lint or QA assertion that unknown source states cannot render as trusted house state.

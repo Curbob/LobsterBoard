@@ -1152,6 +1152,35 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
     expect(data.visualEvidence.latest.visuals.signalGrid.inputs).toHaveProperty('wanQuality');
     expect(data.visualEvidence.latest.visuals.dependencyMap.type).toBe('static-topology');
+    expect(data).toHaveProperty('sourceContracts');
+    expect(data.sourceContracts.trustLevels).toEqual(['trusted', 'degraded', 'ignored', 'needs-login']);
+    expect(Array.isArray(data.sourceContracts.contracts)).toBe(true);
+    expect(data.sourceContracts.contracts.length).toBeGreaterThan(0);
+    for (const contract of data.sourceContracts.contracts) {
+      expect(contract).toEqual(expect.objectContaining({
+        id: expect.any(String),
+        label: expect.any(String),
+        trust: expect.stringMatching(/^(trusted|degraded|ignored|needs-login)$/),
+        confidence: expect.any(String),
+        freshness: expect.any(String),
+        source: expect.any(String),
+        firstScreenEligible: expect.any(Boolean),
+        usedBy: expect.any(Array)
+      }));
+      if (contract.trust !== 'trusted') {
+        expect(contract.firstScreenEligible).toBe(false);
+      }
+    }
+    const contractsByLabel = new Map(data.sourceContracts.contracts.map(contract => [contract.label, contract]));
+    const houseEvidence = data.houseState.zones.flatMap(zone => zone.evidence || []);
+    for (const label of houseEvidence) {
+      expect(contractsByLabel.has(label), `missing source contract for ${label}`).toBe(true);
+      expect(contractsByLabel.get(label).trust, `${label} should be trusted house-state evidence`).toBe('trusted');
+    }
+    expect(data.sourceContracts.contracts.find(contract => contract.id === 'door-locks')).toEqual(expect.objectContaining({
+      trust: 'ignored',
+      firstScreenEligible: false
+    }));
     expect(data).toHaveProperty('presentation');
     expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw']);
     expect(data.presentation.defaultZoneKeys).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
