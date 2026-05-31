@@ -451,6 +451,8 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('Prepare fix');
     expect(script).toContain('action: "prepare-fix"');
     expect(script).toContain('Do not run commands or change settings');
+    expect(script).toContain('data.source === "local-fallback"');
+    expect(script).toContain('Fallback');
     expect(script).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
 
@@ -759,6 +761,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.source).toBe('local-fallback');
+      expect(data.answer).toContain('Teddy bridge did not answer cleanly');
       expect(data.answer).toContain('No review item is currently called out.');
       expect(data.answer).not.toMatch(/Axon|Maria|birthday|pipeline/i);
     } finally {

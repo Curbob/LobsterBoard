@@ -30,7 +30,7 @@
 - [x] Add per-review `Explain` action using current health context.
 - [x] Add dry-run `Prepare fix` action with explicit approval language.
 - [x] Add tests proving no write/mutation command runs from dashboard actions.
-- [ ] Add fallback copy when Teddy/OpenClaw is unavailable.
+- [x] Add fallback copy when Teddy/OpenClaw is unavailable.
 
 ## Phase 5: QA Gate
 

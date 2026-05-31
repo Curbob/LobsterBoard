@@ -503,7 +503,14 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     });
     const data = await res.json();
     if (!res.ok || data.status === "error") throw new Error(data.message || data.error || `Ask Teddy returned ${res.status}`);
-    setAskState(data.status === "complete" ? "Answered" : "Done", data.answer || "Teddy answered, but no text came back.");
+    const answerState = data.source === "local-fallback"
+      ? "Fallback"
+      : data.source === "local"
+        ? "Local"
+        : data.status === "complete"
+          ? "Answered"
+          : "Done";
+    setAskState(answerState, data.answer || "Teddy answered, but no text came back.");
     if (input && action !== "status") input.value = "";
   } catch (err) {
     const message = err.name === "AbortError"

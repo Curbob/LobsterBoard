@@ -112,7 +112,7 @@ async function captureScreenshots(baseUrl) {
     return { status: `skipped (${err.message})` };
   } finally {
     await stopChrome(chrome);
-    await rm(userDataDir, { recursive: true, force: true });
+    await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 }
 
@@ -351,8 +351,17 @@ async function stopChrome(chrome) {
   if (!chrome) return;
   try { chrome.ws?.close(); } catch (_) {}
   try { chrome.child?.kill('SIGTERM'); } catch (_) {}
-  await new Promise(resolve => setTimeout(resolve, 200));
-  try { chrome.child?.kill('SIGKILL'); } catch (_) {}
+  await new Promise(resolve => {
+    if (!chrome.child || chrome.child.exitCode !== null) return resolve();
+    const timer = setTimeout(() => {
+      try { chrome.child.kill('SIGKILL'); } catch (_) {}
+      resolve();
+    }, 1000);
+    chrome.child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 async function smokeLocalRoutes() {

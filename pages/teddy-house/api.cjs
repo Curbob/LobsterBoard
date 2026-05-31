@@ -378,7 +378,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   const wan = context.signals && context.signals.wanQuality;
   const systemLogs = context.signals && context.signals.systemLogs;
   const lines = [];
-  if (fallbackReason) lines.push('Teddy was slow, so I used the live dashboard instead.');
+  if (fallbackReason) lines.push('Teddy bridge did not answer cleanly, so I used the live dashboard context instead.');
   const hasReview = review !== 'No review items are currently called out.';
   if (external && external.metric && (external.state === 'warn' || external.state === 'bad')) {
     lines.push(`Only review item: external access on ${external.metric}. ${external.detail || 'Confirm those ports are expected.'}`);
