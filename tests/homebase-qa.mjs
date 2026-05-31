@@ -485,6 +485,7 @@ function assertPersistedHomebaseData(cwd, data) {
   const wan = readJsonFile(cwd, 'wan-history.json');
   const publicAccess = readJsonFile(cwd, 'public-access-history.json');
   const automationLogs = readJsonFile(cwd, 'automation-log-history.json');
+  const askHistory = readJsonFile(cwd, 'ask-history.json');
   const snapshot = readJsonFile(cwd, 'snapshot.json');
   const serviceLogs = readJsonFile(cwd, 'service-logs.json');
 
@@ -529,6 +530,11 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(automationLogs.entries.length <= 120, `automation-log-history.json exceeded retention limit: ${automationLogs.entries.length}`);
   assert(automationLogs.entries[0].firstSeenAt && automationLogs.entries[0].stateKey, 'latest automation log history entry is missing firstSeenAt/stateKey');
   assert(data.intelligence?.automationLogs?.automationLogHistory?.source === 'data/teddy-house/automation-log-history.json', 'health payload must cite persisted automation log history source');
+  assert(Array.isArray(askHistory.entries), 'ask-history.json must contain an entries array');
+  assert(askHistory.entries.length > 0, 'ask-history.json must retain at least one Ask Teddy entry');
+  assert(askHistory.entries.length <= 40, `ask-history.json exceeded retention limit: ${askHistory.entries.length}`);
+  assert(askHistory.entries[0].at && askHistory.entries[0].action && askHistory.entries[0].source, 'latest Ask Teddy entry is missing at/action/source');
+  assert(askHistory.entries[0].status === 'complete', 'latest Ask Teddy entry must be complete');
   assert(Array.isArray(data.historicalSummaries), 'health payload must include persisted historical summaries');
   const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
   const bootSummary = data.historicalSummaries.find(summary => summary.id === 'mac-boot-7d');
@@ -573,6 +579,7 @@ function assertPersistedHomebaseData(cwd, data) {
     wanSamples: wan.entries.length,
     publicAccessStates: publicAccess.entries.length,
     automationLogStates: automationLogs.entries.length,
+    askHistoryEntries: askHistory.entries.length,
     serviceLogItems: serviceLogs.items.length
   };
 }
@@ -654,7 +661,7 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
     {
       name: 'ask-teddy',
       status: local && local.ask && local.ask.status === 'complete' && local.ask.answerLength > 0 ? 'ok' : 'fail',
-      detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars.` : 'Ask Teddy did not answer.'
+      detail: local && local.ask ? `${local.ask.source} answer, ${local.ask.answerLength} chars, ${persisted.askHistoryEntries || 0} persisted.` : 'Ask Teddy did not answer.'
     },
     {
       name: 'public-auth',
