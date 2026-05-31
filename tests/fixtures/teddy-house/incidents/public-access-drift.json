@@ -1,0 +1,38 @@
+{
+  "id": "public-access-drift",
+  "title": "Public access drift",
+  "recordedAt": "2026-05-31T03:36:00.000Z",
+  "fixture": "public-exposure-drift",
+  "sourceSnapshots": [
+    {
+      "path": "data/teddy-house/public-access-history.json",
+      "checkedAt": "2026-05-31T03:36:00.000Z",
+      "redacted": true,
+      "summary": "Public route history showed unexpected exposure drift."
+    },
+    {
+      "path": "data/teddy-house/visual-evidence.json",
+      "checkedAt": "2026-05-31T03:36:00.000Z",
+      "redacted": true,
+      "summary": "Visual evidence promoted Public access as the first house zone."
+    }
+  ],
+  "logExcerpts": [
+    {
+      "source": "Tailscale Funnel",
+      "redacted": true,
+      "text": "route set changed from expected public services to route drift"
+    },
+    {
+      "source": "Homebase route guard",
+      "redacted": true,
+      "text": "public access warning promoted before service evidence"
+    }
+  ],
+  "expected": {
+    "headline": "Something needs a look.",
+    "firstZone": "outside-access",
+    "firstReview": "Public access: route drift",
+    "firstAction": "Check public access first."
+  }
+}

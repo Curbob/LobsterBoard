@@ -19,8 +19,8 @@ Current implementation status:
 
 - The live local Homebase smoke now performs this agreement check across the API payload, rendered first viewport, and local Ask Teddy answer.
 - Replay fixtures now perform the same agreement check across derived API state, locked first-screen contract, and local Ask Teddy answer.
-- Recorded incident bundles now perform the same agreement check for WindowServer restart and Govee/Homebridge loop evidence.
-- The remaining next-level work is to add Teddy bridge fallback and public access drift incident bundles.
+- Recorded incident bundles now perform the same agreement check for WindowServer restart, Govee/Homebridge loop, Teddy bridge fallback, and public access drift evidence.
+- The remaining next-level work is parser golden fixtures, visual contracts, login persistence, and source contracts.
 
 ## Phase 2: Recorded Incident Bundles
 
@@ -39,8 +39,8 @@ Start with:
 
 - WindowServer/system restart incident: implemented
 - Govee/Homebridge noisy loop: implemented
-- Teddy bridge fallback
-- public access drift
+- Teddy bridge fallback: implemented
+- public access drift: implemented
 
 ## Phase 3: Parser Golden Fixtures
 

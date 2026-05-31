@@ -1,0 +1,38 @@
+{
+  "id": "teddy-bridge-fallback",
+  "title": "Teddy bridge fallback",
+  "recordedAt": "2026-05-31T04:05:00.000Z",
+  "fixture": "teddy-bridge-fallback",
+  "sourceSnapshots": [
+    {
+      "path": "data/teddy-house/snapshot.json",
+      "checkedAt": "2026-05-31T04:05:00.000Z",
+      "redacted": true,
+      "summary": "OpenClaw bridge was degraded while the rest of Homebase services stayed online."
+    },
+    {
+      "path": "data/teddy-house/ask-history.json",
+      "checkedAt": "2026-05-31T04:05:00.000Z",
+      "redacted": true,
+      "summary": "Ask Teddy used local dashboard context instead of a live bridge answer."
+    }
+  ],
+  "logExcerpts": [
+    {
+      "source": "OpenClaw gateway",
+      "redacted": true,
+      "text": "gateway bridge did not answer before local timeout"
+    },
+    {
+      "source": "Homebase Ask",
+      "redacted": true,
+      "text": "source=local-fallback; action=status; dashboard context retained"
+    }
+  ],
+  "expected": {
+    "headline": "Something needs a look.",
+    "firstZone": "mac-mini",
+    "firstReview": "OpenClaw: bridge degraded",
+    "firstAction": "Check OpenClaw first."
+  }
+}
