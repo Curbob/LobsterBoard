@@ -536,6 +536,7 @@ function verifyReplayFixtures() {
     'wan-dns-degraded': ['network', 'Check internet quality first.'],
     'teddy-bridge-fallback': ['mac-mini', 'Check OpenClaw first.']
   };
+  const contracts = [];
   for (const [name, [zone, nowText]] of Object.entries(expected)) {
     const fixture = readFixture(name);
     assert(fixture.expected?.firstZone === zone, `${name} fixture first zone drifted`);
@@ -556,8 +557,16 @@ function verifyReplayFixtures() {
       },
       dailyDecision: { slots: [{ label: 'Now', text: fixture.expected?.nowText, source: fixture.expected?.nowSource }] }
     }, `${name} fixture`);
+    contracts.push({
+      name,
+      headline: fixture.expected.headline,
+      firstZone: fixture.expected.firstZone,
+      nowText: fixture.expected.nowText,
+      zoneOrder: fixture.expected.zoneOrder,
+      dailySlots: fixture.expected.dailySlots.map(slot => `${slot.key}:${slot.source}`)
+    });
   }
-  return Object.keys(expected).length;
+  return contracts;
 }
 
 async function smokePublicAuth() {
@@ -579,12 +588,13 @@ async function smokePublicAuth() {
 }
 
 async function main() {
-  const fixtureCount = verifyReplayFixtures();
+  const fixtureContracts = verifyReplayFixtures();
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
   console.log(JSON.stringify({
     status: 'ok',
-    fixtureCount,
+    fixtureCount: fixtureContracts.length,
+    fixtureContracts,
     local,
     publicAuth
   }, null, 2));
