@@ -16,10 +16,10 @@
 
 ## Parser Trust
 
-- [ ] Homebridge stack continuations do not inflate issue counts.
-- [ ] Govee noise is grouped as one named issue.
-- [ ] Eufy lock/plugin noise cannot become trusted house state.
-- [ ] macOS diagnostics must be fresh before they promote Mac mini.
+- [x] Homebridge stack continuations do not inflate issue counts.
+- [x] Govee noise is grouped as one named issue.
+- [x] Eufy lock/plugin noise cannot become trusted house state.
+- [x] macOS diagnostics must be fresh before they promote Mac mini.
 - [ ] Tailscale and AdGuard locked/degraded states are labeled plainly.
 
 ## Visual Trust

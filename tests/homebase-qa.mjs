@@ -1115,6 +1115,26 @@ function recordedIncidentCoverage(incidents) {
   };
 }
 
+function parserGoldenFixtureCoverage() {
+  const testFile = readFileSync(join(process.cwd(), 'tests', 'teddy-house.test.js'), 'utf8');
+  const checks = [
+    ['homebridge-dated-entries', 'counts only dated Homebridge top-level warning entries'],
+    ['govee-grouping', 'groups Govee Homebridge noise into one named automation issue'],
+    ['eufy-ignored', 'keeps Eufy plugin parser evidence ignored in automation rollups'],
+    ['macos-diagnostics', 'classifies diagnostic report filenames by critical Mac incident shape'],
+    ['tailscale-route-drift', 'parses public route drift without treating known BlueBubbles exposure as unknown'],
+    ['log-timestamps', 'parses common log timestamp formats for freshness gates']
+  ].map(([name, needle]) => ({
+    name,
+    ok: testFile.includes(needle)
+  }));
+  return {
+    status: checks.every(item => item.ok) ? 'ok' : 'fail',
+    detail: checks.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    items: checks
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -1256,6 +1276,7 @@ async function main() {
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
   const replayStoryCoverage = replayStoryAgreementCoverage(fixtureContracts);
   const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
+  const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const checks = trustChecks(local, publicAuth);
@@ -1290,6 +1311,16 @@ async function main() {
     detail: 'Redacted incident bundles replay through the same story agreement path.'
   });
   gates.push({
+    name: 'parser-golden-fixtures',
+    status: parserGoldenCoverage.status,
+    detail: parserGoldenCoverage.detail
+  });
+  checks.push({
+    name: 'parser-golden-fixtures',
+    status: parserGoldenCoverage.status,
+    detail: 'Golden parser tests cover Homebridge, Govee, Eufy, macOS diagnostics, route drift, and timestamp freshness.'
+  });
+  gates.push({
     name: 'copy-quality-coverage',
     status: copyCoverage.status,
     detail: copyCoverage.detail
@@ -1320,6 +1351,7 @@ async function main() {
     zoneRankingCoverage: zoneCoverage.items,
     replayStoryAgreementCoverage: replayStoryCoverage.items,
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
+    parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     copyQualityCoverage: copyCoverage,
     healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,

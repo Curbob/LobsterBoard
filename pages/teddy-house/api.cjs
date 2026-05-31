@@ -3397,7 +3397,12 @@ teddyHouseApi._internals = {
   reviewEvidenceFor,
   scoreServices,
   summarizeForTeddy,
-  answerFromDashboardContext
+  answerFromDashboardContext,
+  logFileSummary,
+  normalizeLogItem,
+  isCriticalDiagnosticReport,
+  diagnosticReportKind,
+  logLineDate
 };
 
 module.exports = teddyHouseApi;

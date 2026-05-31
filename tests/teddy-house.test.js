@@ -87,6 +87,18 @@ function expectCleanFirstScreen(result) {
   }
 }
 
+function homebridgeDateLine(message) {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const year = now.getFullYear();
+  let hour = now.getHours();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour %= 12;
+  if (hour === 0) hour = 12;
+  return `[${month}/${day}/${year}, ${hour}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} ${ampm}] ${message}`;
+}
+
 beforeAll(async () => {
   srv = await startServer();
 });
@@ -1619,6 +1631,117 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(api).toContain('ignorePattern: /\\[EufySecurity\\]/i');
     expect(api).toContain('Govee connection degraded');
     expect(api).toContain('issueLabel');
+  });
+
+  it('counts only dated Homebridge top-level warning entries, not stack continuations', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'homebridge-parser-'));
+    const logPath = join(dir, 'homebridge.log');
+    writeFileSync(logPath, [
+      homebridgeDateLine('[Homebridge] [Govee] warning: not using AWS connection'),
+      'Error: timeout refreshing accessory state',
+      '    at refreshDevice (/plugin/index.js:12:4)',
+      '    at async poll (/plugin/index.js:30:9)',
+      homebridgeDateLine('[Homebridge] [Govee] warning: no connection method available'),
+      'Warning: stack continuation should not count without date',
+      '    at Object.<anonymous> (/plugin/index.js:44:2)'
+    ].join('\n'));
+
+    const summary = await teddyHouseInternals.logFileSummary('Homebridge', [logPath], {
+      warnAt: 2,
+      badAt: 3,
+      requireDate: true
+    });
+
+    expect(summary.issues).toBe(2);
+    expect(summary.state).toBe('warn');
+    expect(summary.examples).toHaveLength(2);
+  });
+
+  it('groups Govee Homebridge noise into one named automation issue', () => {
+    const item = teddyHouseInternals.normalizeLogItem({
+      name: 'Homebridge',
+      state: 'bad',
+      issues: 180,
+      detail: '180 notable lines in the recent Homebridge log window.',
+      examples: [
+        '[Homebridge] [Govee] not connected to AWS',
+        '[Homebridge] [Govee] no connection method available'
+      ]
+    });
+
+    expect(item.issueLabel).toBe('Govee connection degraded');
+    expect(item.detail).toBe('Govee connection degraded in the recent Homebridge log window.');
+    expect(teddyHouseInternals.domainServiceLogs({ items: [item], confidence: 'fixture', source: 'parser fixture' }).automationLogs).toEqual(expect.objectContaining({
+      state: 'bad',
+      value: 'Govee connection degraded'
+    }));
+  });
+
+  it('keeps Eufy plugin parser evidence ignored in automation rollups', () => {
+    const serviceLogs = {
+      items: [
+        {
+          name: 'Eufy plugin',
+          state: 'bad',
+          ignored: true,
+          issues: 500,
+          detail: 'Eufy plugin timeout loop ignored as unreliable lock evidence.'
+        },
+        {
+          name: 'Homebridge',
+          state: 'ok',
+          issues: 0,
+          detail: 'Homebridge log is quiet.'
+        }
+      ],
+      confidence: 'fixture',
+      source: 'parser fixture'
+    };
+
+    const rollups = teddyHouseInternals.domainServiceLogs(serviceLogs);
+
+    expect(rollups.automationLogs.state).toBe('ok');
+    expect(rollups.automationLogs.issues).toBe(0);
+    expect(rollups.automationLogs.items.find(item => item.name === 'Eufy plugin')).toEqual(expect.objectContaining({
+      ignored: true,
+      state: 'bad'
+    }));
+  });
+
+  it('classifies diagnostic report filenames by critical Mac incident shape', () => {
+    expect(teddyHouseInternals.isCriticalDiagnosticReport('WindowServer-watchdog-2026-05-31.panic')).toBe(true);
+    expect(teddyHouseInternals.diagnosticReportKind('WindowServer-watchdog-2026-05-31.panic')).toBe('WindowServer watchdog panic');
+    expect(teddyHouseInternals.isCriticalDiagnosticReport('disk-i_o-error-2026-05-31.diag')).toBe(true);
+    expect(teddyHouseInternals.diagnosticReportKind('disk-i_o-error-2026-05-31.diag')).toBe('Disk or I/O diagnostic');
+    expect(teddyHouseInternals.isCriticalDiagnosticReport('AudioComponentRegistrar-2026-05-31.diag')).toBe(false);
+  });
+
+  it('parses public route drift without treating known BlueBubbles exposure as unknown', () => {
+    const known = teddyHouseInternals.publicAccessRollup({
+      state: 'info',
+      metric: '8443, 10000',
+      detail: 'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.',
+      confidence: 'fixture'
+    });
+    expect(known.state).toBe('info');
+    expect(known.acceptedRoutes.map(route => route.name).sort()).toEqual(['BlueBubbles', 'Teddy Homebase']);
+    expect(known.unexpectedRoutes).toEqual([]);
+
+    const drift = teddyHouseInternals.publicAccessRollup({
+      state: 'warn',
+      metric: '10000, 9999',
+      detail: 'Teddy Homebase is public on 10000. 9999 proxies to a local service; confirm it should be public.',
+      confidence: 'fixture'
+    });
+    expect(drift.state).toBe('warn');
+    expect(drift.unexpectedRoutes).toEqual([{ port: '9999', name: 'Unknown public route' }]);
+  });
+
+  it('parses common log timestamp formats for freshness gates', () => {
+    expect(teddyHouseInternals.logLineDate('[5/31/2026, 7:04:03 PM] warning')?.getFullYear()).toBe(2026);
+    expect(teddyHouseInternals.logLineDate('2026/05/31 19:04:03 warning')?.getMonth()).toBe(4);
+    expect(teddyHouseInternals.logLineDate('2026-05-31T19:04:03.000Z warning')?.toISOString()).toBe('2026-05-31T19:04:03.000Z');
+    expect(teddyHouseInternals.logLineDate('stack continuation without date')).toBeNull();
   });
 
   it('segments vitals history by the current Mac boot session', () => {

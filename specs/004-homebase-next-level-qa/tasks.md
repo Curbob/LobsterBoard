@@ -20,11 +20,11 @@
 
 ## Phase 3: Parser Golden Fixtures
 
-- [ ] Add Homebridge log fixtures that distinguish dated entries from stack continuations.
-- [ ] Add Govee grouping fixtures.
-- [ ] Add Eufy ignored/degraded fixtures.
-- [ ] Add macOS diagnostic freshness fixtures.
-- [ ] Add Tailscale route drift fixtures.
+- [x] Add Homebridge log fixtures that distinguish dated entries from stack continuations.
+- [x] Add Govee grouping fixtures.
+- [x] Add Eufy ignored/degraded fixtures.
+- [x] Add macOS diagnostic freshness fixtures.
+- [x] Add Tailscale route drift fixtures.
 - [ ] Add AdGuard locked/live fixtures.
 
 ## Phase 4: Visual Contract Tests
