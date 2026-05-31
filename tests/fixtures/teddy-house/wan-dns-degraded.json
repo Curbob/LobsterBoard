@@ -53,6 +53,11 @@
     "summary": "Start with internet. Core evidence is still available below.",
     "primaryAction": "Start with internet.",
     "zoneOrder": ["network", "outside-access", "smart-home", "mac-mini"],
+    "dailySlots": [
+      { "key": "now", "text": "Check internet quality first.", "state": "bad", "source": "Internet" },
+      { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
     "firstZone": "network",
     "firstZoneState": "bad",
     "firstReview": "DNS: slow DNS",

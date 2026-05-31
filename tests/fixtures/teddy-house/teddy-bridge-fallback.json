@@ -53,6 +53,11 @@
     "summary": "Start with OpenClaw. Everything else is responding.",
     "primaryAction": "Start with OpenClaw.",
     "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
+    "dailySlots": [
+      { "key": "now", "text": "Check OpenClaw first.", "state": "warn", "source": "OpenClaw" },
+      { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "OpenClaw: bridge degraded",

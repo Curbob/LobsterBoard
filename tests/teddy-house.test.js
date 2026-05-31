@@ -106,10 +106,7 @@ describe('Teddy Homebase page', () => {
       state: expected.firstZoneState
     }));
     if (expected.firstReview) expect(result.reviewItems[0]).toBe(expected.firstReview);
-    expect(result.dailyDecision.slots[0]).toEqual(expect.objectContaining({
-      source: expected.nowSource,
-      text: expected.nowText
-    }));
+    expect(result.dailyDecision.slots.map(({ key, text, state, source }) => ({ key, text, state, source }))).toEqual(expected.dailySlots);
   });
 
   it.each(replayFixtureNames)('keeps raw telemetry out of the %s replay first screen', (fixtureName) => {

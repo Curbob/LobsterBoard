@@ -63,6 +63,11 @@
     "summary": "Start with the Mac mini restart; house services are online.",
     "primaryAction": "Start with the Mac mini restart.",
     "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
+    "dailySlots": [
+      { "key": "now", "text": "Review the Mac mini restart.", "state": "warn", "source": "Mac restart incident" },
+      { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "Mac restart incident",

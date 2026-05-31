@@ -53,6 +53,11 @@
     "summary": "Start with automations. Core evidence is still available below.",
     "primaryAction": "Start with automations.",
     "zoneOrder": ["smart-home", "outside-access", "network", "mac-mini"],
+    "dailySlots": [
+      { "key": "now", "text": "Check automations first.", "state": "bad", "source": "Automation logs" },
+      { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
     "firstZone": "smart-home",
     "firstZoneState": "bad",
     "firstReview": "Automation logs: Govee connection degraded",

@@ -53,6 +53,11 @@
     "summary": "Start with public access. Everything else is responding.",
     "primaryAction": "Start with public access.",
     "zoneOrder": ["outside-access", "network", "smart-home", "mac-mini"],
+    "dailySlots": [
+      { "key": "now", "text": "Check public access first.", "state": "warn", "source": "Public access" },
+      { "key": "watch", "text": "Service logs are quiet.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
     "firstZone": "outside-access",
     "firstZoneState": "warn",
     "firstReview": "Public access: route drift",
