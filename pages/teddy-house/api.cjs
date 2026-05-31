@@ -216,6 +216,20 @@ function summarizeForTeddy(context) {
     .map(([key, service]) => `${SERVICE_NAMES[key] || key}: ${service.state || 'unknown'} (${service.metric || '--'})`)
     .join('; ');
   const review = Array.isArray(data.needsDan) ? data.needsDan.slice(0, 8).join('; ') : '';
+  const memory = Array.isArray(data.historicalSummaries)
+    ? data.historicalSummaries
+      .filter(summary => summary && summary.source)
+      .slice(0, 6)
+      .map(summary => ({
+        id: summary.id || null,
+        title: summary.title || null,
+        window: summary.window || null,
+        value: summary.value || null,
+        detail: summary.detail || null,
+        sampleCount: summary.sampleCount ?? null,
+        source: summary.source || null
+      }))
+    : [];
   return {
     checkedAt: data.checkedAt || null,
     score: data.score ?? null,
@@ -238,6 +252,7 @@ function summarizeForTeddy(context) {
       : null,
     summary: serviceSummary || 'No service summary supplied.',
     review: review || 'No review items supplied.',
+    memory,
     signals: {
       externalAccess: intelligence.tailscaleFunnel ? stripSignal(intelligence.tailscaleFunnel) : null,
       wanQuality: intelligence.wanQuality ? stripSignal(intelligence.wanQuality) : null,
@@ -275,6 +290,9 @@ async function askTeddy(ctx, body) {
     return { status: 'error', message: 'Ask Teddy needs a question or status request.' };
   }
 
+  const memoryLine = Array.isArray(context.memory) && context.memory.length > 0
+    ? context.memory.map(item => `${item.title || item.id || 'Memory'}=${item.value || item.window || 'recorded'} (${item.source || 'source unknown'})`).join('; ')
+    : 'none';
   const task = [
     'You are Teddy inside OpenClaw answering a Teddy Homebase action request.',
     'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.',
@@ -291,6 +309,7 @@ async function askTeddy(ctx, body) {
     `Action: ${action}`,
     `Prompt: ${prompt || 'Summarize current status and review items.'}`,
     clicked ? `Clicked signal: ${JSON.stringify(clicked)}` : 'Clicked signal: none',
+    `Dashboard memory: ${memoryLine}`,
     `Dashboard context: ${JSON.stringify(context)}`
   ].join('\n');
 
@@ -383,6 +402,10 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   const external = context.signals && context.signals.externalAccess;
   const wan = context.signals && context.signals.wanQuality;
   const systemLogs = context.signals && context.signals.systemLogs;
+  const memory = Array.isArray(context.memory) ? context.memory : [];
+  const memoryLine = memory.length > 0
+    ? `Memory: ${memory.slice(0, 3).map(item => `${item.title || item.id}: ${item.value || item.window || 'recorded'}`).join('; ')}.`
+    : '';
   const lines = [];
   if (fallbackReason) lines.push('Teddy bridge did not answer cleanly, so I used the live dashboard context instead.');
   const hasReview = review !== 'No review items are currently called out.';
@@ -397,6 +420,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   if (action === 'prepare-fix') {
     lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or files.');
   }
+  if (memoryLine && (hasReview || action === 'status' || /chang|history|memory|trend|recent/i.test(prompt || ''))) lines.push(memoryLine);
   if (wan && wan.state !== 'ok' && wan.detail) lines.push(`Internet: ${wan.detail}`);
   if (systemLogs && systemLogs.state !== 'ok' && systemLogs.detail) lines.push(`System logs: ${systemLogs.detail}`);
   lines.push(hasReview

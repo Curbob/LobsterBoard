@@ -536,7 +536,18 @@ describe('Teddy Homebase health API', () => {
           intelligence: {
             wanQuality: { state: 'warn', metric: '120 ms', detail: 'Latency is high.' },
             tailscaleFunnel: { state: 'ok', metric: '10000' }
-          }
+          },
+          historicalSummaries: [
+            {
+              id: 'wan-latency-24h',
+              title: 'WAN latency',
+              window: '24h',
+              value: '120 ms now',
+              detail: 'Worst check 120.0 ms across 5 persisted samples.',
+              sampleCount: 5,
+              source: 'data/teddy-house/wan-history.json'
+            }
+          ]
         }
       })
     });
@@ -550,6 +561,8 @@ describe('Teddy Homebase health API', () => {
     expect(data.promptPreview).toContain('What should I check first?');
     expect(data.promptPreview).toContain('WAN: 120 ms');
     expect(data.promptPreview).toContain('Dashboard context');
+    expect(data.promptPreview).toContain('WAN latency');
+    expect(data.promptPreview).toContain('data/teddy-house/wan-history.json');
   });
 
   it('prepares fixes as read-only plans with explicit approval language', async () => {
@@ -609,7 +622,18 @@ describe('Teddy Homebase health API', () => {
             },
             intelligence: {
               tailscaleFunnel: { state: 'warn', metric: '8443, 10000', detail: '8443 is BlueBubbles exposed through Funnel.' }
-            }
+            },
+            historicalSummaries: [
+              {
+                id: 'public-access-routes',
+                title: 'Public access',
+                window: 'current',
+                value: 'Known',
+                detail: 'Route set last changed 2h ago.',
+                sampleCount: 1,
+                source: 'data/teddy-house/public-access-history.json'
+              }
+            ]
           }
         })
       });
@@ -622,7 +646,8 @@ describe('Teddy Homebase health API', () => {
       }));
       expect(data.answer).toContain('External access: 8443, 10000');
       expect(data.answer).toContain('8443 is BlueBubbles exposed through Funnel.');
-      expect(data.answer.split('\n').length).toBeLessThanOrEqual(3);
+      expect(data.answer).toContain('Memory: Public access: Known.');
+      expect(data.answer.split('\n').length).toBeLessThanOrEqual(4);
       expect(data.answer).not.toContain('Review lane');
       expect(data.answer).not.toContain('macOS reports no available updates');
       expect(data.answer).not.toContain('DNS: ok');
@@ -645,13 +670,25 @@ describe('Teddy Homebase health API', () => {
             },
             intelligence: {
               tailscaleFunnel: { state: 'info', metric: '8443, 10000', detail: 'Known public routes are accounted for.' }
-            }
+            },
+            historicalSummaries: [
+              {
+                id: 'mac-boot-7d',
+                title: 'Mac boot',
+                window: '7d',
+                value: 'Current boot stable',
+                detail: 'Current boot started 5d ago.',
+                sampleCount: 1,
+                source: 'data/teddy-house/boot-history.json'
+              }
+            ]
           }
         })
       });
       const steadyData = await steadyRes.json();
       expect(steadyData.answer).toContain('No review item is currently called out.');
       expect(steadyData.answer).toContain('nothing needs action right now');
+      expect(steadyData.answer).not.toContain('Memory:');
       expect(steadyData.answer).not.toContain('first ranked warning');
     } finally {
       await localAsk.kill();
