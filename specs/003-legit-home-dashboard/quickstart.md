@@ -60,7 +60,7 @@ Expected:
 - Each replay fixture locks headline, summary, primary action, full zone order, and all three `Now / Watch / Later` slots.
 - Local Homebase page, health API, and logs API render.
 - Phone, iPad, and desktop screenshots are captured to `artifacts/qa/homebase-latest-*.png` when local Chrome is available.
-- The latest QA proof JSON is saved to `artifacts/qa/homebase-latest.json`.
+- The latest QA proof JSON is saved to `artifacts/qa/homebase-latest.json` with git branch, commit, and dirty-state metadata.
 - Rendered first-screen assertions confirm loaded copy, house-state ordering, no horizontal overflow, and no raw/scaffold labels in the visible viewport.
 - Persisted evidence assertions confirm `timeline.json`, `visual-evidence.json`, `vitals-history.json`, `snapshot.json`, and `service-logs.json` are created, parseable, bounded, and source-linked.
 - Public Homebase auth is verified when the Funnel route is reachable. Set `HOMEBASE_REQUIRE_PUBLIC_SMOKE=1` to make that mandatory.

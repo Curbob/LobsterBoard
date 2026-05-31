@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { startServer } from '../helpers/server.js';
 
@@ -46,6 +46,24 @@ const RENDERED_FIRST_SCREEN_COPY_BLACKLIST = [
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function gitValue(args) {
+  const result = spawnSync('git', args, { cwd: process.cwd(), encoding: 'utf8' });
+  if (result.status !== 0) return null;
+  return result.stdout.trim() || null;
+}
+
+function gitMetadata() {
+  const branch = gitValue(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const commit = gitValue(['rev-parse', '--short', 'HEAD']);
+  const status = gitValue(['status', '--short']);
+  return {
+    branch: branch || 'unknown',
+    commit: commit || 'unknown',
+    dirty: Boolean(status),
+    statusLines: status ? status.split('\n').filter(Boolean) : []
+  };
 }
 
 function readFixture(name) {
@@ -595,6 +613,7 @@ async function main() {
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
+    git: gitMetadata(),
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
