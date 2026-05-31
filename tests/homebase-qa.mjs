@@ -13,6 +13,7 @@ const REMOTE_TIMEOUT_MS = 5000;
 const PUBLIC_BASE = process.env.HOMEBASE_PUBLIC_URL || 'https://openclaw-mac-mini.tail02a3b6.ts.net:10000';
 const CHROME_BIN = process.env.HOMEBASE_CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const SCREENSHOT_DIR = join(process.cwd(), 'artifacts', 'qa');
+const QA_REPORT_FILE = join(SCREENSHOT_DIR, 'homebase-latest.json');
 const SCREENSHOT_VIEWPORTS = [
   ['phone', 390, 844],
   ['ipad', 820, 1180],
@@ -591,13 +592,17 @@ async function main() {
   const fixtureContracts = verifyReplayFixtures();
   const local = await smokeLocalRoutes();
   const publicAuth = await smokePublicAuth();
-  console.log(JSON.stringify({
+  const report = {
     status: 'ok',
+    generatedAt: new Date().toISOString(),
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
     local,
     publicAuth
-  }, null, 2));
+  };
+  await mkdir(SCREENSHOT_DIR, { recursive: true });
+  await writeFile(QA_REPORT_FILE, `${JSON.stringify(report, null, 2)}\n`);
+  console.log(JSON.stringify(report, null, 2));
 }
 
 main().catch(err => {
