@@ -212,7 +212,12 @@ async function captureScreenshots(baseUrl) {
         file,
         bytes: fileStat.size,
         scrollWidth: layout.rootScrollWidth,
+        summaryTitle: layout.summaryTitle,
+        summaryCopy: layout.summaryCopy,
         firstZone: layout.firstZone,
+        firstDecision: layout.firstDecision,
+        nowDecision: layout.nowDecision,
+        firstReview: layout.firstReview,
         firstScreenTextLength: layout.firstScreenTextLength
       });
     }
@@ -418,6 +423,9 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         .filter(Boolean)
         .join("\\n");
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
+      const firstDecision = textOf('#next-action');
+      const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
+      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix/g, '')?.trim() || "";
       const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
       const historyCount = document.querySelectorAll("#history-grid .history-card").length;
       const recentChangeRows = [...document.querySelectorAll("#events-list .event")]
@@ -428,6 +436,9 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         summaryTitle: textOf("#summary-title"),
         summaryCopy: textOf("#summary-copy"),
         firstZone,
+        firstDecision,
+        nowDecision,
+        firstReview,
         zoneCount,
         historyCount,
         recentChangeRows,
@@ -477,7 +488,64 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   }
   return {
     firstZone: value.firstZone,
+    firstDecision: value.firstDecision,
+    nowDecision: value.nowDecision,
+    firstReview: value.firstReview,
+    summaryTitle: value.summaryTitle,
+    summaryCopy: value.summaryCopy,
     firstScreenTextLength: (value.firstScreenText || '').length
+  };
+}
+
+function zoneTitleForId(id) {
+  const titles = {
+    'outside-access': 'Public access',
+    network: 'Internet',
+    'smart-home': 'Automations',
+    'mac-mini': 'Mac mini'
+  };
+  return titles[id] || id || '';
+}
+
+function askMentionsFirstAction(answer, firstAction) {
+  const text = String(answer || '').toLowerCase();
+  const action = String(firstAction || '').toLowerCase().replace(/[.]+$/, '');
+  if (!action) return false;
+  if (text.includes(action)) return true;
+  if (/automations/.test(action) && /automations/.test(text)) return true;
+  if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
+  if (/public access|external access/.test(action) && /public access|external access|funnel/.test(text)) return true;
+  if (/internet|wan|dns|network/.test(action) && /internet|wan|dns|network/.test(text)) return true;
+  return false;
+}
+
+function assertStoryAgreement(data, askData, screenshots) {
+  const rendered = screenshots && Array.isArray(screenshots.outputs) ? screenshots.outputs[0] : null;
+  const apiFirstZone = data.houseState?.zones?.[0]?.id || '';
+  const apiFirstZoneTitle = zoneTitleForId(apiFirstZone);
+  const apiFirstAction = data.dailyDecision?.slots?.find(slot => slot.key === 'now')?.text
+    || data.houseState?.primaryAction
+    || '';
+  const apiHeadline = data.houseState?.headline || '';
+  assert(apiHeadline, 'story agreement missing API headline');
+  assert(apiFirstZone, 'story agreement missing API first zone');
+  assert(apiFirstAction, 'story agreement missing API first action');
+  assert(rendered && rendered.summaryTitle, 'story agreement missing rendered first viewport proof');
+  assert(rendered.summaryTitle === apiHeadline, `rendered headline ${rendered.summaryTitle} disagrees with API headline ${apiHeadline}`);
+  assert(rendered.firstZone === apiFirstZoneTitle, `rendered first zone ${rendered.firstZone} disagrees with API first zone ${apiFirstZoneTitle}`);
+  assert(rendered.nowDecision === apiFirstAction || rendered.firstDecision === apiFirstAction, `rendered first action ${rendered.nowDecision || rendered.firstDecision} disagrees with API first action ${apiFirstAction}`);
+  assert(askData && askData.status === 'complete', 'story agreement missing Ask Teddy answer');
+  assert(askMentionsFirstAction(askData.answer, apiFirstAction), `Ask Teddy answer does not mention first action ${apiFirstAction}: ${askData.answer}`);
+  if (askData.source === 'local-fallback') {
+    assert(/Teddy bridge did not answer cleanly/i.test(String(askData.answer || '')), 'Ask Teddy fallback is not labeled honestly');
+  }
+  return {
+    status: 'ok',
+    headline: apiHeadline,
+    firstZone: apiFirstZone,
+    renderedFirstZone: rendered.firstZone,
+    firstAction: apiFirstAction,
+    askSource: askData.source
   };
 }
 
@@ -574,6 +642,7 @@ async function smokeLocalRoutes() {
     assert(remoteHostLogs === 401, `non-loopback Host logs probe returned ${remoteHostLogs}, expected 401`);
     assert(remoteHostScript === 302, `non-loopback Host script probe returned ${remoteHostScript}, expected login redirect`);
     const screenshots = await captureScreenshots(srv.baseUrl);
+    const storyAgreement = assertStoryAgreement(data, askData, screenshots);
     const persisted = assertPersistedHomebaseData(srv.cwd, data);
 
     return {
@@ -592,6 +661,7 @@ async function smokeLocalRoutes() {
           && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
           && /exact approval needed/.test(String(prepareData.promptPreview || ''))
       },
+      storyAgreement,
       loopbackProbe: {
         localHealth: health.status,
         localLogs: logs.status,
@@ -822,6 +892,13 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
         : 'Prepare fix dry-run did not prove action safety.'
     },
     {
+      name: 'story-agreement',
+      status: local && local.storyAgreement && local.storyAgreement.status === 'ok' ? 'ok' : 'fail',
+      detail: local && local.storyAgreement
+        ? `${local.storyAgreement.headline}; ${local.storyAgreement.firstZone}; ${local.storyAgreement.firstAction}; Ask ${local.storyAgreement.askSource}.`
+        : 'API, rendered page, and Ask Teddy story agreement was not proved.'
+    },
+    {
       name: 'public-auth',
       status: publicAuth === 'enforced' ? 'ok' : 'skipped',
       detail: publicAuth
@@ -998,6 +1075,13 @@ function trustChecks(local, publicAuth) {
       detail: local && local.ask && local.ask.prepareFixDryRun
         ? 'Ask Teddy prepare-fix is dry-run only and names approval before mutation.'
         : 'Ask Teddy prepare-fix safety was not proved.'
+    },
+    {
+      name: 'story-agreement',
+      status: local && local.storyAgreement && local.storyAgreement.status === 'ok' ? 'ok' : 'fail',
+      detail: local && local.storyAgreement
+        ? 'API, rendered page, and Ask Teddy agree on the first Homebase action.'
+        : 'API, rendered page, and Ask Teddy story agreement was not proved.'
     }
   ];
 }

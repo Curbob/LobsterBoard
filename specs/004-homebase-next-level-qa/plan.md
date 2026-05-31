@@ -15,6 +15,11 @@ For each replay, assert:
 - Ask Teddy names the same first action
 - fallback Ask responses are labeled as fallback, never as live Teddy
 
+Current implementation status:
+
+- The live local Homebase smoke now performs this agreement check across the API payload, rendered first viewport, and local Ask Teddy answer.
+- The remaining next-level work is to run the same agreement check against replayed and recorded incident states.
+
 ## Phase 2: Recorded Incident Bundles
 
 Add a redacted incident bundle format under test fixtures.

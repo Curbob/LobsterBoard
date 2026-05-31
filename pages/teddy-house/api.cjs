@@ -250,6 +250,18 @@ function summarizeForTeddy(context) {
             : []
         }
       : null,
+    dailyDecision: data.dailyDecision && Array.isArray(data.dailyDecision.slots)
+      ? {
+          now: data.dailyDecision.slots.find(slot => slot && slot.key === 'now') || null,
+          slots: data.dailyDecision.slots.map(slot => ({
+            key: slot.key || null,
+            label: slot.label || null,
+            text: slot.text || null,
+            state: slot.state || null,
+            source: slot.source || null
+          }))
+        }
+      : null,
     summary: serviceSummary || 'No service summary supplied.',
     review: review || 'No review items supplied.',
     memory,
@@ -399,6 +411,9 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
     ? context.review
     : 'No review items are currently called out.';
   const score = context.score !== null && context.score !== undefined ? `${context.score}/100` : 'unknown';
+  const firstAction = context.dailyDecision?.now?.text
+    || context.houseState?.primaryAction
+    || null;
   const external = context.signals && context.signals.externalAccess;
   const wan = context.signals && context.signals.wanQuality;
   const systemLogs = context.signals && context.signals.systemLogs;
@@ -414,7 +429,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   } else {
     lines.push(!hasReview
       ? `Readiness ${score}. No review item is currently called out.`
-      : `Readiness ${score}. ${review}`);
+      : `Readiness ${score}. First action: ${firstAction || 'verify the first ranked warning'}. ${review}`);
   }
   if (clicked) lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
   if (action === 'prepare-fix') {
@@ -425,7 +440,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   if (systemLogs && systemLogs.state !== 'ok' && systemLogs.detail) lines.push(`System logs: ${systemLogs.detail}`);
   lines.push(hasReview
     ? (action === 'status'
-        ? 'Next: verify the first ranked warning, then leave the rest alone.'
+        ? `Next: ${firstAction || 'verify the first ranked warning'}, then leave the rest alone.`
         : action === 'prepare-fix'
           ? 'Next: prepare the read-only checks and required approval.'
           : 'Next: start with the first ranked warning.')
