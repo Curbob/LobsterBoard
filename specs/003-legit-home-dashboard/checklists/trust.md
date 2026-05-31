@@ -15,8 +15,8 @@
 - [ ] Mac host warnings rank under `Mac mini`.
 - [ ] Public exposure warnings rank under `Public access`.
 - [ ] WAN/DNS/Tailscale warnings rank under `Internet`.
-- [ ] The first review item matches the first warned house zone.
-- [ ] Fixture zone order is locked end to end, not only the first card.
+- [x] The first review item matches the first warned house zone.
+- [x] Fixture zone order is locked end to end, not only the first card.
 
 ## Copy Truth
 

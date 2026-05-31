@@ -94,6 +94,22 @@ function assertFirstScreenCopyClean(data, label) {
   }
 }
 
+function reviewZone(label = '', source = '') {
+  const text = `${label} ${source}`.toLowerCase();
+  if (/\b(public access|external access|funnel|exposed|route drift)\b/.test(text)) return 'outside-access';
+  if (/\b(dns|internet|wan|network|tailscale)\b/.test(text)) return 'network';
+  if (/\b(homebridge|automation|accessor|govee|smart home)\b/.test(text)) return 'smart-home';
+  if (/\b(mac|openclaw|cpu|memory|disk|system logs|macos|service logs|restart|watchdog|panic)\b/.test(text)) return 'mac-mini';
+  return null;
+}
+
+function assertFirstReviewMatchesFirstZone(firstZone, firstReview, evidenceSource, label) {
+  if (!firstReview) return;
+  const zone = reviewZone(firstReview, evidenceSource);
+  assert(zone, `${label} first review has no zone mapping: ${firstReview}`);
+  assert(zone === firstZone, `${label} first review ${firstReview} maps to ${zone}, not first zone ${firstZone}`);
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = LOCAL_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -434,6 +450,7 @@ async function smokeLocalRoutes() {
       assert(item.confidence, `review evidence for ${item.label} is missing confidence`);
       assert(item.freshness, `review evidence for ${item.label} is missing freshness`);
     }
+    assertFirstReviewMatchesFirstZone(data.houseState.zones[0].id, data.needsDan[0], data.reviewEvidence[0]?.source, 'local health');
     assertFirstScreenCopyClean(data, 'local health');
 
     const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
@@ -623,6 +640,7 @@ function verifyReplayFixtures() {
     assert(Array.isArray(fixture.expected?.dailySlots) && fixture.expected.dailySlots.length === 3, `${name} fixture daily decision contract missing`);
     assert(JSON.stringify([...fixture.expected.zoneOrder].sort()) === JSON.stringify([...EXPECTED_ZONE_IDS].sort()), `${name} fixture zone order must include every house zone once`);
     assert(JSON.stringify(fixture.expected.dailySlots.map(slot => slot.key)) === JSON.stringify(EXPECTED_DAILY_SLOT_KEYS), `${name} fixture daily slots must be now,watch,later`);
+    assertFirstReviewMatchesFirstZone(zone, fixture.expected.firstReview, fixture.expected.nowSource, `${name} fixture`);
     assertFirstScreenCopyClean({
       needsDan: fixture.expected?.firstReview ? [fixture.expected.firstReview] : [],
       houseState: {
