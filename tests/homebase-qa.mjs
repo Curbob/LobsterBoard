@@ -613,6 +613,7 @@ async function main() {
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
+    reportFile: QA_REPORT_FILE,
     git: gitMetadata(),
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
