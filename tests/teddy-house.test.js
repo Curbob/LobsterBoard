@@ -21,6 +21,8 @@ const replayFixtureNames = [
   'wan-dns-degraded',
   'teddy-bridge-fallback'
 ];
+const expectedZoneIds = ['outside-access', 'network', 'smart-home', 'mac-mini'];
+const expectedDailySlotKeys = ['now', 'watch', 'later'];
 const firstScreenCopyBlacklist = [
   /\b\d{1,3}(?:\.\d{1,3}){3}\b/,
   /\b\d{2,5},\s*\d{2,5}\b/,
@@ -97,6 +99,8 @@ describe('Teddy Homebase page', () => {
     const result = replayHouseState(fixture);
     const expected = fixture.expected;
 
+    expect([...expected.zoneOrder].sort()).toEqual([...expectedZoneIds].sort());
+    expect(expected.dailySlots.map(slot => slot.key)).toEqual(expectedDailySlotKeys);
     expect(result.houseState.headline).toBe(expected.headline);
     expect(result.houseState.summary).toBe(expected.summary);
     expect(result.houseState.primaryAction).toBe(expected.primaryAction);

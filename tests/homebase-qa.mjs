@@ -19,6 +19,8 @@ const SCREENSHOT_VIEWPORTS = [
   ['desktop', 1440, 1000]
 ];
 const DATA_DIR = join('data', 'teddy-house');
+const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
+const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -542,6 +544,8 @@ function verifyReplayFixtures() {
     assert(typeof fixture.expected?.primaryAction === 'string' && fixture.expected.primaryAction.length > 0, `${name} fixture primary action contract missing`);
     assert(Array.isArray(fixture.expected?.zoneOrder) && fixture.expected.zoneOrder[0] === zone, `${name} fixture zone order contract missing`);
     assert(Array.isArray(fixture.expected?.dailySlots) && fixture.expected.dailySlots.length === 3, `${name} fixture daily decision contract missing`);
+    assert(JSON.stringify([...fixture.expected.zoneOrder].sort()) === JSON.stringify([...EXPECTED_ZONE_IDS].sort()), `${name} fixture zone order must include every house zone once`);
+    assert(JSON.stringify(fixture.expected.dailySlots.map(slot => slot.key)) === JSON.stringify(EXPECTED_DAILY_SLOT_KEYS), `${name} fixture daily slots must be now,watch,later`);
     assertFirstScreenCopyClean({
       needsDan: fixture.expected?.firstReview ? [fixture.expected.firstReview] : [],
       houseState: {
