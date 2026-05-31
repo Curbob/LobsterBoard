@@ -4,8 +4,8 @@
 
 - [x] Add a live local QA helper that compares API health, rendered first viewport, and Ask Teddy using the same context.
 - [x] Assert API headline, rendered headline, first zone, and Ask Teddy first action agree for the live local Homebase smoke.
-- [ ] Extend story-agreement assertions to replayed health states.
-- [ ] Assert replayed first review item, first zone, and Ask Teddy first action agree.
+- [x] Extend story-agreement assertions to replayed health states.
+- [x] Assert replayed first review item, first zone, and Ask Teddy first action agree.
 - [ ] Assert Teddy fallback copy is visibly labeled when the live bridge is unavailable.
 - [x] Save a compact story-agreement report in `artifacts/qa/homebase-latest.json`.
 

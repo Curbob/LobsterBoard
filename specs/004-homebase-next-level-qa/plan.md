@@ -18,7 +18,8 @@ For each replay, assert:
 Current implementation status:
 
 - The live local Homebase smoke now performs this agreement check across the API payload, rendered first viewport, and local Ask Teddy answer.
-- The remaining next-level work is to run the same agreement check against replayed and recorded incident states.
+- Replay fixtures now perform the same agreement check across derived API state, locked first-screen contract, and local Ask Teddy answer.
+- The remaining next-level work is to run the same agreement check against recorded incident states.
 
 ## Phase 2: Recorded Incident Bundles
 

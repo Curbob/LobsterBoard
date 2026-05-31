@@ -2,9 +2,9 @@
 
 ## Story Agreement
 
-- [ ] API, rendered page, and Ask Teddy agree on the first action.
+- [x] API, rendered page, and Ask Teddy agree on the first action for the live local smoke.
 - [ ] Ask Teddy fallback is honest and visible.
-- [ ] No replay can pass when the first review item disagrees with the first warned zone.
+- [x] No replay can pass when the first review item disagrees with the first warned zone.
 - [ ] No replay can pass when rendered copy hides the active incident.
 
 ## Incident Replay

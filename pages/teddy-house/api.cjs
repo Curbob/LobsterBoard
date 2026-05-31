@@ -3395,7 +3395,9 @@ teddyHouseApi._internals = {
   publicAccessRollup,
   needsDan,
   reviewEvidenceFor,
-  scoreServices
+  scoreServices,
+  summarizeForTeddy,
+  answerFromDashboardContext
 };
 
 module.exports = teddyHouseApi;

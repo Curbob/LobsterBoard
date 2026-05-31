@@ -5,10 +5,13 @@ import { mkdir, rm, stat } from 'node:fs/promises';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import http from 'node:http';
 import { startServer } from '../helpers/server.js';
 
+const require = createRequire(import.meta.url);
+const teddyHouseInternals = require('../pages/teddy-house/api.cjs')._internals;
 const LOCAL_TIMEOUT_MS = 12000;
 const REMOTE_TIMEOUT_MS = 5000;
 const PUBLIC_BASE = process.env.HOMEBASE_PUBLIC_URL || 'https://openclaw-mac-mini.tail02a3b6.ts.net:10000';
@@ -512,6 +515,7 @@ function askMentionsFirstAction(answer, firstAction) {
   const action = String(firstAction || '').toLowerCase().replace(/[.]+$/, '');
   if (!action) return false;
   if (text.includes(action)) return true;
+  if (/nothing needs/.test(action) && /nothing needs action|no review item|no review items/.test(text)) return true;
   if (/automations/.test(action) && /automations/.test(text)) return true;
   if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
   if (/public access|external access/.test(action) && /public access|external access|funnel/.test(text)) return true;
@@ -546,6 +550,66 @@ function assertStoryAgreement(data, askData, screenshots) {
     renderedFirstZone: rendered.firstZone,
     firstAction: apiFirstAction,
     askSource: askData.source
+  };
+}
+
+function replayHealthFromFixture(fixture) {
+  const services = structuredClone(fixture.services);
+  const intelligence = structuredClone(fixture.intelligence);
+  const systemVitals = structuredClone(fixture.systemVitals);
+  if (intelligence.serviceLogs) {
+    Object.assign(intelligence.serviceLogs, teddyHouseInternals.domainServiceLogs(intelligence.serviceLogs));
+    intelligence.automationLogs = intelligence.serviceLogs.automationLogs;
+    intelligence.macMiniLogs = intelligence.serviceLogs.macMiniLogs;
+    intelligence.networkLogs = intelligence.serviceLogs.networkLogs;
+  }
+  const needsDan = teddyHouseInternals.needsDan(services, intelligence, systemVitals);
+  const score = teddyHouseInternals.scoreServices(services, intelligence, systemVitals);
+  const houseState = teddyHouseInternals.deriveHouseState(
+    services,
+    intelligence,
+    systemVitals,
+    needsDan,
+    fixture.timeline || [],
+    score
+  );
+  const dailyDecision = teddyHouseInternals.deriveDailyDecision(
+    services,
+    intelligence,
+    systemVitals,
+    needsDan,
+    houseState
+  );
+  return { score, needsDan, houseState, dailyDecision, services, intelligence, vitals: systemVitals };
+}
+
+function assertReplayStoryAgreement(name, fixture, data) {
+  const expected = fixture.expected || {};
+  const firstZone = data.houseState?.zones?.[0]?.id || '';
+  const firstAction = data.dailyDecision?.slots?.find(slot => slot.key === 'now')?.text
+    || data.houseState?.primaryAction
+    || '';
+  const askContext = teddyHouseInternals.summarizeForTeddy(data);
+  const askAnswer = teddyHouseInternals.answerFromDashboardContext(
+    'status',
+    'Summarize the current Homebase status and explain what needs review.',
+    null,
+    askContext
+  );
+  assert(data.houseState.headline === expected.headline, `${name} replay API headline disagrees with locked first-screen headline`);
+  assert(firstZone === expected.firstZone, `${name} replay API first zone ${firstZone} disagrees with locked first-screen zone ${expected.firstZone}`);
+  assert(firstAction === expected.nowText, `${name} replay API first action ${firstAction} disagrees with locked first-screen action ${expected.nowText}`);
+  if (expected.firstReview) {
+    assert(data.needsDan[0] === expected.firstReview, `${name} replay first review ${data.needsDan[0]} disagrees with locked first review ${expected.firstReview}`);
+  }
+  assert(askMentionsFirstAction(askAnswer, firstAction), `${name} replay Ask answer does not mention first action ${firstAction}: ${askAnswer}`);
+  return {
+    name,
+    headline: data.houseState.headline,
+    firstZone,
+    firstAction,
+    firstReview: data.needsDan[0] || null,
+    askSource: 'local-replay'
   };
 }
 
@@ -835,13 +899,16 @@ function verifyReplayFixtures() {
       },
       dailyDecision: { slots: [{ label: 'Now', text: fixture.expected?.nowText, source: fixture.expected?.nowSource }] }
     }, `${name} fixture`);
+    const replayData = replayHealthFromFixture(fixture);
+    const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
       name,
       headline: fixture.expected.headline,
       firstZone: fixture.expected.firstZone,
       nowText: fixture.expected.nowText,
       zoneOrder: fixture.expected.zoneOrder,
-      dailySlots: fixture.expected.dailySlots.map(slot => `${slot.key}:${slot.source}`)
+      dailySlots: fixture.expected.dailySlots.map(slot => `${slot.key}:${slot.source}`),
+      storyAgreement
     });
   }
   return contracts;
@@ -968,6 +1035,21 @@ function zoneRankingCoverage(fixtureContracts) {
   return {
     status: items.every(item => item.ok) ? 'ok' : 'fail',
     detail: items.map(item => `${item.label}:${item.ok ? 'ok' : 'fail'}`).join(', '),
+    items
+  };
+}
+
+function replayStoryAgreementCoverage(fixtureContracts) {
+  const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
+  const items = contracts.map(contract => ({
+    fixture: contract.name,
+    firstZone: contract.storyAgreement?.firstZone || null,
+    firstAction: contract.storyAgreement?.firstAction || null,
+    ok: Boolean(contract.storyAgreement && contract.storyAgreement.firstAction === contract.nowText)
+  }));
+  return {
+    status: items.length === 6 && items.every(item => item.ok) ? 'ok' : 'fail',
+    detail: items.map(item => `${item.fixture}:${item.ok ? 'ok' : 'fail'}`).join(', '),
     items
   };
 }
@@ -1110,6 +1192,7 @@ async function main() {
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
+  const replayStoryCoverage = replayStoryAgreementCoverage(fixtureContracts);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const checks = trustChecks(local, publicAuth);
@@ -1122,6 +1205,16 @@ async function main() {
     name: 'zone-ranking-coverage',
     status: zoneCoverage.status,
     detail: 'Replay fixtures prove Automations, Mac mini, Public access, and Internet warning ownership.'
+  });
+  gates.push({
+    name: 'replay-story-agreement',
+    status: replayStoryCoverage.status,
+    detail: replayStoryCoverage.detail
+  });
+  checks.push({
+    name: 'replay-story-agreement',
+    status: replayStoryCoverage.status,
+    detail: 'Replay fixtures prove API, locked first-screen contract, and Ask agree on the first action.'
   });
   gates.push({
     name: 'copy-quality-coverage',
@@ -1152,6 +1245,7 @@ async function main() {
     acceptanceGates: gates,
     trustChecks: checks,
     zoneRankingCoverage: zoneCoverage.items,
+    replayStoryAgreementCoverage: replayStoryCoverage.items,
     copyQualityCoverage: copyCoverage,
     healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,
