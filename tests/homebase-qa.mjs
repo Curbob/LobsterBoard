@@ -628,6 +628,12 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
   ];
 }
 
+function acceptanceStatus(gates) {
+  if (gates.some(gate => gate.status === 'fail')) return 'fail';
+  if (gates.some(gate => gate.status === 'skipped')) return 'partial';
+  return 'ok';
+}
+
 async function smokePublicAuth() {
   const pageUrl = `${PUBLIC_BASE}/pages/teddy-house/`;
   const apiUrl = `${PUBLIC_BASE}/api/pages/teddy-house/health`;
@@ -656,6 +662,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     reportFile: QA_REPORT_FILE,
     git: gitMetadata(),
+    acceptanceStatus: acceptanceStatus(gates),
     acceptanceGates: gates,
     fixtureCount: fixtureContracts.length,
     fixtureContracts,
