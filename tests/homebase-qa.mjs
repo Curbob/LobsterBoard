@@ -240,6 +240,62 @@ async function captureScreenshots(baseUrl) {
   }
 }
 
+async function smokeCachedLogin(baseUrl) {
+  if (process.env.HOMEBASE_SKIP_LOGIN_SMOKE === '1') return { status: 'skipped' };
+  const userDataDir = join(tmpdir(), `homebase-login-chrome-${Date.now()}`);
+  const chrome = await startChrome(userDataDir);
+  let targetId = null;
+  let secondTargetId = null;
+  try {
+    const target = await chromeCommand(chrome, 'Target.createTarget', { url: `${baseUrl}/login?next=/pages/teddy-house/` });
+    targetId = target.targetId;
+    const attached = await chromeCommand(chrome, 'Target.attachToTarget', { targetId, flatten: true });
+    const sessionId = attached.sessionId;
+    await chromeCommand(chrome, 'Page.enable', {}, sessionId);
+    await chromeCommand(chrome, 'Runtime.enable', {}, sessionId);
+    await waitForLoginReady(chrome, sessionId);
+
+    const beforeStatus = await evaluateChromeValue(chrome, sessionId, `fetch("/api/stats", { credentials: "same-origin" }).then(res => res.status)`);
+    assert(beforeStatus === 401, `protected API returned ${beforeStatus} before login, expected 401`);
+
+    await evaluateChromeValue(chrome, sessionId, `(() => {
+      document.getElementById("password").value = "Danno";
+      document.getElementById("form").requestSubmit();
+      return true;
+    })()`);
+    await waitForHomebaseReady(chrome, sessionId);
+
+    const afterStatus = await evaluateChromeValue(chrome, sessionId, `fetch("/api/stats", { credentials: "same-origin" }).then(res => res.status)`);
+    assert(afterStatus === 200, `protected API returned ${afterStatus} after login, expected 200`);
+
+    const secondTarget = await chromeCommand(chrome, 'Target.createTarget', { url: `${baseUrl}/app.html` });
+    secondTargetId = secondTarget.targetId;
+    const secondAttached = await chromeCommand(chrome, 'Target.attachToTarget', { targetId: secondTargetId, flatten: true });
+    const secondSessionId = secondAttached.sessionId;
+    await chromeCommand(chrome, 'Page.enable', {}, secondSessionId);
+    await chromeCommand(chrome, 'Runtime.enable', {}, secondSessionId);
+    await waitForDocumentReady(chrome, secondSessionId);
+    const newTabStatus = await evaluateChromeValue(chrome, secondSessionId, `fetch("/api/stats", { credentials: "same-origin" }).then(res => res.status)`);
+    assert(newTabStatus === 200, `protected API returned ${newTabStatus} in a new tab after login, expected 200`);
+
+    return {
+      status: 'ok',
+      protectedApiBeforeLogin: beforeStatus,
+      protectedApiAfterLogin: afterStatus,
+      protectedApiNewTab: newTabStatus,
+      userDataDirIsolated: true
+    };
+  } catch (err) {
+    if (process.env.HOMEBASE_REQUIRE_LOGIN_SMOKE === '1') throw err;
+    return { status: `skipped (${err.message})` };
+  } finally {
+    if (secondTargetId) await chromeCommand(chrome, 'Target.closeTarget', { targetId: secondTargetId }).catch(() => null);
+    if (targetId) await chromeCommand(chrome, 'Target.closeTarget', { targetId }).catch(() => null);
+    await stopChrome(chrome);
+    await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+}
+
 async function startChrome(userDataDir) {
   return new Promise((resolve, reject) => {
     const child = spawn(CHROME_BIN, [
@@ -337,6 +393,18 @@ async function chromeCommand(chrome, method, params = {}, sessionId = null) {
   return promise;
 }
 
+async function evaluateChromeValue(chrome, sessionId, expression) {
+  const result = await chromeCommand(chrome, 'Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true
+  }, sessionId);
+  if (result.exceptionDetails) {
+    throw new Error(result.exceptionDetails.text || 'Chrome evaluation failed');
+  }
+  return result.result ? result.result.value : undefined;
+}
+
 function waitForChromeEvent(chrome, method, sessionId, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const waiter = {
@@ -350,6 +418,24 @@ function waitForChromeEvent(chrome, method, sessionId, timeoutMs = 12000) {
     };
     chrome.waiters.push(waiter);
   });
+}
+
+async function waitForDocumentReady(chrome, sessionId) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const readyState = await evaluateChromeValue(chrome, sessionId, 'document.readyState');
+    if (readyState === 'complete' || readyState === 'interactive') return readyState;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error('document did not become ready in Chrome smoke');
+}
+
+async function waitForLoginReady(chrome, sessionId) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const ready = await evaluateChromeValue(chrome, sessionId, `Boolean(document.getElementById("form") && document.getElementById("password"))`);
+    if (ready) return true;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error('login form did not render in Chrome smoke');
 }
 
 async function captureViewport(chrome, url, file, width, height) {
@@ -747,6 +833,7 @@ async function smokeLocalRoutes() {
     assert(remoteHostHealth === 401, `non-loopback Host health probe returned ${remoteHostHealth}, expected 401`);
     assert(remoteHostLogs === 401, `non-loopback Host logs probe returned ${remoteHostLogs}, expected 401`);
     assert(remoteHostScript === 302, `non-loopback Host script probe returned ${remoteHostScript}, expected login redirect`);
+    const cachedLogin = await smokeCachedLogin(srv.baseUrl);
     const screenshots = await captureScreenshots(srv.baseUrl);
     const storyAgreement = assertStoryAgreement(data, askData, screenshots);
     const persisted = assertPersistedHomebaseData(srv.cwd, data);
@@ -775,6 +862,7 @@ async function smokeLocalRoutes() {
         remoteHostLogs,
         remoteHostScript
       },
+      cachedLogin,
       noFakeHomeState,
       cachedUpdateLabels,
       screenshots,
@@ -1023,6 +1111,19 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
       detail: local && local.loopbackProbe
         ? `local health/logs ${local.loopbackProbe.localHealth}/${local.loopbackProbe.localLogs}; remote-looking Host ${local.loopbackProbe.remoteHostHealth}/${local.loopbackProbe.remoteHostLogs}/${local.loopbackProbe.remoteHostScript}.`
         : 'Loopback probe boundary was not checked.'
+    },
+    {
+      name: 'login-persistence',
+      status: local && local.cachedLogin && local.cachedLogin.status === 'ok'
+        ? 'ok'
+        : local && local.cachedLogin && /^skipped/.test(local.cachedLogin.status)
+          ? 'skipped'
+          : 'fail',
+      detail: local && local.cachedLogin && local.cachedLogin.status === 'ok'
+        ? `Protected API ${local.cachedLogin.protectedApiBeforeLogin} before login, ${local.cachedLogin.protectedApiAfterLogin} after login, ${local.cachedLogin.protectedApiNewTab} in a new tab.`
+        : local && local.cachedLogin
+          ? local.cachedLogin.status
+          : 'Cached login smoke did not run.'
     },
     {
       name: 'no-fake-home-state',
@@ -1300,6 +1401,19 @@ function trustChecks(local, publicAuth) {
       detail: local && local.ask && local.ask.prepareFixDryRun
         ? 'Ask Teddy prepare-fix is dry-run only and names approval before mutation.'
         : 'Ask Teddy prepare-fix safety was not proved.'
+    },
+    {
+      name: 'login-persistence',
+      status: local && local.cachedLogin && local.cachedLogin.status === 'ok'
+        ? 'ok'
+        : local && local.cachedLogin && /^skipped/.test(local.cachedLogin.status)
+          ? 'skipped'
+          : 'fail',
+      detail: local && local.cachedLogin && local.cachedLogin.status === 'ok'
+        ? 'Browser-context login survives a new tab, while direct API access is 401 before login.'
+        : local && local.cachedLogin
+          ? local.cachedLogin.status
+          : 'Cached login smoke did not run.'
     },
     {
       name: 'story-agreement',

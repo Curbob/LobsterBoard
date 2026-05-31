@@ -19,6 +19,7 @@ Expected today:
 - parser golden fixtures cover Homebridge stack continuations, Govee grouping, Eufy ignored evidence, Mac diagnostics, route drift, timestamp freshness, and AdGuard locked/live states
 - visual contracts prove phone/iPad/desktop first viewports keep the story visible and evidence below the decision story
 - live local story agreement proves API, rendered page, and Ask Teddy name the same first action
+- local browser login smoke proves protected API is `401` before sign-in, `200` after sign-in, and still `200` in a new tab
 - local Homebase page, health, logs, and Ask smoke
 - public Funnel auth smoke when reachable
 - phone/iPad/desktop screenshots when browser automation is available

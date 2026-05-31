@@ -37,10 +37,10 @@
 
 ## Phase 5: Login Persistence Smoke
 
-- [ ] Add local browser-context cached-login smoke.
+- [x] Add local browser-context cached-login smoke.
 - [ ] Document Android Chrome manual smoke.
 - [ ] Document iPhone/iPad PWA manual smoke.
-- [ ] Assert public auth still protects direct API access.
+- [x] Assert public auth still protects direct API access.
 
 ## Phase 6: Source Contract
 
