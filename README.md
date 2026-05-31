@@ -36,6 +36,8 @@ Before changing Homebase behavior, read:
 - `CLAUDE.md`
 - `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`
 - `docs/UNIFIED-LOGGING-PLAN.md`
+- `specs/003-legit-home-dashboard/spec.md`
+- `specs/004-homebase-next-level-qa/spec.md`
 
 Homebase proof command:
 

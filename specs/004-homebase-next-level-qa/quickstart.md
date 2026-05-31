@@ -1,0 +1,56 @@
+# Homebase Next-Level QA Quickstart
+
+## Current Gate
+
+Run the existing release gate first:
+
+```bash
+cd /Users/teddyclaw/teddy-house-lobsterboard
+npm run check:homebase
+```
+
+Expected today:
+
+- static lint passes
+- unit/API/design tests pass
+- replay contracts pass
+- local Homebase page, health, logs, and Ask smoke
+- public Funnel auth smoke when reachable
+- phone/iPad/desktop screenshots when browser automation is available
+
+## Next Gate Target
+
+The next-level gate should extend `npm run check:homebase` with:
+
+```text
+storyAgreement: api-page-ask
+recordedIncidentReplay: windowserver, govee, teddy-bridge, public-access
+parserGoldenFixtures: homebridge, service-logs, macos, tailscale, adguard
+visualContracts: phone, ipad, desktop
+loginPersistence: local-browser-context
+sourceContracts: all-visible-home-state-sources
+```
+
+## Manual Device Smoke
+
+Use this when Dan wants real-device proof:
+
+1. Open the public Funnel Homebase URL on Android Chrome.
+2. Confirm saved login or existing session gets to the dashboard.
+3. Reload the page.
+4. Confirm no surprise password prompt.
+5. Repeat on iPhone/iPad PWA.
+6. Confirm first screen says the same first action as the local Mac page.
+
+## Done Means
+
+This spec is done only when Homebase can prove the same story across:
+
+- replay fixtures
+- recorded incidents
+- live local route
+- rendered first viewport
+- Ask Teddy response
+- cached-login smoke
+
+Anything less is useful progress, not the next-level bar.
