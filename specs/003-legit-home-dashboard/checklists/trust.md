@@ -39,5 +39,5 @@
 - [ ] Phone width has no horizontal overflow.
 - [ ] iPad width has no horizontal overflow.
 - [ ] Desktop first screen is ranked and calm.
-- [ ] Local links stay below the health story.
+- [x] Local links stay below the health story.
 - [ ] Evidence sections stay subordinate unless a warning promotes them.

@@ -349,7 +349,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
           evidence: topOf("#evidence"),
           signals: topOf("#signals"),
           history: topOf("#history"),
-          timeline: topOf("#timeline")
+          timeline: topOf("#timeline"),
+          localLinks: topOf("#local-links")
         }
       };
     })()`,
@@ -364,6 +365,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   assert(value.positions.evidence === null || value.positions.houseState < value.positions.evidence, `evidence appears before house state at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.signals === null || value.positions.houseState < value.positions.signals, `signals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.history === null || value.positions.signals === null || value.positions.signals < value.positions.history, `history appears before evidence signals at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.localLinks !== null, `local links section missing at ${width}px`);
+  assert(value.positions.timeline === null || value.positions.timeline < value.positions.localLinks, `local links appear before recent changes at ${width}px: ${JSON.stringify(value.positions)}`);
   for (const pattern of RENDERED_FIRST_SCREEN_COPY_BLACKLIST) {
     assert(!pattern.test(value.firstScreenText || ''), `rendered first-screen copy matched blacklist ${pattern} at ${width}px: ${value.firstScreenText}`);
   }
