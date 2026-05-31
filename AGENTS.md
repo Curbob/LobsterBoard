@@ -8,7 +8,10 @@ This repo is LobsterBoard plus Dan's private Teddy Homebase layer. Treat it like
 npm run lint
 npm test
 npm run check -- --runInBand
+npm run check:homebase
 ```
+
+Use `npm run check:homebase` as the preferred Homebase release gate. It includes lint/tests, replay fixtures, local Homebase route smokes, first-screen copy blacklist checks, and public Funnel auth smoke when reachable.
 
 Live local proof:
 

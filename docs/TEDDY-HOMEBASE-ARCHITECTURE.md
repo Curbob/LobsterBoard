@@ -128,7 +128,10 @@ Required check:
 
 ```bash
 npm run check -- --runInBand
+npm run check:homebase
 ```
+
+`npm run check:homebase` is the canonical Homebase release gate. It covers the full test suite, replayed house-state fixtures, local page/health/log route smokes, first-screen copy blacklist checks, and public Funnel auth smoke when reachable.
 
 Rendered UI proof is required when changing:
 
@@ -164,8 +167,8 @@ Rollback is git-first:
 
 ## Current Hardening Backlog
 
-1. Add CI for `npm run check -- --runInBand`.
-2. Add a one-command local + Tailscale smoke script.
+1. Add CI for `npm run check -- --runInBand` and `npm run check:homebase`.
+2. Add browser screenshot capture to the Homebase QA gate.
 3. Add explicit retention checks for `data/teddy-house/*history*.json` and `visual-evidence.json`.
 4. Add guarded, dry-run-first action hooks for update tasks.
 5. Keep the daily screen quiet as new evidence sources arrive.

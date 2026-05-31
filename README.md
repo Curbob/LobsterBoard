@@ -40,8 +40,10 @@ Before changing Homebase behavior, read:
 Homebase proof command:
 
 ```bash
-npm run check -- --runInBand
+npm run check:homebase
 ```
+
+That runs lint/tests, six replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, and public Funnel auth smoke when reachable.
 
 ![LobsterBoard](lobsterboard-logo-final.png)
 

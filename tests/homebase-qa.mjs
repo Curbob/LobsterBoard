@@ -7,6 +7,18 @@ import { startServer } from '../helpers/server.js';
 const LOCAL_TIMEOUT_MS = 12000;
 const REMOTE_TIMEOUT_MS = 5000;
 const PUBLIC_BASE = process.env.HOMEBASE_PUBLIC_URL || 'https://openclaw-mac-mini.tail02a3b6.ts.net:10000';
+const FIRST_SCREEN_COPY_BLACKLIST = [
+  /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
+  /\bService Logs:\s*\d+\b/i,
+  /\bSystem Logs:\s*\d+\b/i,
+  /\bRecent Mac logs need attention\b/i,
+  /\bAPP VERSIONS\s+1\b/i,
+  /\bINTERNET\s+\d+\s*ms\b/i,
+  /\bWHAT'?S EXPOSED\s+\d{2,5}/i,
+  /\bDoor locks\b/i,
+  /\bEufy\b/i,
+  /\bGarage side door\b/i
+];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -14,6 +26,26 @@ function assert(condition, message) {
 
 function readFixture(name) {
   return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
+}
+
+function firstScreenCopy(data) {
+  const houseState = data.houseState || {};
+  const dailyDecision = data.dailyDecision || {};
+  return [
+    houseState.headline,
+    houseState.summary,
+    houseState.primaryAction,
+    ...(Array.isArray(data.needsDan) ? data.needsDan : []),
+    ...(Array.isArray(dailyDecision.slots) ? dailyDecision.slots.map(slot => `${slot.label} ${slot.text} ${slot.source || ''}`) : []),
+    ...(Array.isArray(houseState.zones) ? houseState.zones.map(zone => `${zone.title} ${zone.value} ${zone.detail}`) : [])
+  ].filter(Boolean).join('\n');
+}
+
+function assertFirstScreenCopyClean(data, label) {
+  const copy = firstScreenCopy(data);
+  for (const pattern of FIRST_SCREEN_COPY_BLACKLIST) {
+    assert(!pattern.test(copy), `${label} first-screen copy matched blacklist ${pattern}: ${copy}`);
+  }
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = LOCAL_TIMEOUT_MS) {
@@ -42,6 +74,7 @@ async function smokeLocalRoutes() {
     assert(data.houseState.zones.length === 4, `expected 4 house zones, got ${data.houseState.zones.length}`);
     assert(data.dailyDecision?.slots?.map(slot => slot.key).join(',') === 'now,watch,later', 'daily decision slots are wrong');
     assert(data.visualEvidence?.latest?.visuals?.houseState?.type === 'zone-state', 'house-state visual evidence is missing');
+    assertFirstScreenCopyClean(data, 'local health');
 
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
@@ -72,6 +105,16 @@ function verifyReplayFixtures() {
     const fixture = readFixture(name);
     assert(fixture.expected?.firstZone === zone, `${name} fixture first zone drifted`);
     assert(fixture.expected?.nowText === nowText, `${name} fixture daily decision drifted`);
+    assertFirstScreenCopyClean({
+      needsDan: fixture.expected?.firstReview ? [fixture.expected.firstReview] : [],
+      houseState: {
+        headline: fixture.expected?.headline,
+        summary: fixture.expected?.summary,
+        primaryAction: fixture.expected?.nowText,
+        zones: [{ title: fixture.expected?.firstZone, value: fixture.expected?.firstZoneState, detail: fixture.expected?.nowText }]
+      },
+      dailyDecision: { slots: [{ label: 'Now', text: fixture.expected?.nowText, source: fixture.expected?.nowSource }] }
+    }, `${name} fixture`);
   }
   return Object.keys(expected).length;
 }

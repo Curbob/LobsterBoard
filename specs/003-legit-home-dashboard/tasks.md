@@ -38,8 +38,8 @@
 - [x] Smoke local health and logs routes.
 - [x] Smoke public Tailscale auth when reachable, with strict mode available.
 - [ ] Capture desktop, iPad, and phone screenshots.
-- [ ] Add copy blacklist checks for raw/sloppy strings.
-- [ ] Document the QA path in README and architecture docs.
+- [x] Add copy blacklist checks for raw/sloppy strings.
+- [x] Document the QA path in README and architecture docs.
 
 ## First Pull
 
