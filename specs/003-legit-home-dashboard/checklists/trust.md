@@ -41,4 +41,4 @@
 - [ ] Desktop first screen is ranked and calm.
 - [x] Local links stay below the health story.
 - [x] Recent changes are grouped and free of heartbeat/noise rows in rendered QA.
-- [ ] Evidence sections stay subordinate unless a warning promotes them.
+- [x] Evidence sections stay subordinate unless a warning promotes them.
