@@ -22,6 +22,8 @@ const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v4';
 const EVIDENCE_LIMIT = 120;
 const VITALS_HISTORY_LIMIT = 500;
 const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
+const WAN_HISTORY_LIMIT = 500;
+const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
@@ -428,7 +430,7 @@ function stripLogItem(item) {
   };
 }
 
-function buildHistoricalSummaries(vitalsData, timeline) {
+function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   const summaries = [];
   const vitalsHistory = vitalsData && vitalsData.vitalsHistory;
   if (vitalsHistory && Number(vitalsHistory.samples) > 0 && vitalsHistory.source) {
@@ -444,6 +446,21 @@ function buildHistoricalSummaries(vitalsData, timeline) {
       sampleCount,
       bootedAt: vitalsHistory.bootedAt || null,
       source: vitalsHistory.source,
+      confidence: 'persisted'
+    });
+  }
+
+  const wanHistory = intelligence && intelligence.wanQuality && intelligence.wanQuality.wanHistory;
+  if (wanHistory && Number(wanHistory.sampleCount) > 0 && wanHistory.source) {
+    const worst = wanHistory.max24hMs === null ? 'unknown' : `${wanHistory.max24hMs} ms`;
+    summaries.push({
+      id: 'wan-latency-24h',
+      title: 'WAN latency',
+      window: wanHistory.window || '24h',
+      value: wanHistory.currentMs === null ? 'No live average' : `${wanHistory.currentMs} ms now`,
+      detail: `Worst check ${worst} across ${wanHistory.sampleCount} persisted sample${wanHistory.sampleCount === 1 ? '' : 's'}.`,
+      sampleCount: wanHistory.sampleCount,
+      source: wanHistory.source,
       confidence: 'persisted'
     });
   }
@@ -775,9 +792,17 @@ async function checkWanQuality() {
     ? 'Ping finished, but latency was not readable.'
     : `Ping average ${avg.toFixed(1)} ms; max ${max.toFixed(1)} ms.`;
 
-  if (loss !== null && loss > 0) return warn(`${detail} Packet loss is above zero.`, metric, 'WAN');
-  if (avg !== null && avg > 80) return warn(`${detail} Latency is high.`, `${avg.toFixed(0)} ms`, 'WAN');
-  return ok(detail, avg === null ? metric : `${avg.toFixed(0)} ms`, 'WAN');
+  const result = loss !== null && loss > 0
+    ? warn(`${detail} Packet loss is above zero.`, metric, 'WAN')
+    : avg !== null && avg > 80
+      ? warn(`${detail} Latency is high.`, `${avg.toFixed(0)} ms`, 'WAN')
+      : ok(detail, avg === null ? metric : `${avg.toFixed(0)} ms`, 'WAN');
+  return {
+    ...result,
+    avgMs: Number.isFinite(avg) ? Number(avg.toFixed(1)) : null,
+    maxMs: Number.isFinite(max) ? Number(max.toFixed(1)) : null,
+    lossPct: Number.isFinite(loss) ? loss : null
+  };
 }
 
 async function checkOpenClaw() {
@@ -1713,6 +1738,52 @@ async function serviceLogOverview(ctx) {
   return result;
 }
 
+function updateWanHistory(ctx, signal) {
+  const avgMs = Number(signal && signal.avgMs);
+  const maxMs = Number(signal && signal.maxMs);
+  const lossPct = Number(signal && signal.lossPct);
+  if (!Number.isFinite(avgMs) && !Number.isFinite(maxMs) && !Number.isFinite(lossPct)) return null;
+
+  const at = nowIso();
+  const history = readDataSafe(ctx, 'wan-history.json', { entries: [] });
+  const cutoff = Date.now() - 48 * HOUR_MS;
+  const sample = {
+    at,
+    avgMs: Number.isFinite(avgMs) ? avgMs : null,
+    maxMs: Number.isFinite(maxMs) ? maxMs : null,
+    lossPct: Number.isFinite(lossPct) ? lossPct : null,
+    state: signal.state || 'info'
+  };
+  const entries = (Array.isArray(history.entries) ? history.entries : [])
+    .filter(entry => {
+      const time = new Date(entry.at).getTime();
+      return Number.isFinite(time) && time >= cutoff;
+    })
+    .concat([sample])
+    .slice(-WAN_HISTORY_LIMIT);
+  writeDataSafe(ctx, 'wan-history.json', { entries });
+
+  const windowCutoff = Date.now() - WAN_HISTORY_WINDOW_MS;
+  const recent = entries.filter(entry => {
+    const time = new Date(entry.at).getTime();
+    return Number.isFinite(time) && time >= windowCutoff;
+  });
+  const latencyValues = recent
+    .flatMap(entry => [Number(entry.avgMs), Number(entry.maxMs)])
+    .filter(Number.isFinite);
+  const lossValues = recent.map(entry => Number(entry.lossPct)).filter(Number.isFinite);
+  const max24hMs = latencyValues.length > 0 ? Math.max(...latencyValues).toFixed(1) : null;
+  const maxLossPct = lossValues.length > 0 ? Math.max(...lossValues) : null;
+  return {
+    window: '24h',
+    currentMs: Number.isFinite(avgMs) ? Number(avgMs.toFixed(1)) : null,
+    max24hMs,
+    maxLossPct,
+    sampleCount: recent.length,
+    source: 'data/teddy-house/wan-history.json'
+  };
+}
+
 async function logDetailPayload(ctx) {
   const serviceLogs = await serviceLogOverview(ctx);
   return {
@@ -2291,7 +2362,7 @@ async function buildInsights(services, systemVitals, intelligence) {
 }
 
 async function buildIntelligence(ctx) {
-  const [adguard, accessories, doorLocks, logHealth, homebridgeVersion, funnel, wanQuality, serviceLogs, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
+  const [adguard, accessories, doorLocks, logHealth, homebridgeVersion, funnel, rawWanQuality, serviceLogs, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
     adGuardStats(),
     homebridgeAccessorySummary(),
     homebridgeDoorLockStatus(ctx),
@@ -2304,6 +2375,8 @@ async function buildIntelligence(ctx) {
     checkMacUpdates(ctx),
     checkSystemLogs(ctx)
   ]);
+  const wanHistory = updateWanHistory(ctx, rawWanQuality);
+  const wanQuality = wanHistory ? { ...rawWanQuality, wanHistory } : rawWanQuality;
 
   return {
     adguard,
@@ -2932,7 +3005,7 @@ function teddyHouseApi(ctx = {}) {
         const reviewItems = needsDan(services, intelligence, systemVitals);
         const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
         const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
-        const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline);
+        const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
         const visualEvidence = updateVisualEvidenceLog(
           ctx,
           buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision, historicalSummaries)
@@ -2963,6 +3036,7 @@ teddyHouseApi._internals = {
   deriveHouseState,
   domainServiceLogs,
   buildHistoricalSummaries,
+  updateWanHistory,
   publicAccessRollup,
   needsDan,
   scoreServices

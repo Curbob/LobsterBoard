@@ -1290,7 +1290,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
     expect(visuals.timeline.count).toBe(data.timeline.length);
     expect(Array.isArray(data.historicalSummaries)).toBe(true);
-    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(2);
+    expect(data.historicalSummaries.length).toBeGreaterThanOrEqual(3);
     const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
     expect(cpuSummary).toEqual(expect.objectContaining({
       title: 'CPU peak',
@@ -1308,6 +1308,20 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       confidence: 'persisted',
       sampleCount: expect.any(Number),
       meaningfulCount: expect.any(Number)
+    }));
+    const wanSummary = data.historicalSummaries.find(summary => summary.id === 'wan-latency-24h');
+    expect(wanSummary).toEqual(expect.objectContaining({
+      title: 'WAN latency',
+      window: '24h',
+      source: 'data/teddy-house/wan-history.json',
+      confidence: 'persisted',
+      sampleCount: expect.any(Number)
+    }));
+    expect(wanSummary.sampleCount).toBeGreaterThan(0);
+    expect(data.intelligence.wanQuality.wanHistory).toEqual(expect.objectContaining({
+      window: '24h',
+      source: 'data/teddy-house/wan-history.json',
+      sampleCount: expect.any(Number)
     }));
     expect(visuals.historicalSummaries).toEqual(expect.objectContaining({
       type: 'persisted-summaries',
