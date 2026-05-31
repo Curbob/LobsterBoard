@@ -138,6 +138,40 @@ function requestStatus({ port, path, host = '127.0.0.1', method = 'GET' }) {
   });
 }
 
+function assertNoFakeHomeState(data) {
+  const script = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
+  const css = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'style.css'), 'utf8');
+  assert(!/sparkline|SPARKS|trend/i.test(script), 'Homebase script includes fake trend/sparkline language');
+  assert(!/sparkline/i.test(css), 'Homebase CSS includes fake sparkline styling');
+
+  const summaries = Array.isArray(data.historicalSummaries) ? data.historicalSummaries : [];
+  assert(summaries.length > 0, 'historical summaries are missing');
+  for (const summary of summaries) {
+    assert(summary.source && /^data\/teddy-house\/.+\.json$/.test(summary.source), `summary ${summary.id || summary.title || 'unknown'} is missing persisted source`);
+    assert(summary.window, `summary ${summary.id || summary.title || 'unknown'} is missing window`);
+    assert(Number.isFinite(Number(summary.sampleCount)), `summary ${summary.id || summary.title || 'unknown'} is missing sample count`);
+    assert(summary.confidence, `summary ${summary.id || summary.title || 'unknown'} is missing confidence`);
+    assert(summary.freshness, `summary ${summary.id || summary.title || 'unknown'} is missing freshness`);
+  }
+
+  const doorLocks = data.intelligence?.homebridge?.doorLocks || {};
+  assert(doorLocks.hidden === true, 'door lock evidence must stay hidden from trusted daily state');
+  assert(doorLocks.value === 'ignored', 'door lock evidence must be marked ignored');
+  assert(doorLocks.confidence === 'degraded', 'door lock evidence must stay degraded');
+  const trustedSurface = JSON.stringify({
+    needsDan: data.needsDan,
+    dailyDecision: data.dailyDecision,
+    houseState: data.houseState
+  });
+  assert(!/Eufy|Door locks|Garage side door|Front Door|Side Door/i.test(trustedSurface), 'trusted daily surface includes ignored Eufy or door-lock evidence');
+
+  return {
+    persistedSummaries: summaries.length,
+    ignoredDoorLocks: true,
+    noFakeTrendLanguage: true
+  };
+}
+
 async function captureScreenshots(baseUrl) {
   if (process.env.HOMEBASE_SKIP_SCREENSHOTS === '1') return { status: 'skipped' };
   await mkdir(SCREENSHOT_DIR, { recursive: true });
@@ -470,6 +504,7 @@ async function smokeLocalRoutes() {
     }
     assertFirstReviewMatchesFirstZone(data.houseState.zones[0].id, data.needsDan[0], data.reviewEvidence[0]?.source, 'local health');
     assertFirstScreenCopyClean(data, 'local health');
+    const noFakeHomeState = assertNoFakeHomeState(data);
 
     const ask = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/ask`, {
       method: 'POST',
@@ -542,6 +577,7 @@ async function smokeLocalRoutes() {
         remoteHostLogs,
         remoteHostScript
       },
+      noFakeHomeState,
       screenshots,
       persisted
     };
@@ -780,6 +816,16 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
         : 'Loopback probe boundary was not checked.'
     },
     {
+      name: 'no-fake-home-state',
+      status: local && local.noFakeHomeState
+        && local.noFakeHomeState.persistedSummaries > 0
+        && local.noFakeHomeState.ignoredDoorLocks
+        && local.noFakeHomeState.noFakeTrendLanguage ? 'ok' : 'fail',
+      detail: local && local.noFakeHomeState
+        ? `${local.noFakeHomeState.persistedSummaries} persisted summaries; lock evidence ignored; no fake trend UI.`
+        : 'No-fake home state checks did not run.'
+    },
+    {
       name: 'live-first-story',
       status: local && local.firstZone && local.firstDecision ? 'ok' : 'fail',
       detail: `${local && local.firstZone ? local.firstZone : 'unknown'}: ${local && local.firstDecision ? local.firstDecision : 'missing decision'}`
@@ -830,6 +876,16 @@ function trustChecks(local, publicAuth) {
       detail: local && local.loopbackProbe
         ? 'Only loopback Host plus loopback socket can use unauthenticated Homebase probes.'
         : 'Loopback probe boundary was not checked.'
+    },
+    {
+      name: 'no-fake-home-state',
+      status: local && local.noFakeHomeState
+        && local.noFakeHomeState.persistedSummaries > 0
+        && local.noFakeHomeState.ignoredDoorLocks
+        && local.noFakeHomeState.noFakeTrendLanguage ? 'ok' : 'fail',
+      detail: local && local.noFakeHomeState
+        ? 'Historical summaries cite persisted JSON sources and untrusted lock state stays ignored.'
+        : 'No-fake home state checks did not run.'
     },
     {
       name: 'ask-action-safety',
