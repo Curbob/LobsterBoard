@@ -52,6 +52,7 @@
     "headline": "Homebase found an issue.",
     "summary": "Start with automations. Core evidence is still available below.",
     "primaryAction": "Start with automations.",
+    "zoneOrder": ["smart-home", "outside-access", "network", "mac-mini"],
     "firstZone": "smart-home",
     "firstZoneState": "bad",
     "firstReview": "Automation logs: Govee connection degraded",

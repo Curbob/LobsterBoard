@@ -540,6 +540,7 @@ function verifyReplayFixtures() {
     assert(fixture.expected?.nowText === nowText, `${name} fixture daily decision drifted`);
     assert(typeof fixture.expected?.summary === 'string' && fixture.expected.summary.length > 0, `${name} fixture summary contract missing`);
     assert(typeof fixture.expected?.primaryAction === 'string' && fixture.expected.primaryAction.length > 0, `${name} fixture primary action contract missing`);
+    assert(Array.isArray(fixture.expected?.zoneOrder) && fixture.expected.zoneOrder[0] === zone, `${name} fixture zone order contract missing`);
     assertFirstScreenCopyClean({
       needsDan: fixture.expected?.firstReview ? [fixture.expected.firstReview] : [],
       houseState: {

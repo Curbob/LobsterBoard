@@ -62,6 +62,7 @@
     "headline": "Mac mini restarted this morning.",
     "summary": "Start with the Mac mini restart; house services are online.",
     "primaryAction": "Start with the Mac mini restart.",
+    "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "Mac restart incident",

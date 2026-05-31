@@ -100,6 +100,7 @@ describe('Teddy Homebase page', () => {
     expect(result.houseState.headline).toBe(expected.headline);
     expect(result.houseState.summary).toBe(expected.summary);
     expect(result.houseState.primaryAction).toBe(expected.primaryAction);
+    expect(result.houseState.zones.map(zone => zone.id)).toEqual(expected.zoneOrder);
     expect(result.houseState.zones[0]).toEqual(expect.objectContaining({
       id: expected.firstZone,
       state: expected.firstZoneState

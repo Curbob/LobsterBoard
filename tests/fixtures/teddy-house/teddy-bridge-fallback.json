@@ -52,6 +52,7 @@
     "headline": "Something needs a look.",
     "summary": "Start with OpenClaw. Everything else is responding.",
     "primaryAction": "Start with OpenClaw.",
+    "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
     "firstReview": "OpenClaw: bridge degraded",

@@ -52,6 +52,7 @@
     "headline": "Dan's house is steady.",
     "summary": "Internet, automations, public access, and the Mac mini are quiet.",
     "primaryAction": "No review items.",
+    "zoneOrder": ["outside-access", "network", "smart-home", "mac-mini"],
     "firstZone": "outside-access",
     "firstZoneState": "info",
     "nowSource": "needsDan",
