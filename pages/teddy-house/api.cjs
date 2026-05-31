@@ -22,6 +22,8 @@ const SYSTEM_LOG_CACHE_SCHEMA = 'system-logs-v4';
 const EVIDENCE_LIMIT = 120;
 const VITALS_HISTORY_LIMIT = 500;
 const VITALS_PEAK_WINDOW_MS = 6 * HOUR_MS;
+const BOOT_HISTORY_LIMIT = 120;
+const BOOT_HISTORY_WINDOW_MS = 7 * 24 * HOUR_MS;
 const WAN_HISTORY_LIMIT = 500;
 const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
@@ -448,6 +450,25 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
       sampleCount,
       bootedAt: vitalsHistory.bootedAt || null,
       source: vitalsHistory.source,
+      confidence: 'persisted'
+    });
+  }
+
+  const bootHistory = vitalsData && vitalsData.bootHistory;
+  if (bootHistory && Number(bootHistory.sampleCount) > 0 && bootHistory.source) {
+    summaries.push({
+      id: 'mac-boot-7d',
+      title: 'Mac boot',
+      window: bootHistory.window || '7d',
+      value: bootHistory.restartCount7d > 0
+        ? `${bootHistory.restartCount7d} restart${bootHistory.restartCount7d === 1 ? '' : 's'}`
+        : 'Current boot stable',
+      detail: bootHistory.currentBootedAt
+        ? `Current boot started ${formatAgeFromDate(new Date(bootHistory.currentBootedAt))}.`
+        : 'Current boot session is persisted.',
+      sampleCount: bootHistory.sampleCount,
+      restartCount7d: bootHistory.restartCount7d,
+      source: bootHistory.source,
       confidence: 'persisted'
     });
   }
@@ -1986,6 +2007,60 @@ async function updateVitalsHistory(ctx, sample) {
   };
 }
 
+function updateBootHistory(ctx, sample, vitalsHistory) {
+  const bootedAt = vitalsHistory && vitalsHistory.bootedAt;
+  if (!bootedAt) return null;
+  const bootTime = new Date(bootedAt).getTime();
+  if (!Number.isFinite(bootTime)) return null;
+  const at = nowIso();
+  const history = readDataSafe(ctx, 'boot-history.json', { entries: [] });
+  const cutoff = Date.now() - 30 * 24 * HOUR_MS;
+  const bootWindowMs = 2 * 60 * 1000;
+  const existing = (Array.isArray(history.entries) ? history.entries : [])
+    .filter(entry => {
+      const time = new Date(entry.bootedAt || 0).getTime();
+      return Number.isFinite(time) && time >= cutoff;
+    })
+    .slice(0, BOOT_HISTORY_LIMIT);
+  const [latest, ...rest] = existing;
+  const latestBoot = new Date(latest && latest.bootedAt || 0).getTime();
+  const sameBoot = Number.isFinite(latestBoot) && Math.abs(latestBoot - bootTime) <= bootWindowMs;
+  const current = {
+    bootedAt,
+    firstSeenAt: at,
+    lastSeenAt: at,
+    uptimeSeconds: Number(sample && sample.uptimeSeconds || 0),
+    host: sample && sample.host || os.hostname(),
+    observations: 1
+  };
+  const entries = sameBoot
+    ? [{
+        ...latest,
+        bootedAt: latest.bootedAt || bootedAt,
+        lastSeenAt: at,
+        uptimeSeconds: Number(sample && sample.uptimeSeconds || latest.uptimeSeconds || 0),
+        observations: Number(latest.observations || 1) + 1
+      }, ...rest]
+    : [current, ...existing];
+  const retained = entries.slice(0, BOOT_HISTORY_LIMIT);
+  writeDataSafe(ctx, 'boot-history.json', { entries: retained });
+
+  const windowCutoff = Date.now() - BOOT_HISTORY_WINDOW_MS;
+  const recentBoots = retained.filter(entry => {
+    const time = new Date(entry.bootedAt || 0).getTime();
+    return Number.isFinite(time) && time >= windowCutoff;
+  });
+  const currentBootedAt = retained[0] && retained[0].bootedAt || bootedAt;
+  const restartCount7d = Math.max(0, recentBoots.length - 1);
+  return {
+    window: '7d',
+    currentBootedAt,
+    restartCount7d,
+    sampleCount: recentBoots.length,
+    source: 'data/teddy-house/boot-history.json'
+  };
+}
+
 async function vitals(ctx) {
   const uptimeSeconds = os.uptime();
   const total = os.totalmem();
@@ -2041,6 +2116,8 @@ async function vitals(ctx) {
   result.health.cpu.secondary = `Peak ${history.cpuPeak} / 6h`;
   result.health.cpu.detail = `${result.health.cpu.detail} Recent 6h peak: ${history.cpuPeak}.`;
   result.vitalsHistory = history;
+  const bootHistory = updateBootHistory(ctx, result, history);
+  if (bootHistory) result.bootHistory = bootHistory;
   return result;
 }
 
@@ -3191,6 +3268,7 @@ teddyHouseApi._internals = {
   deriveHouseState,
   domainServiceLogs,
   buildHistoricalSummaries,
+  updateBootHistory,
   updateWanHistory,
   updatePublicAccessHistory,
   updateAutomationLogHistory,

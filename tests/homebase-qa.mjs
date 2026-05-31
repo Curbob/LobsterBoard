@@ -424,6 +424,7 @@ function assertPersistedHomebaseData(cwd, data) {
   const timeline = readJsonFile(cwd, 'timeline.json');
   const evidence = readJsonFile(cwd, 'visual-evidence.json');
   const vitals = readJsonFile(cwd, 'vitals-history.json');
+  const boot = readJsonFile(cwd, 'boot-history.json');
   const wan = readJsonFile(cwd, 'wan-history.json');
   const publicAccess = readJsonFile(cwd, 'public-access-history.json');
   const automationLogs = readJsonFile(cwd, 'automation-log-history.json');
@@ -451,6 +452,11 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(data.vitals?.vitalsHistory?.window === '6h', 'health payload must name the vitals history window');
   assert(Number(data.vitals?.vitalsHistory?.samples) > 0, 'health payload must include persisted vitals samples for peak copy');
   assert(/^Peak \d+\.\d{2} \/ 6h$/.test(data.vitals?.health?.cpu?.secondary || ''), 'CPU peak copy must use the persisted 6h history format');
+  assert(Array.isArray(boot.entries), 'boot-history.json must contain an entries array');
+  assert(boot.entries.length > 0, 'boot-history.json must retain at least one boot session');
+  assert(boot.entries.length <= 120, `boot-history.json exceeded retention limit: ${boot.entries.length}`);
+  assert(boot.entries[0].bootedAt && boot.entries[0].lastSeenAt, 'latest boot history entry is missing bootedAt/lastSeenAt');
+  assert(data.vitals?.bootHistory?.source === 'data/teddy-house/boot-history.json', 'health payload must cite persisted boot history source');
   assert(Array.isArray(wan.entries), 'wan-history.json must contain an entries array');
   assert(wan.entries.length > 0, 'wan-history.json must retain at least one WAN sample');
   assert(wan.entries.length <= 500, `wan-history.json exceeded retention limit: ${wan.entries.length}`);
@@ -468,6 +474,7 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(data.intelligence?.automationLogs?.automationLogHistory?.source === 'data/teddy-house/automation-log-history.json', 'health payload must cite persisted automation log history source');
   assert(Array.isArray(data.historicalSummaries), 'health payload must include persisted historical summaries');
   const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
+  const bootSummary = data.historicalSummaries.find(summary => summary.id === 'mac-boot-7d');
   const wanSummary = data.historicalSummaries.find(summary => summary.id === 'wan-latency-24h');
   const publicAccessSummary = data.historicalSummaries.find(summary => summary.id === 'public-access-routes');
   const automationSummary = data.historicalSummaries.find(summary => summary.id === 'automation-log-state');
@@ -475,6 +482,9 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(cpuSummary?.source === 'data/teddy-house/vitals-history.json', 'CPU history summary must cite vitals-history.json');
   assert(cpuSummary.window === '6h', 'CPU history summary must use the 6h window');
   assert(Number(cpuSummary.sampleCount) > 0, 'CPU history summary must include a persisted sample count');
+  assert(bootSummary?.source === 'data/teddy-house/boot-history.json', 'Mac boot summary must cite boot-history.json');
+  assert(bootSummary.window === '7d', 'Mac boot summary must use the 7d window');
+  assert(Number(bootSummary.sampleCount) > 0, 'Mac boot summary must include persisted samples');
   assert(wanSummary?.source === 'data/teddy-house/wan-history.json', 'WAN history summary must cite wan-history.json');
   assert(wanSummary.window === '24h', 'WAN history summary must use the 24h window');
   assert(Number(wanSummary.sampleCount) > 0, 'WAN history summary must include persisted samples');
@@ -502,6 +512,7 @@ function assertPersistedHomebaseData(cwd, data) {
     timelineEvents: timeline.events.length,
     visualEvidenceEntries: evidence.entries.length,
     vitalsSamples: vitals.entries.length,
+    bootSessions: boot.entries.length,
     wanSamples: wan.entries.length,
     publicAccessStates: publicAccess.entries.length,
     automationLogStates: automationLogs.entries.length,

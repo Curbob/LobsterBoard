@@ -60,6 +60,7 @@ Homebase stores operational evidence in `data/teddy-house/`.
 | `visual-evidence.json` | Evidence of what the dashboard rendered and why |
 | `service-logs.json` | Latest normalized redacted service-log snapshot |
 | `vitals-history.json` | Real local vitals samples used for CPU peak summaries |
+| `boot-history.json` | Current and recent Mac mini boot sessions used for restart summaries |
 | `wan-history.json` | Real WAN latency samples used for 24h internet-quality summaries |
 | `public-access-history.json` | Accepted and unexpected public route states with last-change evidence |
 | `automation-log-history.json` | Current Homebridge/accessory log state with first-seen and last-seen evidence |
