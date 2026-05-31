@@ -476,6 +476,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
           homebridgeAccessories: stripSignal(intelligence.homebridge.accessories),
           homebridgeLogs: stripSignal(intelligence.homebridge.logHealth),
           publicFunnel: stripSignal(intelligence.tailscaleFunnel),
+          publicAccess: stripSignal(intelligence.publicAccess),
           wanQuality: stripSignal(intelligence.wanQuality),
           serviceLogs: stripSignal(intelligence.serviceLogs),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
@@ -628,6 +629,52 @@ function describeFunnelPort(port, statusText) {
     return `${port} proxies to local ${target[1]}; confirm it should be public.`;
   }
   return `${port} is also public; confirm it should stay open.`;
+}
+
+function publicAccessRollup(funnelSignal) {
+  const signal = funnelSignal || info('External access status is unavailable.', 'unknown', 'External access', 'degraded');
+  const metric = String(signal.metric || signal.value || 'unknown');
+  const semanticMetric = /^(accepted|known|off|unknown)$/i.test(metric);
+  const ports = semanticMetric
+    ? []
+    : metric.split(',').map(port => port.trim()).filter(Boolean);
+  const acceptedRoutes = [];
+  const unexpectedRoutes = [];
+  for (const port of ports) {
+    if (port === '10000') acceptedRoutes.push({ port, name: 'Teddy Homebase' });
+    else if (port === '8443' && /BlueBubbles/i.test(signal.detail || '')) acceptedRoutes.push({ port, name: 'BlueBubbles' });
+    else unexpectedRoutes.push({ port, name: 'Unknown public route' });
+  }
+  const state = unexpectedRoutes.length > 0 || signal.state === 'warn' || signal.state === 'bad'
+    ? signal.state === 'bad' ? 'bad' : 'warn'
+    : signal.state === 'info'
+      ? 'info'
+      : 'ok';
+  const value = /^off$/i.test(metric)
+    ? 'Off'
+    : state === 'warn' || state === 'bad'
+      ? 'Needs review'
+      : 'Known';
+  const detail = unexpectedRoutes.length > 0
+    ? `Unexpected public route${unexpectedRoutes.length === 1 ? '' : 's'}: ${unexpectedRoutes.map(route => route.port).join(', ')}.`
+    : /^off$/i.test(metric)
+      ? 'No public routes are currently exposed.'
+      : /^unknown$/i.test(metric)
+        ? signal.detail || 'Public access status is unavailable.'
+        : 'Expected public routes are accounted for.';
+  return {
+    state,
+    value,
+    metric,
+    check: 'Public access',
+    label: state === 'warn' || state === 'bad' ? 'needs review' : /^off$/i.test(metric) ? 'off' : 'accepted',
+    detail,
+    confidence: signal.confidence || 'live',
+    source: 'Tailscale Funnel',
+    acceptedRoutes,
+    unexpectedRoutes,
+    rawSignal: stripSignal(signal)
+  };
 }
 
 async function checkInternet() {
@@ -2196,6 +2243,7 @@ async function buildIntelligence(ctx) {
     adguard,
     homebridge: { accessories, doorLocks, logHealth, version: homebridgeVersion },
     tailscaleFunnel: funnel,
+    publicAccess: publicAccessRollup(funnel),
     wanQuality,
     serviceLogs,
     automationLogs: serviceLogs.automationLogs,
@@ -2506,7 +2554,8 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const macIncident = hasMacRestartIncident(intelligence, systemVitals);
-  const outsideState = worstState([intelligence.tailscaleFunnel]);
+  const publicAccess = intelligence.publicAccess || publicAccessRollup(intelligence.tailscaleFunnel);
+  const outsideState = worstState([publicAccess]);
   const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality, actionSignal(intelligence.networkLogs)]);
   const smartHomeState = worstState([
     services.homebridge,
@@ -2542,9 +2591,11 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       state: outsideState,
       value: zoneValue(outsideState, 'Known', 'Known'),
       detail: outsideState === 'ok' || outsideState === 'info'
-        ? 'Expected public routes are accounted for.'
-        : intelligence.tailscaleFunnel.detail || 'Public access needs review.',
-      evidence: ['Tailscale Funnel']
+        ? publicAccess.detail || 'Expected public routes are accounted for.'
+        : publicAccess.detail || 'Public access needs review.',
+      evidence: publicAccess.acceptedRoutes && publicAccess.acceptedRoutes.length > 0
+        ? publicAccess.acceptedRoutes.map(route => route.name)
+        : ['Tailscale Funnel']
     },
     {
       id: 'network',
@@ -2618,6 +2669,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       macUpdates: intelligence.macUpdates,
       wanQuality: intelligence.wanQuality,
       tailscaleFunnel: intelligence.tailscaleFunnel,
+      publicAccess,
       services
     })
   };
@@ -2627,7 +2679,7 @@ function usefulSignals(intelligence) {
   if (!intelligence) return [];
   return [
     ['Mac restart incident', intelligence.systemLogs],
-    ['External access', intelligence.tailscaleFunnel],
+    ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel],
     ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
     ['Automation logs', intelligence.automationLogs],
@@ -2718,7 +2770,8 @@ function recentDecisionChange(houseState) {
 function watchSignal(intelligence, houseState) {
   const currentChange = recentDecisionChange(houseState);
   if (currentChange) return currentChange;
-  if (intelligence.tailscaleFunnel && intelligence.tailscaleFunnel.state === 'info') return 'Public access is known and passworded.';
+  const publicAccess = intelligence.publicAccess || intelligence.tailscaleFunnel;
+  if (publicAccess && publicAccess.state === 'info') return 'Public access is known and passworded.';
   if (intelligence.serviceLogs && intelligence.serviceLogs.state === 'ok') return 'Service logs are quiet.';
   if (intelligence.wanQuality && intelligence.wanQuality.state === 'ok') return 'Internet quality is normal.';
   return 'House evidence is current.';
@@ -2729,7 +2782,7 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
   const health = systemVitals.health || {};
   const candidates = [
     ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.', 0],
-    ['Public access', intelligence.tailscaleFunnel, 'Check public access first.', 10],
+    ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel, 'Check public access first.', 10],
     ['Internet', intelligence.wanQuality, 'Check internet quality first.', 20],
     ['DNS', services.adguard, 'Check DNS first.', 30],
     ['Homebridge', services.homebridge, 'Check Homebridge first.', 40],
@@ -2841,6 +2894,7 @@ teddyHouseApi._internals = {
   deriveDailyDecision,
   deriveHouseState,
   domainServiceLogs,
+  publicAccessRollup,
   needsDan,
   scoreServices
 };

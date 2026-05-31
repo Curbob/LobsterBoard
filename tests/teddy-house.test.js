@@ -783,11 +783,16 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       expect(data.intelligence.homebridge.version.state).not.toBe('warn');
     }
     expect(data.intelligence).toHaveProperty('tailscaleFunnel');
+    expect(data.intelligence).toHaveProperty('publicAccess');
     expect(data.services.tailscale).toHaveProperty('confidence');
     expect(data.intelligence.tailscaleFunnel).toHaveProperty('confidence');
+    expect(data.intelligence.publicAccess.source).toBe('Tailscale Funnel');
+    expect(data.intelligence.publicAccess).toHaveProperty('acceptedRoutes');
     expect(data.intelligence.tailscaleFunnel.detail).not.toMatch(/Extra port detected/i);
     if (data.intelligence.tailscaleFunnel.metric.includes('8443')) {
       expect(data.intelligence.tailscaleFunnel.detail).toContain('BlueBubbles');
+      expect(data.intelligence.publicAccess.acceptedRoutes.map(route => route.name)).toContain('BlueBubbles');
+      expect(data.intelligence.publicAccess.unexpectedRoutes).toHaveLength(0);
       expect(data.intelligence.tailscaleFunnel.state).toBe('info');
       expect(data.needsDan.join('\n')).not.toMatch(/^External access:/m);
     }
@@ -854,6 +859,33 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(Array.isArray(data.events)).toBe(true);
     expect(Array.isArray(data.timeline)).toBe(true);
   }, 12000);
+
+  it('derives a house-language public-access rollup from Funnel state', () => {
+    const accepted = teddyHouseInternals.publicAccessRollup({
+      state: 'info',
+      metric: '8443, 10000',
+      detail: 'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.',
+      confidence: 'live'
+    });
+    expect(accepted).toEqual(expect.objectContaining({
+      state: 'info',
+      value: 'Known',
+      source: 'Tailscale Funnel'
+    }));
+    expect(accepted.acceptedRoutes.map(route => route.name)).toEqual(['BlueBubbles', 'Teddy Homebase']);
+    expect(accepted.unexpectedRoutes).toHaveLength(0);
+
+    const drift = teddyHouseInternals.publicAccessRollup({
+      state: 'warn',
+      metric: '10000, 12345',
+      detail: '12345 proxies to a local service; confirm it should be public.',
+      confidence: 'live'
+    });
+    expect(drift.state).toBe('warn');
+    expect(drift.value).toBe('Needs review');
+    expect(drift.unexpectedRoutes).toEqual([{ port: '12345', name: 'Unknown public route' }]);
+    expect(drift.detail).toContain('12345');
+  });
 
   it('keeps a persistent house timeline instead of only the last probe', async () => {
     const first = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
