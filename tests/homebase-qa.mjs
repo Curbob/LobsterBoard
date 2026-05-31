@@ -331,6 +331,9 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
       const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
       const historyCount = document.querySelectorAll("#history-grid .history-card").length;
+      const recentChangeRows = [...document.querySelectorAll("#events-list .event")]
+        .map(row => row.innerText.trim().replace(/\\s+/g, " "))
+        .filter(Boolean);
       return {
         width: window.innerWidth,
         summaryTitle: textOf("#summary-title"),
@@ -338,6 +341,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
         firstZone,
         zoneCount,
         historyCount,
+        recentChangeRows,
         firstScreenText: visibleSectionText,
         positions: {
           overview: topOf("#overview"),
@@ -361,6 +365,10 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.firstZone, `rendered first house zone missing at ${width}px`);
   assert(value.historyCount >= 1, `rendered history summaries missing at ${width}px: ${JSON.stringify(value)}`);
+  assert(Array.isArray(value.recentChangeRows) && value.recentChangeRows.length > 0, `rendered recent changes missing at ${width}px: ${JSON.stringify(value)}`);
+  assert(value.recentChangeRows.length <= 3, `rendered recent changes should stay grouped at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
+  assert(new Set(value.recentChangeRows).size === value.recentChangeRows.length, `rendered recent changes include duplicate rows at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
+  assert(!/Status check|No drift|Recent Mac logs need attention/i.test(value.recentChangeRows.join('\n')), `rendered recent changes include noisy raw timeline copy at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
   assert(value.positions.houseState !== null, `house-state section missing at ${width}px`);
   assert(value.positions.evidence === null || value.positions.houseState < value.positions.evidence, `evidence appears before house state at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.signals === null || value.positions.houseState < value.positions.signals, `signals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
