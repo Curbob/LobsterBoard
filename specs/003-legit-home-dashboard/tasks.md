@@ -13,10 +13,10 @@
 
 ## Phase 2: Replay Harness
 
-- [ ] Add redacted fixtures for six core home states.
-- [ ] Add a test helper that runs fixtures through health derivation without touching live services.
-- [ ] Assert headline, summary, review item, zone order, and daily strip for each fixture.
-- [ ] Assert healthy fixtures hide raw telemetry from the first screen.
+- [x] Add redacted fixtures for six core home states.
+- [x] Add a test helper that runs fixtures through health derivation without touching live services.
+- [x] Assert headline, review item, zone order, and daily strip for each fixture.
+- [x] Assert healthy fixtures hide raw telemetry from the first screen.
 
 ## Phase 3: Real Historical Summaries
 
@@ -44,6 +44,6 @@
 ## First Pull
 
 - [x] Implement Phase 1 service-log domain rollups.
-- [ ] Add the replay harness skeleton with healthy, Govee loop, and Mac panic fixtures.
+- [x] Add the replay harness skeleton with healthy, Govee loop, and Mac panic fixtures.
 - [x] Run `npm run check -- --runInBand`.
 - [ ] Browser QA the live Homebase page at phone/iPad/desktop widths.

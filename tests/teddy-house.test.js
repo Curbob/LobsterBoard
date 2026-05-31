@@ -12,6 +12,59 @@ import { startServer } from '../helpers/server.js';
 
 let srv;
 const require = createRequire(import.meta.url);
+const teddyHouseInternals = require('../pages/teddy-house/api.cjs')._internals;
+const replayFixtureNames = [
+  'healthy',
+  'govee-loop',
+  'mac-panic',
+  'public-exposure-drift',
+  'wan-dns-degraded',
+  'teddy-bridge-fallback'
+];
+
+function loadReplayFixture(name) {
+  return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
+}
+
+function replayHouseState(fixture) {
+  const services = structuredClone(fixture.services);
+  const intelligence = structuredClone(fixture.intelligence);
+  const systemVitals = structuredClone(fixture.systemVitals);
+  if (intelligence.serviceLogs) {
+    Object.assign(intelligence.serviceLogs, teddyHouseInternals.domainServiceLogs(intelligence.serviceLogs));
+    intelligence.automationLogs = intelligence.serviceLogs.automationLogs;
+    intelligence.macMiniLogs = intelligence.serviceLogs.macMiniLogs;
+    intelligence.networkLogs = intelligence.serviceLogs.networkLogs;
+  }
+  const reviewItems = teddyHouseInternals.needsDan(services, intelligence, systemVitals);
+  const score = teddyHouseInternals.scoreServices(services, intelligence, systemVitals);
+  const houseState = teddyHouseInternals.deriveHouseState(
+    services,
+    intelligence,
+    systemVitals,
+    reviewItems,
+    fixture.timeline || [],
+    score
+  );
+  const dailyDecision = teddyHouseInternals.deriveDailyDecision(
+    services,
+    intelligence,
+    systemVitals,
+    reviewItems,
+    houseState
+  );
+  return { services, intelligence, systemVitals, reviewItems, score, houseState, dailyDecision };
+}
+
+function firstScreenText(result) {
+  return [
+    result.houseState.headline,
+    result.houseState.summary,
+    result.houseState.primaryAction,
+    ...result.houseState.zones.map(zone => `${zone.title} ${zone.value} ${zone.detail}`),
+    ...result.dailyDecision.slots.map(slot => `${slot.label} ${slot.text}`)
+  ].join('\n');
+}
 
 beforeAll(async () => {
   srv = await startServer();
@@ -20,6 +73,29 @@ beforeAll(async () => {
 afterAll(async () => { if (srv) await srv.kill(); });
 
 describe('Teddy Homebase page', () => {
+  it.each(replayFixtureNames)('replays the %s house state without live service probes', (fixtureName) => {
+    const fixture = loadReplayFixture(fixtureName);
+    const result = replayHouseState(fixture);
+    const expected = fixture.expected;
+
+    expect(result.houseState.headline).toBe(expected.headline);
+    expect(result.houseState.zones[0]).toEqual(expect.objectContaining({
+      id: expected.firstZone,
+      state: expected.firstZoneState
+    }));
+    if (expected.firstReview) expect(result.reviewItems[0]).toBe(expected.firstReview);
+    expect(result.dailyDecision.slots[0]).toEqual(expect.objectContaining({
+      source: expected.nowSource,
+      text: expected.nowText
+    }));
+  });
+
+  it('keeps raw telemetry out of the healthy replay first screen', () => {
+    const result = replayHouseState(loadReplayFixture('healthy'));
+    expect(firstScreenText(result)).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b|\b\d{2,5},\s*\d{2,5}\b|\b(?:\d+\.){2,}\d+\b|\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i);
+    expect(firstScreenText(result)).not.toMatch(/Eufy|Door locks|Garage side door|Front Door|Side Door/i);
+  });
+
   it('serves the custom page with LobsterBoard shared nav and custom icon', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
