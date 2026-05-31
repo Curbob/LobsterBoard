@@ -438,6 +438,7 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(evidence.entries[0].visuals?.houseState?.type === 'zone-state', 'visual evidence must include house-state source proof');
   assert(evidence.entries[0].visuals?.vitalsGrid?.inputs?.vitalsHistory?.source === 'data/teddy-house/vitals-history.json', 'visual evidence must cite vitals history source');
   assert(evidence.entries[0].visuals?.timeline?.source === 'data/teddy-house/timeline.json', 'visual evidence must cite timeline source');
+  assert(evidence.entries[0].visuals?.historicalSummaries?.type === 'persisted-summaries', 'visual evidence must include persisted history summaries');
 
   assert(Array.isArray(vitals.entries), 'vitals-history.json must contain an entries array');
   assert(vitals.entries.length > 0, 'vitals-history.json must retain at least one vitals sample');
@@ -447,6 +448,18 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(data.vitals?.vitalsHistory?.window === '6h', 'health payload must name the vitals history window');
   assert(Number(data.vitals?.vitalsHistory?.samples) > 0, 'health payload must include persisted vitals samples for peak copy');
   assert(/^Peak \d+\.\d{2} \/ 6h$/.test(data.vitals?.health?.cpu?.secondary || ''), 'CPU peak copy must use the persisted 6h history format');
+  assert(Array.isArray(data.historicalSummaries), 'health payload must include persisted historical summaries');
+  const cpuSummary = data.historicalSummaries.find(summary => summary.id === 'cpu-peak-6h');
+  const changesSummary = data.historicalSummaries.find(summary => summary.id === 'house-changes-24h');
+  assert(cpuSummary?.source === 'data/teddy-house/vitals-history.json', 'CPU history summary must cite vitals-history.json');
+  assert(cpuSummary.window === '6h', 'CPU history summary must use the 6h window');
+  assert(Number(cpuSummary.sampleCount) > 0, 'CPU history summary must include a persisted sample count');
+  assert(changesSummary?.source === 'data/teddy-house/timeline.json', 'changes history summary must cite timeline.json');
+  assert(changesSummary.window === '24h', 'changes history summary must use the 24h window');
+  assert(Number(changesSummary.sampleCount) > 0, 'changes history summary must include persisted samples');
+  const visualSummaries = evidence.entries[0].visuals.historicalSummaries.inputs || [];
+  assert(visualSummaries.length === data.historicalSummaries.length, 'visual evidence historical summaries must match health payload');
+  assert(visualSummaries.every(summary => summary.source && summary.window && Number.isFinite(Number(summary.sampleCount))), 'visual evidence summaries must include source/window/sampleCount');
 
   assert(snapshot.score === data.score, 'snapshot.json score should match latest health score');
   assert(snapshot.services?.homebridge === data.services?.homebridge?.state, 'snapshot.json should retain compact service states');

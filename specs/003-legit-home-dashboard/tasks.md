@@ -21,9 +21,9 @@
 ## Phase 3: Real Historical Summaries
 
 - [x] Define and test retention limits for vitals, visual evidence, service-log snapshots, route drift, and incident timeline evidence.
-- [ ] Add 6h/24h summaries only where persisted samples exist.
+- [x] Add 6h/24h summaries only where persisted samples exist.
 - [x] Add tests that fail if history-style visible metrics appear without persisted backing data.
-- [ ] Add visual evidence metadata for each historical summary.
+- [x] Add visual evidence metadata for each historical summary.
 
 ## Phase 4: Guided Action
 

@@ -428,7 +428,59 @@ function stripLogItem(item) {
   };
 }
 
-function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision) {
+function buildHistoricalSummaries(vitalsData, timeline) {
+  const summaries = [];
+  const vitalsHistory = vitalsData && vitalsData.vitalsHistory;
+  if (vitalsHistory && Number(vitalsHistory.samples) > 0 && vitalsHistory.source) {
+    const sampleCount = Number(vitalsHistory.samples);
+    summaries.push({
+      id: 'cpu-peak-6h',
+      title: 'CPU peak',
+      window: vitalsHistory.window || '6h',
+      value: `Peak ${vitalsHistory.cpuPeak}`,
+      detail: vitalsHistory.scopedToBoot
+        ? 'Scoped to the current Mac mini boot session.'
+        : 'Based on retained local vitals samples.',
+      sampleCount,
+      bootedAt: vitalsHistory.bootedAt || null,
+      source: vitalsHistory.source,
+      confidence: 'persisted'
+    });
+  }
+
+  const events = Array.isArray(timeline) ? timeline : [];
+  if (events.length > 0) {
+    const cutoff = Date.now() - 24 * HOUR_MS;
+    const recent = events.filter(event => {
+      const at = new Date(event && event.at || 0).getTime();
+      return Number.isFinite(at) && at >= cutoff;
+    });
+    const meaningful = recent.filter(event => {
+      const title = String(event && event.title || '');
+      const detail = String(event && event.detail || '');
+      return title !== 'Status check' && !/no changes/i.test(detail);
+    });
+    if (recent.length > 0) {
+      summaries.push({
+        id: 'house-changes-24h',
+        title: 'House changes',
+        window: '24h',
+        value: meaningful.length > 0 ? `${meaningful.length} meaningful` : 'Quiet',
+        detail: meaningful.length > 0
+          ? `${meaningful[0].title}: ${meaningful[0].detail}`
+          : 'No meaningful persisted timeline events in the last 24 hours.',
+        sampleCount: recent.length,
+        meaningfulCount: meaningful.length,
+        source: 'data/teddy-house/timeline.json',
+        confidence: 'persisted'
+      });
+    }
+  }
+
+  return summaries;
+}
+
+function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision, historicalSummaries) {
   const serviceStates = Object.fromEntries(
     Object.entries(services).map(([key, service]) => [key, {
       state: service.state,
@@ -519,6 +571,12 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         count: timeline.length,
         source: 'data/teddy-house/timeline.json',
         latest: timeline[0] || null
+      },
+      historicalSummaries: {
+        type: 'persisted-summaries',
+        count: Array.isArray(historicalSummaries) ? historicalSummaries.length : 0,
+        source: 'persisted Homebase evidence files',
+        inputs: Array.isArray(historicalSummaries) ? historicalSummaries : []
       }
     }
   };
@@ -2874,9 +2932,10 @@ function teddyHouseApi(ctx = {}) {
         const reviewItems = needsDan(services, intelligence, systemVitals);
         const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
         const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
+        const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline);
         const visualEvidence = updateVisualEvidenceLog(
           ctx,
-          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision)
+          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision, historicalSummaries)
         );
         return {
           checkedAt: nowIso(),
@@ -2887,6 +2946,7 @@ function teddyHouseApi(ctx = {}) {
           services,
           insights,
           intelligence,
+          historicalSummaries,
           visualEvidence,
           presentation: buildPresentationContract(),
           vitals: systemVitals,
@@ -2902,6 +2962,7 @@ teddyHouseApi._internals = {
   deriveDailyDecision,
   deriveHouseState,
   domainServiceLogs,
+  buildHistoricalSummaries,
   publicAccessRollup,
   needsDan,
   scoreServices
