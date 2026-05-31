@@ -1451,40 +1451,7 @@ async function checkSystemLogs(ctx) {
 async function adGuardStats() {
   try {
     const res = await fetchJson('http://127.0.0.1:3001/control/stats');
-    if (res.status === 401 || res.status === 403) {
-      return {
-        state: 'info',
-        value: 'locked',
-        label: 'locked',
-        detail: 'Blocked-query stats need the local AdGuard login.',
-        confidence: 'degraded',
-        topBlocked: []
-      };
-    }
-    if (res.status !== 200 || !res.json) {
-      return {
-        state: 'warn',
-        value: `HTTP ${res.status}`,
-        label: 'stats',
-        detail: 'AdGuard stats returned an unexpected response.',
-        confidence: 'degraded',
-        topBlocked: []
-      };
-    }
-
-    const data = res.json;
-    const queries = Number(data.num_dns_queries ?? data.dns_queries ?? 0);
-    const blocked = Number(data.num_blocked_filtering ?? data.blocked_filtering ?? 0);
-    const pct = queries > 0 ? Math.round((blocked / queries) * 100) : 0;
-    const topBlocked = pickObjectEntries(data.top_blocked_domains || data.top_blocked || data.blocked_domains, 3);
-    return {
-      state: 'ok',
-      value: `${blocked}`,
-      label: 'blocked queries',
-      detail: `${queries} queries; ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top blocked: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
-      confidence: 'live',
-      topBlocked
-    };
+    return normalizeAdGuardStatsResponse(res);
   } catch (err) {
     return {
       state: 'info',
@@ -1495,6 +1462,43 @@ async function adGuardStats() {
       topBlocked: []
     };
   }
+}
+
+function normalizeAdGuardStatsResponse(res) {
+  if (res.status === 401 || res.status === 403) {
+    return {
+      state: 'info',
+      value: 'locked',
+      label: 'locked',
+      detail: 'Blocked-query stats need the local AdGuard login.',
+      confidence: 'degraded',
+      topBlocked: []
+    };
+  }
+  if (res.status !== 200 || !res.json) {
+    return {
+      state: 'warn',
+      value: `HTTP ${res.status}`,
+      label: 'stats',
+      detail: 'AdGuard stats returned an unexpected response.',
+      confidence: 'degraded',
+      topBlocked: []
+    };
+  }
+
+  const data = res.json;
+  const queries = Number(data.num_dns_queries ?? data.dns_queries ?? 0);
+  const blocked = Number(data.num_blocked_filtering ?? data.blocked_filtering ?? 0);
+  const pct = queries > 0 ? Math.round((blocked / queries) * 100) : 0;
+  const topBlocked = pickObjectEntries(data.top_blocked_domains || data.top_blocked || data.blocked_domains, 3);
+  return {
+    state: 'ok',
+    value: `${blocked}`,
+    label: 'blocked queries',
+    detail: `${queries} queries; ${blocked} blocked (${pct}%).${topBlocked.length ? ` Top blocked: ${topBlocked.map(item => item.name).join(', ')}.` : ''}`,
+    confidence: 'live',
+    topBlocked
+  };
 }
 
 async function diskUsage() {
@@ -3402,7 +3406,8 @@ teddyHouseApi._internals = {
   normalizeLogItem,
   isCriticalDiagnosticReport,
   diagnosticReportKind,
-  logLineDate
+  logLineDate,
+  normalizeAdGuardStatsResponse
 };
 
 module.exports = teddyHouseApi;

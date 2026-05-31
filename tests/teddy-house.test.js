@@ -1744,6 +1744,51 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(teddyHouseInternals.logLineDate('stack continuation without date')).toBeNull();
   });
 
+  it('labels AdGuard blocked-query stats as locked, degraded, or live', () => {
+    expect(teddyHouseInternals.normalizeAdGuardStatsResponse({ status: 401, json: null })).toEqual({
+      state: 'info',
+      value: 'locked',
+      label: 'locked',
+      detail: 'Blocked-query stats need the local AdGuard login.',
+      confidence: 'degraded',
+      topBlocked: []
+    });
+
+    expect(teddyHouseInternals.normalizeAdGuardStatsResponse({ status: 502, json: null })).toEqual({
+      state: 'warn',
+      value: 'HTTP 502',
+      label: 'stats',
+      detail: 'AdGuard stats returned an unexpected response.',
+      confidence: 'degraded',
+      topBlocked: []
+    });
+
+    expect(teddyHouseInternals.normalizeAdGuardStatsResponse({
+      status: 200,
+      json: {
+        num_dns_queries: 100,
+        num_blocked_filtering: 25,
+        top_blocked_domains: {
+          'ads.example': 9,
+          'tracker.example': 12,
+          'noise.example': 1,
+          'cdn.example': 4
+        }
+      }
+    })).toEqual({
+      state: 'ok',
+      value: '25',
+      label: 'blocked queries',
+      detail: '100 queries; 25 blocked (25%). Top blocked: tracker.example, ads.example, cdn.example.',
+      confidence: 'live',
+      topBlocked: [
+        { name: 'tracker.example', value: 12 },
+        { name: 'ads.example', value: 9 },
+        { name: 'cdn.example', value: 4 }
+      ]
+    });
+  });
+
   it('segments vitals history by the current Mac boot session', () => {
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 

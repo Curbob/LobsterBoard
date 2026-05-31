@@ -1123,7 +1123,8 @@ function parserGoldenFixtureCoverage() {
     ['eufy-ignored', 'keeps Eufy plugin parser evidence ignored in automation rollups'],
     ['macos-diagnostics', 'classifies diagnostic report filenames by critical Mac incident shape'],
     ['tailscale-route-drift', 'parses public route drift without treating known BlueBubbles exposure as unknown'],
-    ['log-timestamps', 'parses common log timestamp formats for freshness gates']
+    ['log-timestamps', 'parses common log timestamp formats for freshness gates'],
+    ['adguard-stats', 'labels AdGuard blocked-query stats as locked, degraded, or live']
   ].map(([name, needle]) => ({
     name,
     ok: testFile.includes(needle)

@@ -25,7 +25,7 @@
 - [x] Add Eufy ignored/degraded fixtures.
 - [x] Add macOS diagnostic freshness fixtures.
 - [x] Add Tailscale route drift fixtures.
-- [ ] Add AdGuard locked/live fixtures.
+- [x] Add AdGuard locked/live fixtures.
 
 ## Phase 4: Visual Contract Tests
 
