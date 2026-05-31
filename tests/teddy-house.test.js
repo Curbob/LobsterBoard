@@ -6,10 +6,12 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import { JSDOM } from 'jsdom';
 import { startServer } from '../helpers/server.js';
 
 let srv;
+const require = createRequire(import.meta.url);
 
 beforeAll(async () => {
   srv = await startServer();
@@ -919,6 +921,101 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       confidence: 'live'
     }, null, 2));
   }, 12000);
+
+  it('routes Homebridge and Govee service-log noise to Automations instead of Mac mini', () => {
+    const { _internals } = require('../pages/teddy-house/api.cjs');
+    const services = {
+      adguard: { state: 'ok', metric: 'ok', detail: 'DNS is responding.' },
+      homebridge: { state: 'ok', metric: '8581', detail: 'Homebridge responded.' },
+      tailscale: { state: 'ok', metric: 'online', detail: 'Tailscale is online.' },
+      internet: { state: 'ok', metric: 'ok', detail: 'Internet is responding.' },
+      openclaw: { state: 'ok', metric: 'ok', detail: 'OpenClaw is responding.' },
+      backups: { state: 'info', metric: 'ignored', detail: 'Backups are not part of daily state.' }
+    };
+    const serviceLogs = {
+      checkedAt: new Date().toISOString(),
+      state: 'bad',
+      value: 'Govee connection degraded',
+      metric: 'Govee connection degraded',
+      label: 'needs review',
+      detail: 'Govee connection degraded in the recent Homebridge log window.',
+      confidence: 'live',
+      source: 'local service logs',
+      items: [
+        {
+          name: 'Homebridge',
+          state: 'bad',
+          issues: 180,
+          issueLabel: 'Govee connection degraded',
+          detail: 'Govee connection degraded in the recent Homebridge log window.'
+        },
+        {
+          name: 'Homebase',
+          state: 'ok',
+          issues: 0,
+          detail: 'Homebase log is quiet.'
+        },
+        {
+          name: 'OpenClaw',
+          state: 'ok',
+          issues: 0,
+          detail: 'OpenClaw log is quiet.'
+        },
+        {
+          name: 'Tailscale',
+          state: 'ok',
+          issues: 0,
+          detail: 'Tailscale status has no health warnings.'
+        }
+      ]
+    };
+    Object.assign(serviceLogs, _internals.domainServiceLogs(serviceLogs));
+    const intelligence = {
+      adguard: { state: 'info', metric: 'locked', detail: 'AdGuard stats need login.' },
+      homebridge: {
+        accessories: { state: 'ok', count: 103, detail: 'Accessories loaded.' },
+        doorLocks: { state: 'info', hidden: true, value: 'ignored', detail: 'Door locks ignored.' },
+        logHealth: { state: 'ok', metric: 'quiet', detail: 'Homebridge log below action threshold.' },
+        version: { state: 'ok', metric: 'current', detail: 'Homebridge is current.' }
+      },
+      tailscaleFunnel: { state: 'info', metric: 'accepted', detail: 'Known public routes.' },
+      wanQuality: { state: 'ok', metric: 'normal', detail: 'WAN is normal.' },
+      serviceLogs,
+      automationLogs: serviceLogs.automationLogs,
+      macMiniLogs: serviceLogs.macMiniLogs,
+      networkLogs: serviceLogs.networkLogs,
+      softwareUpdates: { state: 'ok', metric: 'current', detail: 'Apps are current.' },
+      macUpdates: { state: 'ok', metric: 'current', detail: 'macOS is current.' },
+      systemLogs: { state: 'ok', metric: '0', detail: 'No critical system reports.' },
+      weirdThings: []
+    };
+    const systemVitals = {
+      uptimeSeconds: 8 * 24 * 60 * 60,
+      health: {
+        cpu: { state: 'ok', metric: '2.0', detail: 'CPU normal.' },
+        memory: { state: 'ok', metric: '60% free', detail: 'Memory normal.' },
+        disk: { state: 'ok', metric: '12%', detail: 'Disk normal.' }
+      }
+    };
+    const reviewItems = _internals.needsDan(services, intelligence, systemVitals);
+    const score = _internals.scoreServices(services, intelligence, systemVitals);
+    const houseState = _internals.deriveHouseState(services, intelligence, systemVitals, reviewItems, [], score);
+    const decision = _internals.deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
+
+    expect(houseState.zones[0]).toEqual(expect.objectContaining({
+      id: 'smart-home',
+      state: 'bad',
+      detail: expect.stringContaining('Govee connection degraded')
+    }));
+    expect(houseState.zones.find(zone => zone.id === 'mac-mini')).toEqual(expect.objectContaining({
+      state: 'ok'
+    }));
+    expect(reviewItems[0]).toBe('Automation logs: Govee connection degraded');
+    expect(decision.slots[0]).toEqual(expect.objectContaining({
+      source: 'Automation logs',
+      text: 'Check automations first.'
+    }));
+  });
 
   it('normalizes repeated system-log timeline entries into one incident lane', async () => {
     const dataDir = join(srv.cwd, 'data', 'teddy-house');

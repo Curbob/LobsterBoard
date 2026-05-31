@@ -1451,6 +1451,65 @@ function normalizeLogItem(item) {
   return item;
 }
 
+function serviceLogDomain(item) {
+  const name = String(item && item.name || '');
+  const issue = String(item && (item.issueLabel || item.detail || '') || '');
+  const haystack = `${name} ${issue}`;
+  if (/homebridge|govee|tp-link|tplink|eufy|accessor|plugin/i.test(haystack)) return 'automation';
+  if (/tailscale|adguard|dns|wan|network/i.test(haystack)) return 'network';
+  if (/homebase|openclaw|gateway|macos|launchagent|node|system/i.test(haystack)) return 'mac-mini';
+  return 'mac-mini';
+}
+
+function serviceLogRollup(serviceLogs, domain, title, okDetail) {
+  const sourceItems = Array.isArray(serviceLogs && serviceLogs.items) ? serviceLogs.items : [];
+  const items = sourceItems.filter(item => serviceLogDomain(item) === domain);
+  const countedItems = items.filter(item => item.ignored !== true);
+  const noisy = countedItems.filter(item => signalBadOrWarn(item));
+  const badCount = noisy.filter(item => item.state === 'bad').length;
+  const warnCount = noisy.filter(item => item.state === 'warn').length;
+  const state = badCount > 0 ? 'bad' : warnCount > 0 ? 'warn' : 'ok';
+  const first = noisy[0] || null;
+  const issues = countedItems.reduce((sum, item) => sum + (Number(item.issues) || 0), 0);
+  return {
+    checkedAt: serviceLogs && serviceLogs.checkedAt,
+    state,
+    value: first ? (first.issueLabel || first.name || title) : 'quiet',
+    metric: first ? (first.issueLabel || first.name || title) : 'quiet',
+    label: first ? 'needs review' : 'checked',
+    detail: first
+      ? `${first.issueLabel || first.name}: ${first.detail || 'Log issue needs review.'}`
+      : okDetail,
+    confidence: serviceLogs && serviceLogs.confidence ? serviceLogs.confidence : 'live',
+    source: serviceLogs && serviceLogs.source ? serviceLogs.source : 'local service logs',
+    issues,
+    items
+  };
+}
+
+function domainServiceLogs(serviceLogs) {
+  return {
+    automationLogs: serviceLogRollup(
+      serviceLogs,
+      'automation',
+      'Automation logs',
+      'Homebridge and accessory plugin logs are quiet.'
+    ),
+    macMiniLogs: serviceLogRollup(
+      serviceLogs,
+      'mac-mini',
+      'Mac mini service logs',
+      'Homebase and OpenClaw service logs are quiet.'
+    ),
+    networkLogs: serviceLogRollup(
+      serviceLogs,
+      'network',
+      'Network service logs',
+      'Tailscale, AdGuard, and network logs are quiet.'
+    )
+  };
+}
+
 async function tailscaleLogSummary() {
   const status = await tryRun(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
   if (!status.ok) {
@@ -1536,6 +1595,7 @@ async function serviceLogOverview(ctx) {
     source: 'local service logs',
     items: normalizedItems
   };
+  Object.assign(result, domainServiceLogs(result));
   writeDataSafe(ctx, 'service-logs.json', result);
   return result;
 }
@@ -2138,6 +2198,9 @@ async function buildIntelligence(ctx) {
     tailscaleFunnel: funnel,
     wanQuality,
     serviceLogs,
+    automationLogs: serviceLogs.automationLogs,
+    macMiniLogs: serviceLogs.macMiniLogs,
+    networkLogs: serviceLogs.networkLogs,
     softwareUpdates,
     macUpdates,
     systemLogs,
@@ -2444,12 +2507,13 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
   const health = systemVitals.health || {};
   const macIncident = hasMacRestartIncident(intelligence, systemVitals);
   const outsideState = worstState([intelligence.tailscaleFunnel]);
-  const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality]);
+  const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality, actionSignal(intelligence.networkLogs)]);
   const smartHomeState = worstState([
     services.homebridge,
     homebridge.accessories,
     actionSignal(homebridge.logHealth),
-    actionSignal(homebridge.version)
+    actionSignal(homebridge.version),
+    actionSignal(intelligence.automationLogs)
   ]);
   const macMiniState = worstState([
     services.openclaw,
@@ -2458,10 +2522,10 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     reviewVital(health.disk),
     actionSignal(intelligence.macUpdates),
     actionSignal(intelligence.systemLogs),
-    actionSignal(intelligence.serviceLogs)
+    actionSignal(intelligence.macMiniLogs)
   ]);
-  const networkSignals = [services.internet, intelligence.wanQuality, services.adguard, services.tailscale];
-  const smartHomeSignals = [services.homebridge, homebridge.logHealth, homebridge.version, homebridge.accessories];
+  const networkSignals = [services.internet, intelligence.wanQuality, services.adguard, services.tailscale, intelligence.networkLogs];
+  const smartHomeSignals = [services.homebridge, intelligence.automationLogs, homebridge.logHealth, homebridge.version, homebridge.accessories];
   const macMiniSignals = [
     services.openclaw,
     health.cpu,
@@ -2469,7 +2533,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     health.disk,
     intelligence.macUpdates,
     intelligence.systemLogs,
-    intelligence.serviceLogs
+    intelligence.macMiniLogs
   ];
   const zones = [
     {
@@ -2515,13 +2579,15 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       evidence: ['OpenClaw', 'macOS', 'System logs', 'Service logs']
     }
   ];
-  if (macIncident) {
-    zones.sort((a, b) => {
+  zones.sort((a, b) => {
+    if (macIncident) {
       if (a.id === 'mac-mini') return -1;
       if (b.id === 'mac-mini') return 1;
-      return 0;
-    });
-  }
+    }
+    const stateRank = stateRankForSort(a.state) - stateRankForSort(b.state);
+    if (stateRank !== 0) return stateRank;
+    return DEFAULT_ZONE_KEYS.indexOf(a.id) - DEFAULT_ZONE_KEYS.indexOf(b.id);
+  });
   const hasBad = zones.some(zone => zone.state === 'bad') || score < 70;
   const hasReview = hasBad || zones.some(zone => zone.state === 'warn') || (Array.isArray(reviewItems) && reviewItems.length > 0);
   const headline = macIncident
@@ -2564,7 +2630,9 @@ function usefulSignals(intelligence) {
     ['External access', intelligence.tailscaleFunnel],
     ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
-    ['Service Logs', intelligence.serviceLogs],
+    ['Automation logs', intelligence.automationLogs],
+    ['Mac mini service logs', intelligence.macMiniLogs],
+    ['Network service logs', intelligence.networkLogs],
     ['Homebridge Log', intelligence.homebridge && intelligence.homebridge.logHealth],
     ['App Versions', intelligence.softwareUpdates],
     ['macOS', intelligence.macUpdates]
@@ -2660,21 +2728,28 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const candidates = [
-    ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.'],
-    ['Public access', intelligence.tailscaleFunnel, 'Check public access first.'],
-    ['Internet', intelligence.wanQuality, 'Check internet quality first.'],
-    ['DNS', services.adguard, 'Check DNS first.'],
-    ['Homebridge', services.homebridge, 'Check Homebridge first.'],
-    ['OpenClaw', services.openclaw, 'Check OpenClaw first.'],
-    ['Service logs', intelligence.serviceLogs, 'Check named service-log issue.'],
-    ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.'],
-    ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.'],
-    ['Memory', reviewVital(health.memory), 'Check Mac mini memory pressure first.'],
-    ['Disk', reviewVital(health.disk), 'Check Mac mini disk first.']
+    ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.', 0],
+    ['Public access', intelligence.tailscaleFunnel, 'Check public access first.', 10],
+    ['Internet', intelligence.wanQuality, 'Check internet quality first.', 20],
+    ['DNS', services.adguard, 'Check DNS first.', 30],
+    ['Homebridge', services.homebridge, 'Check Homebridge first.', 40],
+    ['OpenClaw', services.openclaw, 'Check OpenClaw first.', 50],
+    ['Automation logs', intelligence.automationLogs, 'Check automations first.', 60],
+    ['Mac mini service logs', intelligence.macMiniLogs, 'Check Mac mini service logs first.', 65],
+    ['Network service logs', intelligence.networkLogs, 'Check network service logs first.', 67],
+    ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.', 70],
+    ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.', 80],
+    ['Memory', reviewVital(health.memory), 'Check Mac mini memory pressure first.', 90],
+    ['Disk', reviewVital(health.disk), 'Check Mac mini disk first.', 100]
   ];
   return candidates
     .filter(([, signal]) => signalBadOrWarn(signal))
-    .sort((a, b) => stateRankForSort(a[1].state) - stateRankForSort(b[1].state))[0] || null;
+    .sort((a, b) => {
+      const stateRank = stateRankForSort(a[1].state) - stateRankForSort(b[1].state);
+      const priorityRank = (a[3] ?? 999) - (b[3] ?? 999);
+      if (a[0] === 'Mac restart incident' || b[0] === 'Mac restart incident') return priorityRank;
+      return stateRank === 0 ? priorityRank : stateRank;
+    })[0] || null;
 }
 
 function stateRankForSort(state) {
@@ -2714,7 +2789,7 @@ function eventsFromServices(services) {
   }));
 }
 
-module.exports = function(ctx = {}) {
+function teddyHouseApi(ctx = {}) {
   return {
     routes: {
       'POST /ask': async (req, res, { body }) => askTeddy(ctx, body || {}),
@@ -2760,4 +2835,14 @@ module.exports = function(ctx = {}) {
       }
     }
   };
+}
+
+teddyHouseApi._internals = {
+  deriveDailyDecision,
+  deriveHouseState,
+  domainServiceLogs,
+  needsDan,
+  scoreServices
 };
+
+module.exports = teddyHouseApi;
