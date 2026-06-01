@@ -5,6 +5,7 @@
 ```zsh
 cd /Users/teddyclaw/teddy-house-lobsterboard
 npm run check:homebase
+npm run homebase:verdict
 ```
 
 ## Inspect
@@ -20,6 +21,7 @@ open artifacts/qa/homebase-latest-desktop.png
 
 - `acceptanceStatus` is `ok`.
 - `truthVerdict.label` is `Homebase is useful`, `Homebase is lying`, or `Homebase needs Dan`.
+- `npm run homebase:verdict` prints the same label, summary, first action, acceptance status, and public-auth state.
 - `publicAuth` is `enforced` or explicitly skipped because the public route is unreachable from the test environment.
 - `trustChecks` includes source contracts, login persistence, story agreement, fallback visibility, and visual contracts.
 - Screenshots exist for phone, iPad, and desktop.

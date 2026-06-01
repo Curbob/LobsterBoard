@@ -1640,8 +1640,12 @@ function nightlyTruthSuiteSpecCoverage() {
   const specDir = join(process.cwd(), 'specs', '005-homebase-nightly-truth-suite');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
   const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const packageText = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
+  const verdictScript = readFileSync(join(process.cwd(), 'scripts', 'homebase-verdict.mjs'), 'utf8');
   const required = [
     ['canonical-command', /npm run check:homebase/],
+    ['verdict-command', /npm run homebase:verdict/.test(text) && /"homebase:verdict": "node scripts\/homebase-verdict\.mjs"/.test(packageText)],
+    ['verdict-reader', /truthVerdict/.test(verdictScript) && /Homebase is lying/.test(verdictScript)],
     ['report-artifact', /artifacts\/qa\/homebase-latest\.json/],
     ['read-only', /read-only/i],
     ['public-auth', /public (?:Funnel )?auth|Public page redirects/i],
@@ -1655,7 +1659,7 @@ function nightlyTruthSuiteSpecCoverage() {
     ['no-mutations', /does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw/i]
   ].map(([name, pattern]) => ({
     name,
-    ok: pattern.test(text)
+    ok: typeof pattern === 'boolean' ? pattern : pattern.test(text)
   }));
   return {
     status: required.every(item => item.ok) ? 'ok' : 'fail',

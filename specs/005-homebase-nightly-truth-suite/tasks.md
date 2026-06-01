@@ -12,6 +12,7 @@
 - [x] Classify first-screen/story/source/auth failures as `Homebase is lying`.
 - [x] Classify correctly ranked active incidents as `Homebase needs Dan`.
 - [x] Classify clean runs as `Homebase is useful`.
+- [x] Add a one-command verdict reader for the latest Homebase QA report.
 
 ## Phase 3: Scheduling
 

@@ -69,6 +69,7 @@
     "lint": "node tests/static-lint.mjs",
     "check": "npm run lint && npm test",
     "check:homebase": "npm run check -- --runInBand && node tests/homebase-qa.mjs",
+    "homebase:verdict": "node scripts/homebase-verdict.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
