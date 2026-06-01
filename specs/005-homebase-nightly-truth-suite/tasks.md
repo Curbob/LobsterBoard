@@ -8,10 +8,10 @@
 
 ## Phase 2: Report Verdict
 
-- [ ] Add `truthVerdict` metadata to `artifacts/qa/homebase-latest.json`.
-- [ ] Classify first-screen/story/source/auth failures as `Homebase is lying`.
-- [ ] Classify correctly ranked active incidents as `Homebase needs Dan`.
-- [ ] Classify clean runs as `Homebase is useful`.
+- [x] Add `truthVerdict` metadata to `artifacts/qa/homebase-latest.json`.
+- [x] Classify first-screen/story/source/auth failures as `Homebase is lying`.
+- [x] Classify correctly ranked active incidents as `Homebase needs Dan`.
+- [x] Classify clean runs as `Homebase is useful`.
 
 ## Phase 3: Scheduling
 

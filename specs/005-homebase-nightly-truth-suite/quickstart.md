@@ -19,6 +19,7 @@ open artifacts/qa/homebase-latest-desktop.png
 ## Expected Result
 
 - `acceptanceStatus` is `ok`.
+- `truthVerdict.label` is `Homebase is useful`, `Homebase is lying`, or `Homebase needs Dan`.
 - `publicAuth` is `enforced` or explicitly skipped because the public route is unreachable from the test environment.
 - `trustChecks` includes source contracts, login persistence, story agreement, fallback visibility, and visual contracts.
 - Screenshots exist for phone, iPad, and desktop.

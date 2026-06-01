@@ -1399,6 +1399,99 @@ function acceptanceStatus(gates) {
   return 'ok';
 }
 
+function truthVerdict(gates, checks, local, publicAuth) {
+  const gateItems = Array.isArray(gates) ? gates : [];
+  const checkItems = Array.isArray(checks) ? checks : [];
+  const failedGates = gateItems.filter(item => item.status === 'fail').map(item => item.name);
+  const failedChecks = checkItems.filter(item => item.status === 'fail').map(item => item.name);
+  const skippedGates = gateItems.filter(item => item.status === 'skipped').map(item => item.name);
+  const trustCriticalNames = new Set([
+    'local-routes',
+    'review-provenance',
+    'ask-teddy',
+    'ask-action-safety',
+    'ask-fallback-visibility',
+    'story-agreement',
+    'public-auth',
+    'loopback-probe-boundary',
+    'login-persistence',
+    'no-fake-home-state',
+    'source-contracts',
+    'live-first-story',
+    'replay-story-agreement',
+    'recorded-incident-replay',
+    'visual-contracts',
+    'rendered-replay-contracts',
+    'healthy-freshness-copy',
+    'remote-password-gate'
+  ]);
+  const trustFailures = [...failedGates, ...failedChecks].filter(name => trustCriticalNames.has(name));
+  const nonTrustFailures = [...failedGates, ...failedChecks].filter(name => !trustCriticalNames.has(name));
+  const firstReview = local && Number.isFinite(local.reviewItems) ? local.reviewItems : 0;
+  const firstDecision = local && local.firstDecision ? local.firstDecision : null;
+  const firstDecisionText = firstDecision ? firstDecision.replace(/[.]+$/, '') : null;
+  const firstZone = local && local.firstZone ? local.firstZone : null;
+  if (trustFailures.length > 0) {
+    return {
+      status: 'fail',
+      label: 'Homebase is lying',
+      summary: `Trust failed at ${[...new Set(trustFailures)].join(', ')}.`,
+      firstAction: 'Fix Homebase trust before using the dashboard.',
+      reason: 'trust-failure',
+      failedGates,
+      failedChecks,
+      nonTrustFailures,
+      skippedGates,
+      publicAuth
+    };
+  }
+  if (nonTrustFailures.length > 0) {
+    return {
+      status: 'fail',
+      label: 'Homebase needs Dan',
+      summary: `QA failed at ${[...new Set(nonTrustFailures)].join(', ')} before Homebase could be cleared.`,
+      firstAction: 'Fix the failing Homebase QA gate.',
+      firstZone,
+      reason: 'qa-failure',
+      failedGates,
+      failedChecks,
+      nonTrustFailures,
+      skippedGates,
+      publicAuth
+    };
+  }
+  if (firstReview > 0) {
+    return {
+      status: 'review',
+      label: 'Homebase needs Dan',
+      summary: `${firstReview} ranked item${firstReview === 1 ? '' : 's'} need${firstReview === 1 ? 's' : ''} review; first action is ${firstDecisionText || 'missing'}.`,
+      firstAction: firstDecision || 'Review the first ranked item.',
+      firstZone,
+      reason: 'ranked-review',
+      failedGates,
+      failedChecks,
+      nonTrustFailures,
+      skippedGates,
+      publicAuth
+    };
+  }
+  return {
+    status: skippedGates.length > 0 ? 'partial' : 'ok',
+    label: 'Homebase is useful',
+    summary: skippedGates.length > 0
+      ? `Core trust passed; ${skippedGates.join(', ')} skipped.`
+      : 'All trust gates passed and no ranked review items need Dan.',
+    firstAction: 'Nothing needs Dan.',
+    firstZone,
+    reason: skippedGates.length > 0 ? 'trusted-partial' : 'trusted-clear',
+    failedGates,
+    failedChecks,
+    nonTrustFailures,
+    skippedGates,
+    publicAuth
+  };
+}
+
 function zoneRankingCoverage(fixtureContracts) {
   const byName = new Map((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => [contract.name, contract]));
   const expected = [
@@ -1895,12 +1988,24 @@ async function main() {
     status: healthyFreshness.status,
     detail: 'Healthy replay first screen does not present stale, cached, degraded, or ignored sources as current.'
   });
+  const verdict = truthVerdict(gates, checks, local, publicAuth);
+  gates.push({
+    name: 'truth-verdict',
+    status: verdict.label === 'Homebase is lying' ? 'fail' : 'ok',
+    detail: `${verdict.label}: ${verdict.summary}`
+  });
+  checks.push({
+    name: 'truth-verdict',
+    status: verdict.label === 'Homebase is lying' ? 'fail' : 'ok',
+    detail: 'Homebase QA produces a morning-readable verdict from trust gates, active incidents, and first action.'
+  });
   const report = {
     status: 'ok',
     generatedAt: new Date().toISOString(),
     reportFile: QA_REPORT_FILE,
     git: gitMetadata(),
     acceptanceStatus: acceptanceStatus(gates),
+    truthVerdict: verdict,
     acceptanceGates: gates,
     trustChecks: checks,
     zoneRankingCoverage: zoneCoverage.items,
