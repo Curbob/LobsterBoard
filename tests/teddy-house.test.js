@@ -555,7 +555,10 @@ describe('Teddy Homebase page', () => {
           status: known ? 'known' : 'recurring',
           zone: 'smart-home',
           detail: 'Govee connection degraded in the recent Homebridge log window.',
-          nextAction: 'Check automations first.'
+          nextAction: 'Check automations first.',
+          source: 'local service logs',
+          confidence: 'fixture',
+          lastSeenAt: '2026-05-16T23:00:00.000Z'
         },
         zones: [],
         recentChanges: []
@@ -588,7 +591,7 @@ describe('Teddy Homebase page', () => {
       <section id="review-lane" class="needs-lane"><div id="needs-title"></div><div id="needs-list"></div></section>
       <section id="incident-ribbon" hidden>
         <div><h3 id="incident-title"></h3></div>
-        <div class="incident-copy"><p id="incident-detail"></p><button id="incident-known-button" type="button"></button></div>
+        <div class="incident-copy"><p id="incident-detail"></p><div id="incident-meta"></div><button id="incident-known-button" type="button"></button></div>
       </section>
       <section id="daily-decision"><div data-decision-slot="now"><p class="eyebrow"></p><h3></h3></div><div data-decision-slot="watch"><p class="eyebrow"></p><h3></h3></div><div data-decision-slot="later"><p class="eyebrow"></p><h3></h3></div></section>
       <section id="house-state"><span id="house-state-pill"></span><div id="house-zone-grid"></div></section>
@@ -624,8 +627,17 @@ describe('Teddy Homebase page', () => {
     await new Promise(resolve => dom.window.setTimeout(resolve, 0));
 
     const button = dom.window.document.getElementById('incident-known-button');
+    const meta = dom.window.document.getElementById('incident-meta').textContent;
     expect(dom.window.document.getElementById('incident-ribbon').hidden).toBe(false);
     expect(button.textContent).toBe('Mark known');
+    expect(meta).toContain('Last seen');
+    expect(meta).toContain('4:00 PM');
+    expect(meta).toContain('Source');
+    expect(meta).toContain('local service logs');
+    expect(meta).toContain('Confidence');
+    expect(meta).toContain('fixture');
+    expect(meta).toContain('Next');
+    expect(meta).toContain('Check automations first.');
 
     button.click();
     await new Promise(resolve => dom.window.setTimeout(resolve, 0));
@@ -735,9 +747,11 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('logFocusForReview');
     expect(script).toContain('/pages/teddy-house/logs/?focus=');
     expect(script).toContain('markIncidentKnown');
+    expect(script).toContain('renderIncidentMeta');
     expect(script).toContain('/api/pages/teddy-house/incidents/');
     expect(script).toContain('action: "prepare-fix"');
     expect(script).toContain('Do not run commands or change settings');
+    expect(html).toContain('id="incident-meta"');
     expect(html).toContain('id="incident-known-button"');
     expect(html).toContain('Mark known');
     expect(script).toContain('data.source === "local-fallback"');

@@ -51,6 +51,7 @@ expect(html.includes('rel="apple-touch-icon" href="/pages/teddy-house/apple-touc
 expect(html.includes('rel="manifest" href="/pages/teddy-house/manifest.webmanifest"'), 'missing web app manifest');
 expect(html.includes('id="ask-teddy"'), 'missing Ask Teddy command bar');
 expect(html.includes('id="house-state"'), 'missing house-state daily surface');
+expect(html.includes('id="incident-meta"'), 'missing active incident metadata surface');
 expect(html.includes('https://openclaw-mac-mini.tail02a3b6.ts.net:3001/'), 'missing tailnet AdGuard operator link');
 expect(html.includes('>AdGuard</a>'), 'missing AdGuard operator link label');
 expect(html.includes('House State'), 'missing house-state shell copy');
@@ -84,6 +85,7 @@ expect(script.includes('const REFRESH_MS = 420000'), 'manual/auto refresh interv
 expect(script.includes('async function askTeddy'), 'Ask Teddy client handler must stay wired');
 expect(script.includes('/api/pages/teddy-house/ask'), 'Ask Teddy client must call page-local ask route');
 expect(script.includes('function renderHouseState'), 'Homebase must render the house-state layer');
+expect(script.includes('function renderIncidentMeta'), 'Homebase must render incident source, confidence, time, and next action');
 expect(script.includes("Dan's house is steady."), 'summary copy should use house-state language');
 expect(!script.match(/sparkline|SPARKS|trend/i), 'fake trend or sparkline language must stay out');
 expect(!script.includes('Teddy House'), 'visible script copy should use Teddy Homebase');

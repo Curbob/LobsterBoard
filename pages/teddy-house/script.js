@@ -272,18 +272,21 @@ function renderIncident(houseState) {
   if (!ribbon) return;
   const incident = houseState && houseState.incident;
   const knownButton = document.getElementById("incident-known-button");
+  const meta = document.getElementById("incident-meta");
   if (!incident) {
     ribbon.hidden = true;
     if (knownButton) {
       knownButton.disabled = true;
       delete knownButton.dataset.incidentKey;
     }
+    if (meta) clear(meta);
     return;
   }
   const title = document.getElementById("incident-title");
   const detail = document.getElementById("incident-detail");
   if (title) title.textContent = incident.title || "Mac mini needs review";
   if (detail) detail.textContent = incident.detail || "System evidence needs review.";
+  renderIncidentMeta(meta, incident);
   if (knownButton) {
     knownButton.disabled = !incident.key;
     knownButton.dataset.incidentKey = incident.key || "";
@@ -294,6 +297,22 @@ function renderIncident(houseState) {
       : "Mark this source-backed incident as known without changing services.";
   }
   ribbon.hidden = false;
+}
+
+function renderIncidentMeta(meta, incident) {
+  if (!meta) return;
+  clear(meta);
+  const rows = [
+    ["Last seen", incident.lastSeenAt ? fmtCheckedAt(incident.lastSeenAt).replace(/^Checked\s*/i, "") : "current"],
+    ["Source", incident.source || "Homebase"],
+    ["Confidence", incident.confidence || "derived"],
+    ["Next", incident.nextAction || "Review the evidence."]
+  ];
+  rows.forEach(([label, value]) => {
+    const item = span("incident-meta-item");
+    item.append(span("incident-meta-label", label), span("incident-meta-value", value));
+    meta.append(item);
+  });
 }
 
 async function markIncidentKnown() {

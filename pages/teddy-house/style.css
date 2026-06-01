@@ -364,6 +364,42 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.incident-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 560px;
+}
+
+.incident-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.incident-meta-label {
+  color: var(--faint);
+  font-weight: 740;
+}
+
+.incident-meta-value {
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .incident-known-button {
   min-height: 32px;
   padding: 0 12px;
@@ -1370,9 +1406,16 @@ h3 {
     flex-direction: column;
   }
 
-  .incident-ribbon p:last-child {
+  .incident-ribbon p:last-child,
+  .incident-copy p {
     max-width: none;
     text-align: left;
+  }
+
+  .incident-copy,
+  .incident-meta {
+    justify-items: start;
+    justify-content: flex-start;
   }
 
   h2 {
