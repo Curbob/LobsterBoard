@@ -2,6 +2,7 @@
 
 - [x] The pack includes `healthy`.
 - [x] The pack includes `stale-android-proof`.
+- [x] The pack includes `post-reboot-recovered`.
 - [x] The pack includes `homebridge-down`.
 - [x] The pack includes `adguard-dns-down`.
 - [x] The pack includes `tailscale-funnel-missing`.

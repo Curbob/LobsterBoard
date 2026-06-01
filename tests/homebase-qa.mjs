@@ -28,8 +28,8 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
-const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1233,6 +1233,7 @@ function verifyReplayFixtures() {
   const expected = {
     healthy: ['outside-access', 'Nothing needs Dan.'],
     'stale-android-proof': ['outside-access', 'Nothing needs Dan.'],
+    'post-reboot-recovered': ['outside-access', 'Nothing needs Dan.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1272,6 +1273,16 @@ function verifyReplayFixtures() {
         houseState: replayData.houseState,
         dailyDecision: replayData.dailyDecision
       }).match(/Android|proof node/i) === null, 'stale Android proof leaked into trusted replay surface');
+    }
+    if (name === 'post-reboot-recovered') {
+      assert(replayData.houseState?.tone === 'steady', 'clean post-reboot recovery should stay steady');
+      assert(Array.isArray(replayData.needsDan) && replayData.needsDan.length === 0, 'clean post-reboot recovery should not create review items');
+      assert(!/restart|reboot|panic|watchdog/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'clean post-reboot recovery leaked scary restart copy into first-screen truth');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({

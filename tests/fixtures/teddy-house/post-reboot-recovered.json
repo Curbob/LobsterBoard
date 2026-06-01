@@ -1,0 +1,75 @@
+{
+  "name": "post-reboot-recovered",
+  "services": {
+    "adguard": { "state": "ok", "metric": "ok", "detail": "DNS is responding." },
+    "homebridge": { "state": "ok", "metric": "8581", "detail": "Homebridge responded." },
+    "tailscale": { "state": "ok", "metric": "online", "detail": "Tailscale is online." },
+    "internet": { "state": "ok", "metric": "ok", "detail": "Internet is responding." },
+    "openclaw": { "state": "ok", "metric": "ok", "detail": "OpenClaw is responding." },
+    "backups": { "state": "info", "metric": "paused", "detail": "Backups are parked for now." }
+  },
+  "intelligence": {
+    "adguard": { "state": "info", "metric": "locked", "detail": "AdGuard stats need login." },
+    "homebridge": {
+      "accessories": { "state": "ok", "count": 103, "detail": "Accessories loaded." },
+      "doorLocks": { "state": "info", "hidden": true, "value": "ignored", "detail": "Door locks ignored." },
+      "logHealth": { "state": "ok", "metric": "quiet", "detail": "Homebridge log below action threshold." },
+      "version": { "state": "ok", "metric": "current", "detail": "Homebridge is current." }
+    },
+    "tailscaleFunnel": { "state": "info", "metric": "accepted", "detail": "Known public routes are expected." },
+    "wanQuality": { "state": "ok", "metric": "normal", "detail": "WAN is normal." },
+    "serviceLogs": {
+      "checkedAt": "2026-05-31T00:00:00.000Z",
+      "state": "ok",
+      "value": "quiet",
+      "metric": "quiet",
+      "label": "checked",
+      "detail": "Service logs are quiet after the restart.",
+      "confidence": "fixture",
+      "source": "fixture",
+      "items": [
+        { "name": "Homebridge", "state": "ok", "issues": 0, "detail": "Homebridge log is quiet." },
+        { "name": "Homebase", "state": "ok", "issues": 0, "detail": "Homebase log is quiet." },
+        { "name": "OpenClaw", "state": "ok", "issues": 0, "detail": "OpenClaw log is quiet." },
+        { "name": "Tailscale", "state": "ok", "issues": 0, "detail": "Tailscale status has no health warnings." }
+      ]
+    },
+    "softwareUpdates": { "state": "ok", "metric": "current", "detail": "Apps are current." },
+    "macUpdates": { "state": "ok", "metric": "current", "detail": "macOS is current." },
+    "systemLogs": { "state": "ok", "metric": "0", "detail": "No critical system reports." },
+    "weirdThings": []
+  },
+  "systemVitals": {
+    "uptime": "42m",
+    "uptimeSeconds": 2520,
+    "health": {
+      "cpu": { "state": "ok", "metric": "2.4", "detail": "CPU normal." },
+      "memory": { "state": "ok", "metric": "58% free", "detail": "Memory normal." },
+      "disk": { "state": "ok", "metric": "12%", "detail": "Disk normal." }
+    }
+  },
+  "timeline": [
+    {
+      "at": "2026-05-31T12:00:00.000Z",
+      "time": "12:00 PM",
+      "title": "Status check",
+      "detail": "Readiness 100; no changes.",
+      "state": "ok"
+    }
+  ],
+  "expected": {
+    "headline": "Dan's house is steady.",
+    "summary": "Internet, automations, public access, and the Mac mini are quiet.",
+    "primaryAction": "No review items.",
+    "zoneOrder": ["outside-access", "network", "smart-home", "mac-mini"],
+    "dailySlots": [
+      { "key": "now", "text": "Nothing needs Dan.", "state": "ok", "source": "needsDan" },
+      { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
+    "firstZone": "outside-access",
+    "firstZoneState": "info",
+    "nowSource": "needsDan",
+    "nowText": "Nothing needs Dan."
+  }
+}
