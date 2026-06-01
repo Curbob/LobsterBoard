@@ -2,7 +2,7 @@
 
 ## Phase 1: Spec And Coverage
 
-- [x] Define the twenty canonical curated scenarios.
+- [x] Define the twenty-one canonical curated scenarios.
 - [x] Define the API, rendered page, and Ask Teddy agreement contract.
 - [x] Define recorded incident bundle requirements.
 - [x] Add QA coverage that fails if the scenario replay pack spec drifts.
@@ -26,7 +26,8 @@
 - [x] Add a post-outage system-logs-warning replay when system logs need review without a low-uptime panic.
 - [x] Add a post-outage resource-pressure replay when Mac mini CPU or memory needs review after recovery.
 - [x] Add a post-outage AdGuard-stats-unavailable replay when DNS is fine but blocker stats are locked.
-- [ ] Add a post-outage Homebridge-UI-patch replay when maintenance can wait.
+- [x] Add a post-outage Homebridge-UI-patch replay when maintenance can wait.
+- [ ] Add a post-outage optional-app-update replay when maintenance can wait.
 - [x] Add a Homebridge-down replay for the Mac-healthy automation outage case.
 - [x] Add an AdGuard-DNS-down replay for local DNS failure while WAN is otherwise normal.
 - [x] Add a Tailscale-Funnel-missing replay for tailnet-online but public-route-missing state.
