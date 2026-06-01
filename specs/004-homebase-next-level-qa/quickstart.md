@@ -43,7 +43,11 @@ sourceContracts: all-visible-home-state-sources
 
 ## Manual Device Smoke
 
-Use this when Dan wants real-device proof:
+Use this when Dan wants real-device proof. The canonical checklist is:
+
+`specs/004-homebase-next-level-qa/checklists/mobile-login-smoke.md`
+
+Fast path:
 
 1. Open the public Funnel Homebase URL on Android Chrome.
 2. Confirm saved login or existing session gets to the dashboard.

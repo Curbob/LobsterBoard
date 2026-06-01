@@ -34,7 +34,7 @@
 
 - [x] Cached login works in an isolated browser context.
 - [x] Public API still returns unauthenticated when no session exists.
-- [ ] Android/iOS manual login persistence smokes are documented.
+- [x] Android/iOS manual login persistence smokes are documented.
 
 ## Source Trust
 

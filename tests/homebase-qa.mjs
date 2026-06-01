@@ -1515,6 +1515,34 @@ function parserGoldenFixtureCoverage() {
   };
 }
 
+function mobileLoginSmokeChecklistCoverage() {
+  const checklistPath = join(process.cwd(), 'specs', '004-homebase-next-level-qa', 'checklists', 'mobile-login-smoke.md');
+  const text = readFileSync(checklistPath, 'utf8');
+  const required = [
+    ['android-chrome', /Android Chrome/],
+    ['iphone-pwa', /iPhone Safari PWA/],
+    ['ipad-pwa', /iPad Safari PWA/],
+    ['public-url', /https:\/\/openclaw-mac-mini\.tail02a3b6\.ts\.net:10000\/pages\/teddy-house\//],
+    ['reload', /\bReload the tab\b/],
+    ['browser-restart', /Close Chrome completely, reopen it/],
+    ['home-screen', /Add Teddy Homebase to the Home Screen/],
+    ['pwa-relaunch', /Force close the PWA and reopen it/],
+    ['first-action', /first action shown in `Now`/],
+    ['ask-teddy', /Tap `Send status`/],
+    ['fallback-honesty', /clearly shows `Fallback`/],
+    ['overflow', /no horizontal overflow/i]
+  ].map(([name, pattern]) => ({
+    name,
+    ok: pattern.test(text)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    file: checklistPath,
+    items: required
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -1731,6 +1759,7 @@ async function main() {
   const replayStoryCoverage = replayStoryAgreementCoverage(fixtureContracts);
   const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
+  const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -1775,6 +1804,16 @@ async function main() {
     name: 'parser-golden-fixtures',
     status: parserGoldenCoverage.status,
     detail: 'Golden parser tests cover Homebridge, Govee, Eufy, macOS diagnostics, route drift, and timestamp freshness.'
+  });
+  gates.push({
+    name: 'mobile-login-manual-smoke',
+    status: mobileChecklistCoverage.status,
+    detail: mobileChecklistCoverage.detail
+  });
+  checks.push({
+    name: 'mobile-login-manual-smoke',
+    status: mobileChecklistCoverage.status,
+    detail: 'Android Chrome and iPhone/iPad PWA login persistence smokes are documented with reload, relaunch, first action, Ask Teddy, and overflow checks.'
   });
   gates.push({
     name: 'visual-contracts',
@@ -1828,6 +1867,7 @@ async function main() {
     replayStoryAgreementCoverage: replayStoryCoverage.items,
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
+    mobileLoginSmokeChecklist: mobileChecklistCoverage,
     visualContractCoverage: visualCoverage,
     renderedReplay,
     renderedReplayVisualCoverage,
