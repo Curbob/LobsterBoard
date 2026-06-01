@@ -3009,7 +3009,8 @@ function macIncidentDetail(systemLogs, systemVitals) {
 function translatePrimaryAction(needs) {
   if (!Array.isArray(needs) || needs.length === 0) return 'No review items.';
   const first = String(needs[0] || '').toLowerCase();
-  if (/external|public|funnel|access|tailscale/.test(first)) return 'Start with public access.';
+  if (/tailscale/.test(first)) return 'Start with Tailscale.';
+  if (/external|public|funnel|access/.test(first)) return 'Start with public access.';
   if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
   if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
   if (/openclaw/.test(first)) return 'Start with OpenClaw.';
@@ -3377,6 +3378,7 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
     ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.', 0],
     ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel, 'Check public access first.', 10],
     ['Internet', intelligence.wanQuality, 'Check internet quality first.', 20],
+    ['Tailscale', services.tailscale, 'Check Tailscale first.', 25],
     ['DNS', services.adguard, 'Check DNS first.', 30],
     ['Homebridge', services.homebridge, 'Check Homebridge first.', 40],
     ['OpenClaw', services.openclaw, 'Check OpenClaw first.', 50],

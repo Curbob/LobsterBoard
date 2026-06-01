@@ -29,7 +29,7 @@ const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -871,6 +871,7 @@ function askMentionsFirstAction(answer, firstAction) {
   if (/nothing needs/.test(action) && /nothing needs action|no review item|no review items/.test(text)) return true;
   if (/automations/.test(action) && /automations/.test(text)) return true;
   if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
+  if (/tailscale/.test(action) && /tailscale/.test(text)) return true;
   if (/public access|external access/.test(action) && /public access|external access|funnel/.test(text)) return true;
   if (/internet|wan|dns|network/.test(action) && /internet|wan|dns|network/.test(text)) return true;
   return false;
@@ -1237,6 +1238,7 @@ function verifyReplayFixtures() {
     'post-outage-homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'post-outage-dns-down': ['network', 'Check DNS first.'],
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
+    'post-outage-tailscale-offline': ['network', 'Check Tailscale first.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1316,6 +1318,17 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'post-outage Funnel outage should not invent panic/watchdog copy');
+    }
+    if (name === 'post-outage-tailscale-offline') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'network', 'post-outage Tailscale outage should lead with internet');
+      assert(replayData.needsDan?.[0] === 'Tailscale: offline', 'post-outage Tailscale outage should keep Tailscale as first review item');
+      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check Tailscale first.', 'post-outage Tailscale outage should name Tailscale as the first action');
+      assert(!/panic|watchdog|public access first/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage Tailscale outage should not invent panic/watchdog or public-access-first copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
@@ -1557,6 +1570,7 @@ function zoneRankingCoverage(fixtureContracts) {
   const expected = [
     ['homebridge-down', 'smart-home', 'Automations'],
     ['adguard-dns-down', 'network', 'Internet'],
+    ['post-outage-tailscale-offline', 'network', 'Internet'],
     ['tailscale-funnel-missing', 'outside-access', 'Public access'],
     ['govee-loop', 'smart-home', 'Automations'],
     ['mac-panic', 'mac-mini', 'Mac mini'],

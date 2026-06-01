@@ -6,6 +6,7 @@
 - [x] The pack includes `post-outage-homebridge-down`.
 - [x] The pack includes `post-outage-dns-down`.
 - [x] The pack includes `post-outage-funnel-missing`.
+- [x] The pack includes `post-outage-tailscale-offline`.
 - [x] The pack includes `homebridge-down`.
 - [x] The pack includes `adguard-dns-down`.
 - [x] The pack includes `tailscale-funnel-missing`.
