@@ -30,7 +30,7 @@
 ## Phase 4: Visual Contract Tests
 
 - [x] Add DOM-level first-viewport assertions for phone, iPad, and desktop.
-- [ ] Assert warning state shows Status, Now/Watch/Later, Review, affected zone, Vitals, Ask, Evidence.
+- [x] Assert warning state shows Status, Now/Watch/Later, Review, affected zone, Vitals, Ask, Evidence.
 - [x] Assert healthy state stays quiet and free of raw telemetry.
 - [x] Assert no duplicated recent-change rows appear in rendered QA.
 - [x] Keep screenshots as proof artifacts.

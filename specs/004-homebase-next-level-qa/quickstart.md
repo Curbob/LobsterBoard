@@ -15,6 +15,7 @@ Expected today:
 - unit/API/design tests pass
 - replay contracts pass
 - replay story agreement proves fixture API state, locked first-screen contract, and Ask Teddy name the same first action
+- rendered replay contracts prove warning fixtures keep the active incident visible in the real page shell
 - recorded incident replay proves redacted bad-day bundles still produce the expected first action
 - parser golden fixtures cover Homebridge stack continuations, Govee grouping, Eufy ignored evidence, Mac diagnostics, route drift, timestamp freshness, and AdGuard locked/live states
 - visual contracts prove phone/iPad/desktop first viewports keep the story visible and evidence below the decision story
@@ -35,6 +36,7 @@ storyAgreement: api-page-ask
 recordedIncidentReplay: windowserver, govee, teddy-bridge, public-access
 parserGoldenFixtures: homebridge, service-logs, macos, tailscale, adguard
 visualContracts: phone, ipad, desktop
+renderedReplayContracts: warning-fixtures-phone
 loginPersistence: local-browser-context
 sourceContracts: all-visible-home-state-sources
 ```

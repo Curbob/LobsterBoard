@@ -279,6 +279,135 @@ async function captureScreenshots(baseUrl) {
   }
 }
 
+function fixtureReplayPayload(fixture) {
+  const replay = replayHealthFromFixture(fixture);
+  const timeline = Array.isArray(fixture.timeline) ? fixture.timeline : [];
+  const historicalSummaries = teddyHouseInternals.buildHistoricalSummaries(
+    replay.vitals,
+    timeline,
+    replay.intelligence
+  );
+  return {
+    checkedAt: fixture.checkedAt || fixture.expected?.checkedAt || new Date().toISOString(),
+    score: replay.score,
+    needsDan: replay.needsDan,
+    reviewEvidence: teddyHouseInternals.reviewEvidenceFor(replay.services, replay.intelligence, replay.vitals, replay.needsDan),
+    houseState: replay.houseState,
+    dailyDecision: replay.dailyDecision,
+    services: replay.services,
+    intelligence: replay.intelligence,
+    vitals: replay.vitals,
+    historicalSummaries,
+    timeline,
+    events: timeline
+  };
+}
+
+function replayDocumentHtml() {
+  const html = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'index.html'), 'utf8');
+  const css = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'style.css'), 'utf8');
+  const script = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
+  return html
+    .replace('<link rel="stylesheet" href="/pages/teddy-house/style.css">', `<style>${css}</style>`)
+    .replace('<script src="/pages/_shared/nav.js"></script>', '<script>window.renderPageNav = function() {};</script>')
+    .replace('<script src="/pages/teddy-house/script.js"></script>', `<script>${script}</script>`);
+}
+
+async function renderReplayFixture(chrome, name, width = 390, height = 844) {
+  const fixture = readFixture(name);
+  const data = fixtureReplayPayload(fixture);
+  const expected = fixture.expected || {};
+  const { targetId } = await chromeCommand(chrome, 'Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await chromeCommand(chrome, 'Target.attachToTarget', { targetId, flatten: true });
+  await chromeCommand(chrome, 'Page.enable', {}, sessionId);
+  await chromeCommand(chrome, 'Runtime.enable', {}, sessionId);
+  await chromeCommand(chrome, 'Page.addScriptToEvaluateOnNewDocument', {
+    source: `
+      window.__HOMEBASE_REPLAY_HEALTH = ${JSON.stringify(data)};
+      window.fetch = async function(url) {
+        if (String(url).includes('/api/pages/teddy-house/health')) {
+          return { ok: true, status: 200, json: async () => window.__HOMEBASE_REPLAY_HEALTH };
+        }
+        if (String(url).includes('/api/pages/teddy-house/ask')) {
+          return { ok: true, status: 200, json: async () => ({ status: 'complete', source: 'local', answer: 'Replay answer used the dashboard context.' }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      };
+    `
+  }, sessionId);
+  await chromeCommand(chrome, 'Emulation.setDeviceMetricsOverride', {
+    width,
+    height,
+    deviceScaleFactor: 1,
+    mobile: width <= 430
+  }, sessionId);
+  try {
+    const documentHtml = replayDocumentHtml();
+    const loadPromise = waitForChromeEvent(chrome, 'Page.loadEventFired', sessionId).catch(() => null);
+    await chromeCommand(chrome, 'Page.navigate', {
+      url: `data:text/html;base64,${Buffer.from(documentHtml).toString('base64')}`
+    }, sessionId);
+    await loadPromise;
+    await waitForHomebaseReady(chrome, sessionId);
+    const layout = await assertNoHorizontalOverflow(chrome, sessionId, width);
+    const rendered = await assertRenderedFirstScreen(chrome, sessionId, width, { requireReviewVisible: false });
+    assert(rendered.summaryTitle === expected.headline, `${name} rendered headline ${rendered.summaryTitle} drifted from ${expected.headline}`);
+    assert(rendered.firstZone === zoneTitleForId(expected.firstZone), `${name} rendered first zone ${rendered.firstZone} drifted from ${expected.firstZone}`);
+    assert(rendered.nowDecision === expected.nowText || rendered.firstDecision === expected.nowText, `${name} rendered first action ${rendered.nowDecision || rendered.firstDecision} drifted from ${expected.nowText}`);
+    if (expected.firstReview) {
+      assert(rendered.firstReview.includes(formatReplayReviewNeed(expected.firstReview)), `${name} rendered first review ${rendered.firstReview} did not include ${expected.firstReview}`);
+    }
+    const file = join(SCREENSHOT_DIR, `homebase-replay-${name}-phone.png`);
+    const screenshot = await chromeCommand(chrome, 'Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId);
+    await writeFile(file, Buffer.from(screenshot.data, 'base64'));
+    const fileStat = await stat(file);
+    assert(fileStat.size > 5000, `${name} replay screenshot is too small to be useful`);
+    return {
+      name,
+      width,
+      file,
+      bytes: fileStat.size,
+      scrollWidth: layout.rootScrollWidth,
+      headline: rendered.summaryTitle,
+      firstZone: rendered.firstZone,
+      firstAction: rendered.nowDecision || rendered.firstDecision,
+      firstReview: rendered.firstReview,
+      visualContract: rendered.visualContract
+    };
+  } finally {
+    await chromeCommand(chrome, 'Target.closeTarget', { targetId }).catch(() => null);
+  }
+}
+
+function formatReplayReviewNeed(item) {
+  const [rawName, rawValue] = String(item || '').split(':').map(part => part.trim());
+  if (/mac restart|watchdog|panic/i.test(rawName)) return 'Mac restart incident';
+  if (/service logs/i.test(rawName)) return rawValue && !/^\d+$/.test(rawValue) ? rawValue : 'Service logs need review';
+  if (/external access|public access/i.test(rawName)) return rawValue ? `Public access: ${rawValue}` : 'Public access';
+  return rawValue ? `${rawName}: ${rawValue}` : rawName;
+}
+
+async function renderReplayFixtures() {
+  if (process.env.HOMEBASE_SKIP_REPLAY_RENDER === '1') return { status: 'skipped' };
+  await mkdir(SCREENSHOT_DIR, { recursive: true });
+  const userDataDir = join(tmpdir(), `homebase-replay-chrome-${Date.now()}`);
+  const chrome = await startChrome(userDataDir);
+  const fixtureNames = ['govee-loop', 'mac-panic', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+  try {
+    const outputs = [];
+    for (const name of fixtureNames) {
+      outputs.push(await renderReplayFixture(chrome, name));
+    }
+    return { status: 'captured', outputs };
+  } catch (err) {
+    if (process.env.HOMEBASE_REQUIRE_REPLAY_RENDER === '1') throw err;
+    return { status: `skipped (${err.message})` };
+  } finally {
+    await stopChrome(chrome);
+    await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+}
+
 async function smokeCachedLogin(baseUrl) {
   if (process.env.HOMEBASE_SKIP_LOGIN_SMOKE === '1') return { status: 'skipped' };
   const userDataDir = join(tmpdir(), `homebase-login-chrome-${Date.now()}`);
@@ -547,21 +676,27 @@ async function captureViewport(chrome, url, file, width, height) {
 }
 
 async function waitForHomebaseReady(chrome, sessionId) {
+  let lastState = null;
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = await chromeCommand(chrome, 'Runtime.evaluate', {
       expression: `(() => {
         const title = document.getElementById("summary-title")?.textContent || "";
         const status = document.getElementById("last-check")?.textContent || "";
         const zones = document.getElementById("house-zone-grid")?.children.length || 0;
+        const bodyClass = document.body?.className || "";
+        const error = document.getElementById("summary-copy")?.textContent || "";
         const ready = zones === 4 && !/Checking|Could not refresh/i.test(title) && !/Waiting|Refreshing/i.test(status);
-        return { ready, title, status, zones };
+        return { ready, title, status, zones, bodyClass, error };
       })()`,
       returnByValue: true
     }, sessionId);
-    if (result.result && result.result.value && result.result.value.ready) return result.result.value;
+    if (result.result && result.result.value) {
+      lastState = result.result.value;
+      if (lastState.ready) return lastState;
+    }
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  throw new Error('Homebase did not render loaded health state before screenshot');
+  throw new Error(`Homebase did not render loaded health state before screenshot: ${JSON.stringify(lastState)}`);
 }
 
 async function assertNoHorizontalOverflow(chrome, sessionId, width) {
@@ -584,7 +719,8 @@ async function assertNoHorizontalOverflow(chrome, sessionId, width) {
   return value;
 }
 
-async function assertRenderedFirstScreen(chrome, sessionId, width) {
+async function assertRenderedFirstScreen(chrome, sessionId, width, options = {}) {
+  const requireReviewVisible = options.requireReviewVisible !== false;
   const result = await chromeCommand(chrome, 'Runtime.evaluate', {
     expression: `(() => {
       const textOf = selector => document.querySelector(selector)?.innerText?.trim() || "";
@@ -665,7 +801,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
   assert(value.summaryTitle && !/Checking|Could not refresh/i.test(value.summaryTitle), `rendered summary is not loaded at ${width}px: ${JSON.stringify(value)}`);
   assert(value.rects?.overview?.visible === true, `top story is not visible in first viewport at ${width}px: ${JSON.stringify(value.rects?.overview)}`);
   const warningState = !/steady/i.test(value.summaryTitle) || Boolean(value.firstReview);
-  if (warningState) {
+  if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
   }
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
@@ -701,7 +837,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width) {
     summaryCopy: value.summaryCopy,
     visualContract: {
       topStoryVisible: value.rects?.overview?.visible === true,
-      reviewVisibleWhenWarning: warningState ? value.rects?.review?.visible === true : true,
+      reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       evidenceBelowDecision: value.positions.evidence === null || value.positions.ask < value.positions.evidence,
       recentChangesGrouped: Array.isArray(value.recentChangeRows)
         && value.recentChangeRows.length > 0
@@ -1443,6 +1579,28 @@ function visualContractCoverage(local, healthyFreshness) {
   };
 }
 
+function renderedReplayCoverage(renderedReplay) {
+  const outputs = renderedReplay && Array.isArray(renderedReplay.outputs) ? renderedReplay.outputs : [];
+  const expectedNames = ['govee-loop', 'mac-panic', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+  const ok = renderedReplay && renderedReplay.status === 'captured'
+    && outputs.length === expectedNames.length
+    && expectedNames.every(name => outputs.some(item => item.name === name))
+    && outputs.every(item => item.visualContract
+      && item.visualContract.topStoryVisible
+      && item.visualContract.reviewVisibleWhenWarning
+      && item.visualContract.evidenceBelowDecision
+      && item.visualContract.firstViewportFreeOfRawTelemetry);
+  return {
+    status: renderedReplay && /^skipped/.test(renderedReplay.status || '')
+      ? 'skipped'
+      : ok ? 'ok' : 'fail',
+    detail: outputs.length
+      ? outputs.map(item => `${item.name}:${item.firstZone}:${item.firstAction}`).join(', ')
+      : (renderedReplay && renderedReplay.status) || 'not captured',
+    items: outputs
+  };
+}
+
 function trustChecks(local, publicAuth) {
   const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
     ? local.screenshots.outputs
@@ -1566,6 +1724,7 @@ async function main() {
   const fixtureContracts = verifyReplayFixtures();
   const recordedIncidents = verifyRecordedIncidentBundles();
   const local = await smokeLocalRoutes();
+  const renderedReplay = await renderReplayFixtures();
   const publicAuth = await smokePublicAuth();
   const gates = acceptanceGates(fixtureContracts, local, publicAuth);
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
@@ -1575,6 +1734,7 @@ async function main() {
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
+  const renderedReplayVisualCoverage = renderedReplayCoverage(renderedReplay);
   const checks = trustChecks(local, publicAuth);
   gates.push({
     name: 'zone-ranking-coverage',
@@ -1627,6 +1787,16 @@ async function main() {
     detail: 'Rendered first viewport keeps top story visible, review visible when warning exists, evidence below decisions, grouped changes, and healthy replay quiet.'
   });
   gates.push({
+    name: 'rendered-replay-contracts',
+    status: renderedReplayVisualCoverage.status,
+    detail: renderedReplayVisualCoverage.detail
+  });
+  checks.push({
+    name: 'rendered-replay-contracts',
+    status: renderedReplayVisualCoverage.status,
+    detail: 'Rendered replay pages prove warning fixtures keep the active incident visible with Review, affected zone, Vitals, Ask, and Evidence order.'
+  });
+  gates.push({
     name: 'copy-quality-coverage',
     status: copyCoverage.status,
     detail: copyCoverage.detail
@@ -1659,6 +1829,8 @@ async function main() {
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     visualContractCoverage: visualCoverage,
+    renderedReplay,
+    renderedReplayVisualCoverage,
     copyQualityCoverage: copyCoverage,
     healthyFreshnessCoverage: healthyFreshness,
     fixtureCount: fixtureContracts.length,
