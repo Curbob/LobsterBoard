@@ -3509,6 +3509,7 @@ teddyHouseApi._internals = {
   deriveHouseState,
   domainServiceLogs,
   buildHistoricalSummaries,
+  updateVitalsHistory,
   updateBootHistory,
   updateWanHistory,
   updatePublicAccessHistory,

@@ -1974,6 +1974,67 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(api).toContain('scopedToBoot');
   });
 
+  it('keeps CPU peaks scoped to the current Mac boot session', async () => {
+    const store = new Map();
+    const now = Date.now();
+    const currentBoot = new Date(now - 60 * 60 * 1000).toISOString();
+    const previousBoot = new Date(now - 3 * 60 * 60 * 1000).toISOString();
+    store.set('vitals-history.json', {
+      entries: [
+        {
+          at: new Date(now - 30 * 60 * 1000).toISOString(),
+          cpu: 99,
+          memoryUsedPct: 97,
+          diskUsedPct: 14,
+          bootedAt: previousBoot,
+          host: 'Mac-mini'
+        },
+        {
+          at: new Date(now - 20 * 60 * 1000).toISOString(),
+          cpu: 7.5,
+          memoryUsedPct: 55,
+          diskUsedPct: 14,
+          bootedAt: currentBoot,
+          host: 'Mac-mini'
+        },
+        {
+          at: new Date(now - 7 * 60 * 60 * 1000).toISOString(),
+          cpu: 50,
+          memoryUsedPct: 60,
+          diskUsedPct: 14,
+          bootedAt: currentBoot,
+          host: 'Mac-mini'
+        }
+      ]
+    });
+    const ctx = {
+      readData(filename) {
+        return structuredClone(store.get(filename));
+      },
+      writeData(filename, data) {
+        store.set(filename, structuredClone(data));
+      }
+    };
+
+    const history = await teddyHouseInternals.updateVitalsHistory(ctx, {
+      cpu: '3.00',
+      memory: '52%',
+      disk: '14%',
+      uptimeSeconds: 60 * 60,
+      host: 'Mac-mini'
+    });
+
+    expect(history).toEqual(expect.objectContaining({
+      window: '6h',
+      cpuPeak: '7.50',
+      samples: 2,
+      scopedToBoot: true,
+      source: 'data/teddy-house/vitals-history.json'
+    }));
+    expect(Math.abs(new Date(history.bootedAt).getTime() - new Date(currentBoot).getTime())).toBeLessThan(5000);
+    expect(store.get('vitals-history.json').entries.some(entry => Number(entry.cpu) === 99)).toBe(true);
+  });
+
   it('keeps routine app update availability out of the health warning path', () => {
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 
