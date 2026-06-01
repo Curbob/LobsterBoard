@@ -28,8 +28,9 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
-const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => name !== 'healthy');
+const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -40,6 +41,8 @@ const FIRST_SCREEN_COPY_BLACKLIST = [
   /\bWHAT'?S EXPOSED\s+\d{2,5}/i,
   /\bDoor locks\b/i,
   /\bEufy\b/i,
+  /\bAndroid\b/i,
+  /\bproof node\b/i,
   /\bGarage side door\b/i
 ];
 const RENDERED_FIRST_SCREEN_COPY_BLACKLIST = [
@@ -1229,6 +1232,7 @@ function assertPersistedHomebaseData(cwd, data) {
 function verifyReplayFixtures() {
   const expected = {
     healthy: ['outside-access', 'Nothing needs Dan.'],
+    'stale-android-proof': ['outside-access', 'Nothing needs Dan.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1261,6 +1265,14 @@ function verifyReplayFixtures() {
       dailyDecision: { slots: [{ label: 'Now', text: fixture.expected?.nowText, source: fixture.expected?.nowSource }] }
     }, `${name} fixture`);
     const replayData = replayHealthFromFixture(fixture);
+    assertFirstScreenCopyClean(replayData, `${name} replay`);
+    if (name === 'stale-android-proof') {
+      assert(JSON.stringify({
+        needsDan: replayData.needsDan,
+        houseState: replayData.houseState,
+        dailyDecision: replayData.dailyDecision
+      }).match(/Android|proof node/i) === null, 'stale Android proof leaked into trusted replay surface');
+    }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
       name,
@@ -1720,7 +1732,7 @@ function copyQualityCoverage(fixtureContracts) {
     && contracts.every(contract => Array.isArray(contract.dailySlots) && contract.dailySlots.length === 3);
   const macIncidentSpecific = byName.get('mac-panic')?.headline === 'Mac mini restarted this morning.';
   const reviewCopySpecific = contracts.every(contract => {
-    if (contract.name === 'healthy') return contract.nowText === 'Nothing needs Dan.';
+    if (EVIDENCE_ONLY_REPLAY_FIXTURES.includes(contract.name)) return contract.nowText === 'Nothing needs Dan.';
     return /^(Check|Review) /.test(String(contract.nowText || ''));
   });
   return {

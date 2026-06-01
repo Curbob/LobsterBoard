@@ -5,6 +5,7 @@
 Keep the curated pack small and high-signal:
 
 - `healthy`: Dan should see a quiet morning.
+- `stale-android-proof`: Dan should not see stale phone/proof-node evidence as trusted house state.
 - `homebridge-down`: Dan should check Homebridge first while Mac, internet, and public access stay scoped correctly.
 - `adguard-dns-down`: Dan should check DNS first while WAN quality remains scoped separately.
 - `tailscale-funnel-missing`: Dan should see public access first when the tailnet is online but the expected Funnel route is missing.
@@ -53,4 +54,3 @@ Start with the existing WindowServer restart, public access drift, Govee loop, a
 Add a new replay scenario only when it changes Dan's first decision:
 
 - power outage or post-reboot service recovery
-- stale Android proof node that should stay out of trusted truth
