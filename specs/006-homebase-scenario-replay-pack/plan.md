@@ -7,6 +7,7 @@ Keep the curated pack small and high-signal:
 - `healthy`: Dan should see a quiet morning.
 - `homebridge-down`: Dan should check Homebridge first while Mac, internet, and public access stay scoped correctly.
 - `adguard-dns-down`: Dan should check DNS first while WAN quality remains scoped separately.
+- `tailscale-funnel-missing`: Dan should see public access first when the tailnet is online but the expected Funnel route is missing.
 - `mac-panic`: Dan should see the Mac restart first.
 - `govee-loop`: Dan should see one automation issue, not raw log spam.
 - `public-exposure-drift`: Dan should see public access first when routes drift.
@@ -52,5 +53,4 @@ Start with the existing WindowServer restart, public access drift, Govee loop, a
 Add a new replay scenario only when it changes Dan's first decision:
 
 - power outage or post-reboot service recovery
-- Tailscale up but Funnel route missing
 - stale Android proof node that should stay out of trusted truth

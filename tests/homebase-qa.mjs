@@ -28,7 +28,7 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'homebridge-down', 'adguard-dns-down', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => name !== 'healthy');
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1231,6 +1231,7 @@ function verifyReplayFixtures() {
     healthy: ['outside-access', 'Nothing needs Dan.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
+    'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
     'govee-loop': ['smart-home', 'Check automations first.'],
     'mac-panic': ['mac-mini', 'Review the Mac mini restart.'],
     'public-exposure-drift': ['outside-access', 'Check public access first.'],
@@ -1500,6 +1501,7 @@ function zoneRankingCoverage(fixtureContracts) {
   const expected = [
     ['homebridge-down', 'smart-home', 'Automations'],
     ['adguard-dns-down', 'network', 'Internet'],
+    ['tailscale-funnel-missing', 'outside-access', 'Public access'],
     ['govee-loop', 'smart-home', 'Automations'],
     ['mac-panic', 'mac-mini', 'Mac mini'],
     ['public-exposure-drift', 'outside-access', 'Public access'],

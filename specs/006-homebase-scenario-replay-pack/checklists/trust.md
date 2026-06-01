@@ -3,6 +3,7 @@
 - [x] The pack includes `healthy`.
 - [x] The pack includes `homebridge-down`.
 - [x] The pack includes `adguard-dns-down`.
+- [x] The pack includes `tailscale-funnel-missing`.
 - [x] The pack includes `mac-panic`.
 - [x] The pack includes `govee-loop`.
 - [x] The pack includes `public-exposure-drift`.

@@ -942,20 +942,19 @@ function publicAccessRollup(funnelSignal) {
     else if (port === '8443' && /BlueBubbles/i.test(signal.detail || '')) acceptedRoutes.push({ port, name: 'BlueBubbles' });
     else unexpectedRoutes.push({ port, name: 'Unknown public route' });
   }
-  const state = unexpectedRoutes.length > 0 || signal.state === 'warn' || signal.state === 'bad'
+  const expectedRouteMissing = /^off$/i.test(metric);
+  const state = expectedRouteMissing || unexpectedRoutes.length > 0 || signal.state === 'warn' || signal.state === 'bad'
     ? signal.state === 'bad' ? 'bad' : 'warn'
     : signal.state === 'info'
       ? 'info'
       : 'ok';
-  const value = /^off$/i.test(metric)
-    ? 'Off'
-    : state === 'warn' || state === 'bad'
+  const value = state === 'warn' || state === 'bad'
       ? 'Needs review'
       : 'Known';
   const detail = unexpectedRoutes.length > 0
     ? `Unexpected public route${unexpectedRoutes.length === 1 ? '' : 's'}: ${unexpectedRoutes.map(route => route.port).join(', ')}.`
-    : /^off$/i.test(metric)
-      ? 'No public routes are currently exposed.'
+    : expectedRouteMissing
+      ? 'Teddy Homebase public route is missing.'
       : /^unknown$/i.test(metric)
         ? signal.detail || 'Public access status is unavailable.'
         : 'Expected public routes are accounted for.';
@@ -964,7 +963,7 @@ function publicAccessRollup(funnelSignal) {
     value,
     metric,
     check: 'Public access',
-    label: state === 'warn' || state === 'bad' ? 'needs review' : /^off$/i.test(metric) ? 'off' : 'accepted',
+    label: state === 'warn' || state === 'bad' ? 'needs review' : 'accepted',
     detail,
     confidence: signal.confidence || 'live',
     source: 'Tailscale Funnel',

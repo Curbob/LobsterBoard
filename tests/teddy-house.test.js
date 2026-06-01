@@ -1225,6 +1225,18 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(drift.value).toBe('Needs review');
     expect(drift.unexpectedRoutes).toEqual([{ port: '12345', name: 'Unknown public route' }]);
     expect(drift.detail).toContain('12345');
+
+    const missing = teddyHouseInternals.publicAccessRollup({
+      state: 'info',
+      metric: 'off',
+      detail: 'Tailscale is online, but Funnel has no public routes.',
+      confidence: 'fixture'
+    });
+    expect(missing).toEqual(expect.objectContaining({
+      state: 'warn',
+      value: 'Needs review',
+      detail: 'Teddy Homebase public route is missing.'
+    }));
   });
 
   it('keeps a persistent house timeline instead of only the last probe', async () => {
