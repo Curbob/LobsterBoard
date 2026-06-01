@@ -1673,6 +1673,39 @@ function nightlyTruthSuiteSpecCoverage() {
   };
 }
 
+function scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents) {
+  const specDir = join(process.cwd(), 'specs', '006-homebase-scenario-replay-pack');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const fixtureNames = new Set((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => contract.name));
+  const renderedNames = new Set((renderedReplay?.outputs || []).map(output => output.name));
+  const incidentCount = Array.isArray(recordedIncidents) ? recordedIncidents.length : 0;
+  const requiredFixtures = ['healthy', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+  const required = [
+    ['spec-directory', /Homebase Scenario Replay Pack Spec/.test(text)],
+    ...requiredFixtures.map(name => [name, text.includes(`\`${name}\``) && fixtureNames.has(name)]),
+    ['story-agreement', /API, rendered page, and Ask Teddy agree|API-derived `houseState`/.test(text)],
+    ['rendered-replay', /Rendered replay screenshots|rendered first viewport/i.test(text) && ['mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'].every(name => renderedNames.has(name))],
+    ['recorded-incidents', /Recorded incident bundles|redacted recorded incident/i.test(text) && incidentCount >= 1],
+    ['healthy-quiet', /healthy.*raw ports|raw telemetry.*healthy first screen/is.test(text)],
+    ['mac-restart-outranks-noise', /Mac restart scenario fails if Homebridge log counts outrank the restart incident/i.test(text)],
+    ['public-routes-known', /known routes are presented as unknown exposure/i.test(text)],
+    ['teddy-fallback-honesty', /fallback is hidden or presented as live Teddy/i.test(text)],
+    ['read-only', /read-only/i.test(text) && /does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    requiredFixtures,
+    recordedIncidents: incidentCount,
+    items: required
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -1891,6 +1924,7 @@ async function main() {
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
+  const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -1955,6 +1989,16 @@ async function main() {
     name: 'nightly-truth-suite-spec',
     status: nightlyTruthSuiteCoverage.status,
     detail: 'Nightly Homebase truth-suite spec covers command, report, auth, story agreement, fallback honesty, source trust, visuals, incident replay, mobile smoke, and read-only safety.'
+  });
+  gates.push({
+    name: 'scenario-replay-pack-spec',
+    status: scenarioReplayPackCoverage.status,
+    detail: scenarioReplayPackCoverage.detail
+  });
+  checks.push({
+    name: 'scenario-replay-pack-spec',
+    status: scenarioReplayPackCoverage.status,
+    detail: 'Scenario replay pack locks the six mandatory house stories and recorded-incident path.'
   });
   gates.push({
     name: 'visual-contracts',
@@ -2022,6 +2066,7 @@ async function main() {
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
     nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
+    scenarioReplayPackSpec: scenarioReplayPackCoverage,
     visualContractCoverage: visualCoverage,
     renderedReplay,
     renderedReplayVisualCoverage,
