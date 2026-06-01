@@ -32,6 +32,7 @@ const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const REQUIRED_INCIDENT_STATE_FIXTURES = ['new-govee', 'recurring-govee', 'resolved-govee', 'stale-prior-govee'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update'];
 const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'mac-panic-with-noise', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const PHONE_FIRST_SCREEN_COPY_BUDGET = 700;
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -868,8 +869,11 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   const quietEvidence = healthyState
     ? value.evidenceOpen === false && value.signalsOpen === false
     : value.positions.evidence === null || value.positions.ask < value.positions.evidence;
+  const firstScreenTextLength = (value.firstScreenText || '').length;
+  const phoneCopyBudgetOk = width > 430 || firstScreenTextLength <= PHONE_FIRST_SCREEN_COPY_BUDGET;
   assert(storySpecific, `rendered first viewport lacks a specific house story at ${width}px: ${JSON.stringify(value)}`);
   assert(actionVisible, `rendered first viewport lacks a useful first action at ${width}px: ${JSON.stringify(value)}`);
+  assert(phoneCopyBudgetOk, `phone first viewport copy is too long at ${width}px: ${firstScreenTextLength}/${PHONE_FIRST_SCREEN_COPY_BUDGET}`);
   if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
   }
@@ -926,6 +930,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       topStoryVisible: value.rects?.overview?.visible === true,
       storySpecific,
       actionVisible,
+      phoneCopyBudgetOk,
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       affectedZoneMarked: value.activeZone === value.firstZone,
       healthyEvidenceCollapsed: healthyState ? value.evidenceOpen === false && value.signalsOpen === false : true,
@@ -938,7 +943,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         && new Set(value.recentChangeRows).size === value.recentChangeRows.length,
       firstViewportFreeOfRawTelemetry: RENDERED_FIRST_SCREEN_COPY_BLACKLIST.every(pattern => !pattern.test(value.firstScreenText || ''))
     },
-    firstScreenTextLength: (value.firstScreenText || '').length
+    firstScreenTextLength
   };
 }
 

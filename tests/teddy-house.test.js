@@ -2534,12 +2534,15 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
   it('asserts rendered screenshot story, action, affected zone, and quiet evidence', () => {
     const qa = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
 
+    expect(qa).toContain('PHONE_FIRST_SCREEN_COPY_BUDGET');
     expect(qa).toContain('storySpecific');
     expect(qa).toContain('actionVisible');
+    expect(qa).toContain('phoneCopyBudgetOk');
     expect(qa).toContain('affectedZoneMarked');
     expect(qa).toContain('quietEvidence');
     expect(qa).toContain('rendered first viewport lacks a specific house story');
     expect(qa).toContain('rendered first viewport lacks a useful first action');
+    expect(qa).toContain('phone first viewport copy is too long');
     expect(qa).toContain('rendered evidence is competing with the first action');
   });
 

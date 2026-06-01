@@ -42,7 +42,7 @@
 ## Phase 5: Daily Owner Mode
 
 - [ ] Tighten top-screen copy around Dan's house language.
-- [ ] Add text-length budgets for phone first viewport.
+- [x] Add text-length budgets for phone first viewport.
 - [ ] Make source labels visible only when they affect trust.
 - [ ] Update README and architecture docs with the incident-led model.
 - [ ] Run `npm run check:homebase`.
