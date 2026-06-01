@@ -29,11 +29,36 @@ const firstScreenCopyBlacklist = [
   /\b(?:\d+\.){2,}\d+\b/,
   /\b\d+\s*(ms|warnings?|errors?|issues?|findings?)\b/i,
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
+  /\b(?:HOMEBRIDGE LOG|HOUSE DEVICES)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
   /\bSystem Logs:\s*\d+\b/i,
+  /\bHomebridge Log:\s*\d+\b/i,
   /\bRecent Mac logs need attention\b/i,
+  /\bStart with the first review item\b/i,
+  /\bCore systems are online\b/i,
   /\bWHAT'?S EXPOSED\s+\d{2,5}/i,
+  /\bDNS BLOCKS\s+(?:locked|degraded|needs login)\b/i,
+  /\bDegraded source\b/i,
+  /\bversion check\b/i,
+  /\boptional UI update\b/i,
   /Eufy|Door locks|Garage side door|Front Door|Side Door/i
+];
+const badFirstScreenCopySamples = [
+  'System Logs: 2',
+  'Service Logs: 70',
+  'APP VERSIONS 1',
+  'INTERNET 19 ms',
+  'Homebridge Log: 30',
+  'HOMEBRIDGE LOG 10',
+  'HOUSE DEVICES 103',
+  'DNS BLOCKS locked Degraded source',
+  'Recent Mac logs need attention.',
+  'Start with the first review item.',
+  'Core systems are online.',
+  'Homebridge UI has a patch update available when convenient: 5.22.0 to 5.23.0.',
+  'version check',
+  "WHAT'S EXPOSED 8443, 10000",
+  'Garage side door: unlocked, 38% battery'
 ];
 
 function loadReplayFixture(name) {
@@ -87,6 +112,10 @@ function expectCleanFirstScreen(result) {
   }
 }
 
+function blacklistsBadFirstScreenCopy(sample) {
+  return firstScreenCopyBlacklist.some(pattern => pattern.test(sample));
+}
+
 function homebridgeDateLine(message) {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -127,6 +156,10 @@ describe('Teddy Homebase page', () => {
 
   it.each(replayFixtureNames)('keeps raw telemetry out of the %s replay first screen', (fixtureName) => {
     expectCleanFirstScreen(replayHouseState(loadReplayFixture(fixtureName)));
+  });
+
+  it.each(badFirstScreenCopySamples)('rejects first-screen operator copy: %s', (sample) => {
+    expect(blacklistsBadFirstScreenCopy(sample)).toBe(true);
   });
 
   it('keeps a concrete Mac restart above automation noise in mixed replay data', () => {

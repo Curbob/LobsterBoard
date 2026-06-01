@@ -33,12 +33,20 @@ const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
+  /\b(?:HOMEBRIDGE LOG|HOUSE DEVICES)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
   /\bSystem Logs:\s*\d+\b/i,
+  /\bHomebridge Log:\s*\d+\b/i,
   /\bRecent Mac logs need attention\b/i,
+  /\bStart with the first review item\b/i,
+  /\bCore systems are online\b/i,
   /\bAPP VERSIONS\s+1\b/i,
   /\bINTERNET\s+\d+\s*ms\b/i,
   /\bWHAT'?S EXPOSED\s+\d{2,5}/i,
+  /\bDNS BLOCKS\s+(?:locked|degraded|needs login)\b/i,
+  /\bDegraded source\b/i,
+  /\bversion check\b/i,
+  /\boptional UI update\b/i,
   /\bDoor locks\b/i,
   /\bEufy\b/i,
   /\bAndroid\b/i,
@@ -2000,10 +2008,11 @@ function copyQualityCoverage(fixtureContracts) {
   });
   return {
     status: dailySlotsLocked && macIncidentSpecific && reviewCopySpecific ? 'ok' : 'fail',
-    detail: `daily slots ${dailySlotsLocked ? 'locked' : 'missing'}; incident copy ${macIncidentSpecific ? 'specific' : 'generic'}; review copy ${reviewCopySpecific ? 'specific' : 'generic'}`,
+    detail: `daily slots ${dailySlotsLocked ? 'locked' : 'missing'}; incident copy ${macIncidentSpecific ? 'specific' : 'generic'}; review copy ${reviewCopySpecific ? 'specific' : 'generic'}; ${FIRST_SCREEN_COPY_BLACKLIST.length} first-screen blacklist patterns`,
     dailySlotsLocked,
     macIncidentSpecific,
-    reviewCopySpecific
+    reviewCopySpecific,
+    blacklistPatterns: FIRST_SCREEN_COPY_BLACKLIST.length
   };
 }
 
