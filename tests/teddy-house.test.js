@@ -17,6 +17,7 @@ const replayFixtureNames = [
   'healthy',
   'govee-loop',
   'mac-panic',
+  'mac-panic-with-noise',
   'public-exposure-drift',
   'wan-dns-degraded',
   'teddy-bridge-fallback'
@@ -748,6 +749,7 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('/pages/teddy-house/logs/?focus=');
     expect(script).toContain('markIncidentKnown');
     expect(script).toContain('renderIncidentMeta');
+    expect(script).toContain('houseState.zones.forEach');
     expect(script).toContain('/api/pages/teddy-house/incidents/');
     expect(script).toContain('action: "prepare-fix"');
     expect(script).toContain('Do not run commands or change settings');

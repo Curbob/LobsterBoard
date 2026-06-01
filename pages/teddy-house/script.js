@@ -226,7 +226,7 @@ function renderHouseState(houseState) {
         ? "Issue"
         : "Review";
   }
-  rankItems(houseState.zones, zone => zone.state).forEach(zone => {
+  houseState.zones.forEach(zone => {
     const card = document.createElement("article");
     card.className = `house-zone-card ${stateClass(zone.state)}`;
     const top = div("house-zone-top");

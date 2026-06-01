@@ -60,6 +60,7 @@ The canonical curated fixture pack is:
 - `adguard-dns-down`
 - `tailscale-funnel-missing`
 - `mac-panic`
+- `mac-panic-with-noise`
 - `govee-loop`
 - `public-exposure-drift`
 - `wan-dns-degraded`
@@ -112,6 +113,7 @@ Incident bundles must include:
 - The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Tailscale-Funnel-missing scenario fails if a missing Homebase public route is treated as healthy Tailscale.
 - The Mac restart scenario fails if Homebridge log counts outrank the restart incident.
+- The Mac restart with noise scenario fails if Govee, Homebridge UI, or optional app update noise outranks the restart incident on the rendered page.
 - The public access scenario fails if known routes are presented as unknown exposure.
 - The Teddy bridge scenario fails if fallback is hidden or presented as live Teddy.
 - The pack is read-only and does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, credentials, or route settings.
