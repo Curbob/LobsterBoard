@@ -14,6 +14,7 @@
 - [x] The pack includes `post-outage-adguard-stats-unavailable`.
 - [x] The pack includes `post-outage-homebridge-ui-patch`.
 - [x] The pack includes `post-outage-optional-app-update`.
+- [x] The pack includes `post-outage-macos-optional-update`.
 - [x] The pack includes `homebridge-down`.
 - [x] The pack includes `adguard-dns-down`.
 - [x] The pack includes `tailscale-funnel-missing`.

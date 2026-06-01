@@ -26,6 +26,7 @@ The replay pack must prove:
 - post-outage recovery with DNS responding but AdGuard blocker stats locked stays steady and evidence-only
 - post-outage recovery with only a Homebridge UI patch available stays steady and parks it in Later maintenance
 - post-outage recovery with only an optional app update available stays steady and parks it in Later maintenance
+- post-outage recovery with only an optional macOS update available stays steady and parks it in Later maintenance
 - Homebridge offline becomes a direct automation action, not a generic Mac warning
 - AdGuard DNS down becomes a direct DNS action while WAN stays scoped separately
 - Tailscale online with Funnel missing becomes public-access review, not tailnet outage
@@ -54,6 +55,7 @@ The canonical curated fixture pack is:
 - `post-outage-adguard-stats-unavailable`
 - `post-outage-homebridge-ui-patch`
 - `post-outage-optional-app-update`
+- `post-outage-macos-optional-update`
 - `homebridge-down`
 - `adguard-dns-down`
 - `tailscale-funnel-missing`
@@ -105,6 +107,7 @@ Incident bundles must include:
 - The post-outage-AdGuard-stats-unavailable scenario fails if blocked-query stats login state creates a review item, DNS warning, or first-screen AdGuard copy while DNS is healthy.
 - The post-outage-Homebridge-UI-patch scenario fails if an optional UI patch creates an automation review item or leaks update copy into Now, Watch, Review, or house-state cards.
 - The post-outage-optional-app-update scenario fails if optional app maintenance creates a review item, Mac warning, or leaks update/version copy into Now, Watch, Review, or house-state cards.
+- The post-outage-macOS-optional-update scenario fails if optional macOS maintenance creates a review item, Mac warning, restart story, or critical-update copy in Now, Watch, Review, or house-state cards.
 - The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
 - The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Tailscale-Funnel-missing scenario fails if a missing Homebase public route is treated as healthy Tailscale.

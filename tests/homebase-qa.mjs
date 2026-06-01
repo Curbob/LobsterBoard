@@ -28,8 +28,8 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
-const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1241,6 +1241,7 @@ function verifyReplayFixtures() {
     'post-outage-adguard-stats-unavailable': ['outside-access', 'Nothing needs Dan.'],
     'post-outage-homebridge-ui-patch': ['outside-access', 'Nothing needs Dan.'],
     'post-outage-optional-app-update': ['outside-access', 'Nothing needs Dan.'],
+    'post-outage-macos-optional-update': ['outside-access', 'Nothing needs Dan.'],
     'post-outage-homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'post-outage-dns-down': ['network', 'Check DNS first.'],
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1344,6 +1345,21 @@ function verifyReplayFixtures() {
         now: replayData.dailyDecision?.slots?.[0],
         watch: replayData.dailyDecision?.slots?.[1]
       })), 'post-outage optional app update should not leak maintenance copy into Now, Watch, Review, or house-state cards');
+    }
+    if (name === 'post-outage-macos-optional-update') {
+      assert(replayData.intelligence?.macUpdates?.state === 'info', 'post-outage optional macOS update should stay maintenance-only');
+      assert(replayData.houseState?.tone === 'steady', 'post-outage optional macOS update should stay steady');
+      assert(Array.isArray(replayData.needsDan) && replayData.needsDan.length === 0, 'post-outage optional macOS update should not create review items');
+      assert(replayData.dailyDecision?.slots?.[2]?.text === 'macOS update status can wait for maintenance.', 'post-outage optional macOS update should land in Later maintenance');
+      assert(!/review macos update|macos: update required|update required|critical macos|start with macos|mac restart|panic|watchdog/i.test(JSON.stringify({
+        needsDan: replayData.needsDan,
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        zones: replayData.houseState?.zones,
+        now: replayData.dailyDecision?.slots?.[0],
+        watch: replayData.dailyDecision?.slots?.[1]
+      })), 'post-outage optional macOS update should not leak critical-update or restart copy into Now, Watch, Review, or house-state cards');
     }
     if (name === 'post-outage-homebridge-down') {
       assert(replayData.houseState?.zones?.[0]?.id === 'smart-home', 'post-outage Homebridge outage should lead with automations');
