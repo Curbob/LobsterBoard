@@ -1,0 +1,87 @@
+{
+  "name": "post-outage-funnel-missing",
+  "services": {
+    "adguard": { "state": "ok", "metric": "ok", "detail": "DNS is responding after recovery." },
+    "homebridge": { "state": "ok", "metric": "8581", "detail": "Homebridge responded." },
+    "tailscale": { "state": "ok", "metric": "online", "detail": "Tailscale is online." },
+    "internet": { "state": "ok", "metric": "ok", "detail": "Internet is responding." },
+    "openclaw": { "state": "ok", "metric": "ok", "detail": "OpenClaw is responding." },
+    "backups": { "state": "info", "metric": "paused", "detail": "Backups are parked for now." }
+  },
+  "intelligence": {
+    "adguard": { "state": "info", "metric": "locked", "detail": "AdGuard stats need login." },
+    "homebridge": {
+      "accessories": { "state": "ok", "count": 103, "detail": "Accessories loaded." },
+      "doorLocks": { "state": "info", "hidden": true, "value": "ignored", "detail": "Door locks ignored." },
+      "logHealth": { "state": "ok", "metric": "quiet", "detail": "Homebridge log below action threshold." },
+      "version": { "state": "ok", "metric": "current", "detail": "Homebridge is current." }
+    },
+    "tailscaleFunnel": { "state": "info", "metric": "off", "detail": "Tailscale is online, but Funnel has no public routes after recovery." },
+    "publicAccess": {
+      "state": "warn",
+      "metric": "off",
+      "check": "Public access",
+      "label": "needs review",
+      "detail": "Teddy Homebase public route is missing after recovery.",
+      "confidence": "fixture",
+      "source": "Tailscale Funnel",
+      "acceptedRoutes": [],
+      "unexpectedRoutes": []
+    },
+    "wanQuality": { "state": "ok", "metric": "normal", "detail": "WAN is normal." },
+    "serviceLogs": {
+      "checkedAt": "2026-05-31T00:00:00.000Z",
+      "state": "ok",
+      "value": "quiet",
+      "metric": "quiet",
+      "label": "checked",
+      "detail": "Service logs are quiet after recovery.",
+      "confidence": "fixture",
+      "source": "fixture",
+      "items": [
+        { "name": "Homebridge", "state": "ok", "issues": 0, "detail": "Homebridge log is quiet." },
+        { "name": "Homebase", "state": "ok", "issues": 0, "detail": "Homebase log is quiet." },
+        { "name": "OpenClaw", "state": "ok", "issues": 0, "detail": "OpenClaw log is quiet." },
+        { "name": "Tailscale", "state": "ok", "issues": 0, "detail": "Tailscale status has no health warnings." }
+      ]
+    },
+    "softwareUpdates": { "state": "ok", "metric": "current", "detail": "Apps are current." },
+    "macUpdates": { "state": "ok", "metric": "current", "detail": "macOS is current." },
+    "systemLogs": { "state": "ok", "metric": "0", "detail": "No critical system reports." },
+    "weirdThings": []
+  },
+  "systemVitals": {
+    "uptime": "33m",
+    "uptimeSeconds": 1980,
+    "health": {
+      "cpu": { "state": "ok", "metric": "2.5", "detail": "CPU normal." },
+      "memory": { "state": "ok", "metric": "57% free", "detail": "Memory normal." },
+      "disk": { "state": "ok", "metric": "12%", "detail": "Disk normal." }
+    }
+  },
+  "timeline": [
+    {
+      "at": "2026-05-31T12:00:00.000Z",
+      "time": "12:00 PM",
+      "title": "Recovery check",
+      "detail": "Mac mini is back online; Teddy Homebase public route is still missing.",
+      "state": "warn"
+    }
+  ],
+  "expected": {
+    "headline": "Something needs a look.",
+    "summary": "Start with public access. Everything else is responding.",
+    "primaryAction": "Start with public access.",
+    "zoneOrder": ["outside-access", "network", "smart-home", "mac-mini"],
+    "dailySlots": [
+      { "key": "now", "text": "Check public access first.", "state": "warn", "source": "Public access" },
+      { "key": "watch", "text": "Recovery check changed recently.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
+    "firstZone": "outside-access",
+    "firstZoneState": "warn",
+    "firstReview": "Public access: off",
+    "nowSource": "Public access",
+    "nowText": "Check public access first."
+  }
+}

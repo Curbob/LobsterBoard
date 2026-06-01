@@ -9,6 +9,7 @@ Keep the curated pack small and high-signal:
 - `post-reboot-recovered`: Dan should not see a scary restart story when uptime is low but services and system logs are healthy.
 - `post-outage-homebridge-down`: Dan should check Homebridge first when the Mac mini is back but automations are still down.
 - `post-outage-dns-down`: Dan should check DNS first when the Mac mini is back but local DNS is still down.
+- `post-outage-funnel-missing`: Dan should check public access first when the Mac mini is back but the Homebase public route is still missing.
 - `homebridge-down`: Dan should check Homebridge first while Mac, internet, and public access stay scoped correctly.
 - `adguard-dns-down`: Dan should check DNS first while WAN quality remains scoped separately.
 - `tailscale-funnel-missing`: Dan should see public access first when the tailnet is online but the expected Funnel route is missing.
@@ -56,4 +57,4 @@ Start with the existing WindowServer restart, public access drift, Govee loop, a
 
 Add a new replay scenario only when it changes Dan's first decision:
 
-- post-outage Tailscale or Funnel route still down
+- post-outage Tailscale node offline
