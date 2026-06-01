@@ -15,11 +15,11 @@
 
 ## Phase 2: Story Engine
 
-- [ ] Create a single story derivation helper fed by current probes plus incidents.
-- [ ] Make `houseState`, `dailyDecision`, `needsDan`, and Ask context agree with the primary story.
+- [x] Create a single story derivation helper fed by current probes plus incidents.
+- [x] Make `houseState`, `dailyDecision`, `needsDan`, and Ask context agree with the primary story.
 - [ ] Add fixtures for new, recurring, resolved, and stale incident states.
-- [ ] Add tests that a recurring issue is labeled as recurring instead of new.
-- [ ] Add tests that resolved incidents leave `Now` but remain in evidence.
+- [x] Add tests that a recurring issue is labeled as recurring instead of new.
+- [x] Add tests that resolved incidents leave `Now` but remain in evidence.
 
 ## Phase 3: Actions
 

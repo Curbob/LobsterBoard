@@ -1409,7 +1409,10 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.houseState.headline).toBe('Mac mini restarted this morning.');
-    expect(data.houseState.summary).toBe('Start with the Mac mini restart; house services are online.');
+    expect(data.houseState.summary).toMatch(/Start with the Mac mini restart; house services are online\.$/);
+    expect(data.houseState.story).toEqual(expect.objectContaining({
+      primaryAction: 'Review the Mac mini restart.'
+    }));
     expect(data.houseState.zones[0]).toEqual(expect.objectContaining({
       id: 'mac-mini',
       detail: expect.stringContaining('WindowServer watchdog panic')
@@ -1553,6 +1556,24 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       status: 'recurring',
       observations: 2
     }));
+    const recurringState = teddyHouseInternals.deriveHouseState(
+      govee.services,
+      govee.intelligence,
+      govee.systemVitals,
+      govee.reviewItems,
+      [],
+      govee.score,
+      second
+    );
+    expect(recurringState.story).toEqual(expect.objectContaining({
+      lifecycle: 'recurring',
+      primaryAction: 'Check automations first.'
+    }));
+    expect(recurringState.summary).toBe('Recurring automation issue. Check automations first.');
+    expect(recurringState.incident).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      status: 'recurring'
+    }));
 
     const healthy = replayHouseState(loadReplayFixture('healthy'));
     const resolved = teddyHouseInternals.updateIncidentLedger(ctx, healthy.services, healthy.intelligence, healthy.systemVitals);
@@ -1562,6 +1583,30 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       status: 'resolved',
       observations: 2
     }));
+    const resolvedState = teddyHouseInternals.deriveHouseState(
+      healthy.services,
+      healthy.intelligence,
+      healthy.systemVitals,
+      healthy.reviewItems,
+      [],
+      healthy.score,
+      resolved
+    );
+    const resolvedDecision = teddyHouseInternals.deriveDailyDecision(
+      healthy.services,
+      healthy.intelligence,
+      healthy.systemVitals,
+      healthy.reviewItems,
+      resolvedState
+    );
+    expect(resolvedState.tone).toBe('steady');
+    expect(resolvedState.story.lifecycle).toBe('steady');
+    expect(resolvedState.incident).toBeNull();
+    expect(resolvedState.incidents.resolved[0]).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      status: 'resolved'
+    }));
+    expect(resolvedDecision.slots[0].text).toBe('Nothing needs Dan.');
   });
 
   it('keeps ignored door lock evidence out of the incident ledger', () => {

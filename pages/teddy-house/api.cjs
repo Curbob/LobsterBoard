@@ -241,6 +241,16 @@ function summarizeForTeddy(context) {
           summary: data.houseState.summary || null,
           tone: data.houseState.tone || null,
           primaryAction: data.houseState.primaryAction || null,
+          story: data.houseState.story ? {
+            lifecycle: data.houseState.story.lifecycle || null,
+            primaryAction: data.houseState.story.primaryAction || null
+          } : null,
+          incident: data.houseState.incident ? {
+            title: data.houseState.incident.title || null,
+            status: data.houseState.incident.status || null,
+            zone: data.houseState.incident.zone || null,
+            nextAction: data.houseState.incident.nextAction || null
+          } : null,
           zones: Array.isArray(data.houseState.zones)
             ? data.houseState.zones.map(zone => ({
                 id: zone.id,
@@ -3263,8 +3273,9 @@ function incidentCandidates(services, intelligence, systemVitals) {
 }
 
 function rankIncident(candidate) {
+  if (candidate && candidate.title === 'Mac restart incident') return 0;
   const zoneRank = {
-    'mac-mini': candidate.title === 'Mac restart incident' ? 0 : 40,
+    'mac-mini': 40,
     'outside-access': 10,
     network: 20,
     'smart-home': 30
@@ -3325,6 +3336,74 @@ function updateIncidentLedger(ctx, services, intelligence, systemVitals) {
     resolved: resolved.slice(0, 5),
     known: entries.filter(entry => entry.status === 'known').slice(0, 5),
     entries
+  };
+}
+
+function incidentZoneNoun(incident) {
+  const zone = incident && incident.zone;
+  if (zone === 'smart-home') return 'automation';
+  if (zone === 'outside-access') return 'public access';
+  if (zone === 'network') return 'internet';
+  if (zone === 'mac-mini') return 'Mac mini';
+  return 'house';
+}
+
+function incidentStatusPrefix(incident) {
+  if (!incident || !incident.status) return null;
+  if (incident.status === 'recurring') return 'Recurring';
+  if (incident.status === 'known') return 'Known';
+  if (incident.status === 'new') return 'New';
+  return null;
+}
+
+function deriveHomebaseStory({ incidents, macIncident, hasBad, hasReview, reviewItems }) {
+  const primaryIncident = incidents && incidents.primary ? incidents.primary : null;
+  if (primaryIncident) {
+    const action = primaryIncident.nextAction || (macIncident ? 'Review the Mac mini restart.' : translatePrimaryAction(reviewItems));
+    if (primaryIncident.title === 'Mac restart incident') {
+      const prefix = incidentStatusPrefix(primaryIncident);
+      return {
+        headline: 'Mac mini restarted this morning.',
+        summary: prefix === 'Recurring'
+          ? 'Recurring Mac restart incident. Start with the Mac mini restart; house services are online.'
+          : 'Start with the Mac mini restart; house services are online.',
+        tone: 'review',
+        primaryAction: action,
+        incident: primaryIncident,
+        lifecycle: primaryIncident.status || 'active'
+      };
+    }
+    const prefix = incidentStatusPrefix(primaryIncident);
+    const zoneNoun = incidentZoneNoun(primaryIncident);
+    const summaryStart = prefix
+      ? `${prefix} ${zoneNoun} issue.`
+      : `${zoneNoun[0].toUpperCase()}${zoneNoun.slice(1)} needs a look.`;
+    return {
+      headline: primaryIncident.severity === 'issue' || primaryIncident.state === 'bad'
+        ? 'Homebase found an issue.'
+        : 'Something needs a look.',
+      summary: `${summaryStart} ${action}`,
+      tone: primaryIncident.severity === 'issue' || primaryIncident.state === 'bad' ? 'issue' : 'review',
+      primaryAction: action,
+      incident: primaryIncident,
+      lifecycle: primaryIncident.status || 'active'
+    };
+  }
+  return {
+    headline: macIncident
+      ? 'Mac mini restarted this morning.'
+      : hasBad ? 'Homebase found an issue.' : hasReview ? 'Something needs a look.' : "Dan's house is steady.",
+    summary: macIncident
+      ? 'Start with the Mac mini restart; house services are online.'
+      : hasBad
+        ? `${translatePrimaryAction(reviewItems)} Core evidence is still available below.`
+        : hasReview
+          ? `${translatePrimaryAction(reviewItems)} Everything else is responding.`
+          : 'Internet, automations, public access, and the Mac mini are quiet.',
+    tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
+    primaryAction: macIncident ? 'Start with the Mac mini restart.' : translatePrimaryAction(reviewItems),
+    incident: macIncident ? null : null,
+    lifecycle: hasReview ? 'active' : 'steady'
   };
 }
 
@@ -3419,23 +3498,15 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
   });
   const hasBad = zones.some(zone => zone.state === 'bad') || score < 70;
   const hasReview = hasBad || zones.some(zone => zone.state === 'warn') || (Array.isArray(reviewItems) && reviewItems.length > 0);
-  const headline = macIncident
-    ? 'Mac mini restarted this morning.'
-    : hasBad ? 'Homebase found an issue.' : hasReview ? 'Something needs a look.' : "Dan's house is steady.";
-  const summary = macIncident
-    ? 'Start with the Mac mini restart; house services are online.'
-    : hasBad
-      ? `${translatePrimaryAction(reviewItems)} Core evidence is still available below.`
-      : hasReview
-        ? `${translatePrimaryAction(reviewItems)} Everything else is responding.`
-        : 'Internet, automations, public access, and the Mac mini are quiet.';
+  const story = deriveHomebaseStory({ incidents, macIncident, hasBad, hasReview, reviewItems });
   return {
-    headline,
-    summary,
-    tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
-    primaryAction: macIncident ? 'Start with the Mac mini restart.' : translatePrimaryAction(reviewItems),
-    incident: incidents && incidents.primary
-      ? incidents.primary
+    headline: story.headline,
+    summary: story.summary,
+    tone: story.tone,
+    primaryAction: story.primaryAction,
+    story,
+    incident: story.incident
+      ? story.incident
       : macIncident ? {
         title: systemIncidentTitle(intelligence.systemLogs),
         detail: macIncidentDetail(intelligence.systemLogs, systemVitals),
@@ -3747,6 +3818,7 @@ function teddyHouseApi(ctx = {}) {
 teddyHouseApi._internals = {
   deriveDailyDecision,
   deriveHouseState,
+  deriveHomebaseStory,
   updateIncidentLedger,
   incidentCandidates,
   domainServiceLogs,
