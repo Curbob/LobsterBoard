@@ -41,6 +41,7 @@ Before changing Homebase behavior, read:
 - `specs/003-legit-home-dashboard/spec.md`
 - `specs/004-homebase-next-level-qa/spec.md`
 - `specs/006-homebase-scenario-replay-pack/spec.md`
+- `specs/007-homebase-level-up-roadmap/spec.md`
 
 Homebase proof command:
 

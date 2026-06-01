@@ -2026,6 +2026,34 @@ function scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, record
   };
 }
 
+function levelUpRoadmapSpecCoverage() {
+  const specDir = join(process.cwd(), 'specs', '007-homebase-level-up-roadmap');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+  const required = [
+    ['spec-directory', /Homebase Level-Up Roadmap Spec/.test(text)],
+    ['readme-linked', /specs\/007-homebase-level-up-roadmap\/spec\.md/.test(readme)],
+    ['incident-led', /Incident Ledger/.test(text) && /new, recurring, resolved, ignored, or trusted/i.test(text)],
+    ['story-engine', /House Story Engine/.test(text) && /one primary story/i.test(text)],
+    ['action-safety', /Prepare fix/.test(text) && /explicit Dan approval|without explicit approval/i.test(text)],
+    ['evidence-viz', /Better Evidence Viz/.test(text) && /No fake trends|No chart without stored data/i.test(text)],
+    ['daily-owner-mode', /Personal Daily Mode/.test(text) && /Dan's house is steady/i.test(text)],
+    ['trust-checklist', /Every incident has source, freshness, confidence, and lifecycle state/i.test(text)],
+    ['frozen-qa', /Phone, iPad, and desktop QA use one frozen health payload/i.test(text)],
+    ['first-slice', /Start with the incident ledger/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -2248,6 +2276,7 @@ async function main() {
   const dailyDecisionStripCoverage = dailyDecisionStripSpecCoverage(fixtureContracts, local);
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
   const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
+  const levelUpRoadmapCoverage = levelUpRoadmapSpecCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -2342,6 +2371,16 @@ async function main() {
     name: 'scenario-replay-pack-spec',
     status: scenarioReplayPackCoverage.status,
     detail: 'Scenario replay pack locks the mandatory house stories and recorded-incident path.'
+  });
+  gates.push({
+    name: 'level-up-roadmap-spec',
+    status: levelUpRoadmapCoverage.status,
+    detail: levelUpRoadmapCoverage.detail
+  });
+  checks.push({
+    name: 'level-up-roadmap-spec',
+    status: levelUpRoadmapCoverage.status,
+    detail: 'Level-up roadmap locks incident ledger, story engine, safe actions, evidence viz, and daily owner mode as the next build path.'
   });
   gates.push({
     name: 'visual-contracts',
