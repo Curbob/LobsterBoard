@@ -2,7 +2,7 @@
 
 ## Phase 1: Spec And Coverage
 
-- [x] Define the seven canonical curated scenarios.
+- [x] Define the eight canonical curated scenarios.
 - [x] Define the API, rendered page, and Ask Teddy agreement contract.
 - [x] Define recorded incident bundle requirements.
 - [x] Add QA coverage that fails if the scenario replay pack spec drifts.
@@ -18,6 +18,6 @@
 
 - [ ] Add a power outage or post-reboot recovery replay when real evidence exists.
 - [x] Add a Homebridge-down replay for the Mac-healthy automation outage case.
-- [ ] Add an AdGuard-DNS-down replay when real evidence exists.
+- [x] Add an AdGuard-DNS-down replay for local DNS failure while WAN is otherwise normal.
 - [ ] Add a Tailscale-Funnel-missing replay when real evidence exists.
 - [ ] Add stale Android proof-node replay that confirms it stays evidence-only.

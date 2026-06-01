@@ -14,6 +14,7 @@ The replay pack must prove:
 
 - healthy mornings stay quiet
 - Homebridge offline becomes a direct automation action, not a generic Mac warning
+- AdGuard DNS down becomes a direct DNS action while WAN stays scoped separately
 - Mac mini restart incidents outrank routine service noise
 - Homebridge or automation loops become one named issue
 - public route drift is visible without making expected routes scary
@@ -27,6 +28,7 @@ The canonical curated fixture pack is:
 
 - `healthy`
 - `homebridge-down`
+- `adguard-dns-down`
 - `mac-panic`
 - `govee-loop`
 - `public-exposure-drift`
@@ -63,6 +65,7 @@ Incident bundles must include:
 - Recorded incident bundles replay through the same story-agreement path.
 - The healthy scenario fails if raw ports, IPs, package counts, stale labels, degraded labels, ignored Eufy data, or telemetry counts appear as first-screen truth.
 - The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
+- The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Mac restart scenario fails if Homebridge log counts outrank the restart incident.
 - The public access scenario fails if known routes are presented as unknown exposure.
 - The Teddy bridge scenario fails if fallback is hidden or presented as live Teddy.
