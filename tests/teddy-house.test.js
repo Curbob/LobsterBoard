@@ -1996,6 +1996,48 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     }, null, 2));
   }, 12000);
 
+  it('groups repeated timeline warnings into one useful recent-change row', () => {
+    const govee = replayHouseState(loadReplayFixture('govee-loop'));
+    const repeated = [
+      {
+        at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        time: '9:58 PM',
+        title: 'Service logs',
+        detail: 'Service log signal changed.',
+        state: 'bad'
+      },
+      {
+        at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        time: '9:55 PM',
+        title: 'Service logs',
+        detail: 'Service log signal changed.',
+        state: 'bad'
+      },
+      {
+        at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+        time: '9:52 PM',
+        title: 'Service logs',
+        detail: 'Service log signal changed.',
+        state: 'bad'
+      }
+    ];
+    const houseState = teddyHouseInternals.deriveHouseState(
+      govee.services,
+      govee.intelligence,
+      govee.systemVitals,
+      govee.reviewItems,
+      repeated,
+      govee.score
+    );
+
+    expect(houseState.recentChanges).toHaveLength(1);
+    expect(houseState.recentChanges[0]).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      detail: 'Service log signal is still open. Seen 3 times.',
+      state: 'bad'
+    }));
+  });
+
   it('keeps default graphs backed by real health signals', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);
