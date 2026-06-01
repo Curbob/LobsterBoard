@@ -20,6 +20,7 @@ open artifacts/qa/homebase-latest.json
 open artifacts/qa/homebase-latest-phone.png
 open artifacts/qa/homebase-latest-ipad.png
 open artifacts/qa/homebase-latest-desktop.png
+open artifacts/qa/homebase-nightly-history.json
 ```
 
 ## Expected Result
@@ -28,6 +29,7 @@ open artifacts/qa/homebase-latest-desktop.png
 - `truthVerdict.label` is `Homebase is useful`, `Homebase is lying`, or `Homebase needs Dan`.
 - `npm run homebase:nightly` runs the proof suite and then prints the verdict.
 - `npm run homebase:verdict` prints the same label, summary, first action, acceptance status, and public-auth state.
+- `artifacts/qa/homebase-nightly-history.json` keeps a bounded verdict history instead of duplicating screenshots every night.
 - `publicAuth` is `enforced` or explicitly skipped because the public route is unreachable from the test environment.
 - `trustChecks` includes source contracts, login persistence, story agreement, fallback visibility, and visual contracts.
 - Screenshots exist for phone, iPad, and desktop.

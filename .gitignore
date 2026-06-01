@@ -9,6 +9,7 @@ node_modules/
 artifacts/qa/homebase-latest-*.png
 artifacts/qa/homebase-replay-*.png
 artifacts/qa/homebase-latest.json
+artifacts/qa/homebase-nightly-history.json
 
 # Security - never commit
 auth.json

@@ -39,6 +39,7 @@ It should run the same trust path Dan uses:
 - The suite has one canonical proof command: `npm run check:homebase`.
 - The suite has one operator-facing nightly command: `npm run homebase:nightly`.
 - The report is written to `artifacts/qa/homebase-latest.json`.
+- A bounded nightly verdict history is written to `artifacts/qa/homebase-nightly-history.json`.
 - The report includes acceptance gates, trust checks, screenshot metadata, rendered replay metadata, source contracts, recorded incident replay, and public auth status.
 - A warning state fails if the API, rendered first screen, and Ask Teddy disagree about the first action.
 - A healthy state fails if stale, cached, degraded, ignored, raw port, raw IP, or package-count evidence appears as first-screen truth.

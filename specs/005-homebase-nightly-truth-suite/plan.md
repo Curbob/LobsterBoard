@@ -18,6 +18,12 @@ It already runs:
 
 Use `npm run homebase:nightly` as the operator-facing command. It runs the proof path and then prints the morning verdict.
 
+The command also stores a bounded verdict history at:
+
+`artifacts/qa/homebase-nightly-history.json`
+
+History keeps the last 30 verdict entries by default, using metadata and paths to latest screenshots instead of copying large image bundles every night.
+
 ## Phase 2: Nightly Verdict
 
 Derive a plain verdict from the existing QA report:
