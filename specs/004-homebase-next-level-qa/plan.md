@@ -20,7 +20,8 @@ Current implementation status:
 - The live local Homebase smoke now performs this agreement check across the API payload, rendered first viewport, and local Ask Teddy answer.
 - Replay fixtures now perform the same agreement check across derived API state, locked first-screen contract, and local Ask Teddy answer.
 - Recorded incident bundles now perform the same agreement check for WindowServer restart, Govee/Homebridge loop, Teddy bridge fallback, and public access drift evidence.
-- The remaining next-level work is parser golden fixtures, visual contracts, login persistence, and source contracts.
+- The capture workflow now writes redacted draft bundles to `data/teddy-house/qa/incident-drafts/` for review before they become permanent replay fixtures.
+- The remaining next-level work is promoting each genuinely new Dan-caught failure mode from draft to replay fixture.
 
 ## Phase 2: Recorded Incident Bundles
 
@@ -41,6 +42,14 @@ Start with:
 - Govee/Homebridge noisy loop: implemented
 - Teddy bridge fallback: implemented
 - public access drift: implemented
+
+When Dan flags a new bad live dashboard state, run:
+
+```zsh
+npm run homebase:capture-incident -- --title "short incident name"
+```
+
+The draft stays outside committed fixtures until someone reviews the expected story and points it at a curated replay.
 
 ## Phase 3: Parser Golden Fixtures
 

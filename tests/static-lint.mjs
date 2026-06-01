@@ -11,7 +11,8 @@ const files = [
   'pages/teddy-house/manifest.webmanifest',
   'pages.json',
   'server/config.cjs',
-  'server.cjs'
+  'server.cjs',
+  'scripts/homebase-capture-incident.mjs'
 ];
 
 const failures = [];
@@ -40,6 +41,8 @@ const server = read('server.cjs');
 const manifest = JSON.parse(read('pages/teddy-house/manifest.webmanifest'));
 const pagesConfig = JSON.parse(read('pages.json'));
 const focusPageConfig = JSON.parse(read('pages/focus-room/page.json'));
+const packageConfig = JSON.parse(read('package.json'));
+const incidentCaptureScript = read('scripts/homebase-capture-incident.mjs');
 
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
 expect(html.includes('window.location.protocol === "file:"'), 'file-open guard must redirect to served Homebase route');
@@ -92,6 +95,11 @@ expect(server.includes("'/pages/teddy-house/manifest.webmanifest'"), 'manifest m
 expect(server.includes("'/pages/teddy-house/apple-touch-icon.png'"), 'touch icon must be in public install asset allowlist');
 expect(/['"]\.mp4['"]:\s*['"]video\/mp4['"]/.test(serverConfig), 'server must serve MP4 previews with the correct MIME type');
 expect(!/process\.env\.DASHBOARD_PASSWORD\s*=/.test(server), 'server must not assign dashboard passwords in code');
+expect(packageConfig.scripts['homebase:capture-incident'] === 'node scripts/homebase-capture-incident.mjs', 'missing incident capture npm script');
+expect(incidentCaptureScript.includes("join(DATA_DIR, 'qa', 'incident-drafts')"), 'incident capture must write drafts outside committed fixture directory');
+expect(incidentCaptureScript.includes("status: 'draft'"), 'incident capture output must be marked draft');
+expect(incidentCaptureScript.includes('function redactText'), 'incident capture must redact persisted evidence');
+expect(!incidentCaptureScript.includes('tests/fixtures/teddy-house/incidents'), 'incident capture must not write directly into permanent replay fixtures');
 
 if (failures.length > 0) {
   console.error(failures.map(item => `- ${item}`).join('\n'));

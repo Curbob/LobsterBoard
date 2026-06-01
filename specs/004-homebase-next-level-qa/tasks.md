@@ -17,6 +17,8 @@
 - [x] Add a Teddy bridge fallback bundle.
 - [x] Add a public access drift bundle.
 - [x] Assert each bundle has source paths, timestamps, expected top story, and expected action.
+- [x] Add a read-only incident capture script that writes redacted drafts outside permanent fixtures.
+- [x] Document the draft-to-replay promotion path.
 
 ## Phase 3: Parser Golden Fixtures
 
