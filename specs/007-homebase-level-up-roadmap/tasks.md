@@ -36,7 +36,7 @@
 - [x] Move affected zone and vitals above generic evidence in warning states.
 - [x] Collapse healthy evidence behind a quieter detail surface.
 - [x] Group repeated timeline entries into one meaningful row.
-- [ ] Add reboot-scoped mini trends only from persisted samples.
+- [x] Add reboot-scoped mini trends only from persisted samples.
 - [x] Add screenshot assertions for story, action, affected zone, and quiet evidence.
 
 ## Phase 5: Daily Owner Mode

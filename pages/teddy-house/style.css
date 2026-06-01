@@ -959,6 +959,23 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.history-samples {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 24px;
+  margin-top: 12px;
+}
+
+.history-sample {
+  flex: 1 1 0;
+  min-width: 3px;
+  max-width: 14px;
+  border-radius: 999px 999px 2px 2px;
+  background: linear-gradient(180deg, rgba(96, 221, 151, 0.92), rgba(96, 221, 151, 0.28));
+  box-shadow: 0 0 10px rgba(96, 221, 151, 0.10);
+}
+
 .history-meta {
   display: flex;
   flex-wrap: wrap;

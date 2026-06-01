@@ -500,6 +500,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
         ? 'Scoped to the current Mac mini boot session.'
         : 'Based on retained local vitals samples.',
       sampleCount,
+      points: Array.isArray(vitalsHistory.points) ? vitalsHistory.points : [],
       bootedAt: vitalsHistory.bootedAt || null,
       checkedAt,
       freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
@@ -2185,10 +2186,17 @@ async function updateVitalsHistory(ctx, sample) {
     return Number.isFinite(entryBoot) && Math.abs(entryBoot - currentBoot) <= bootWindowMs;
   });
   const cpuPeak = recent.reduce((max, entry) => Math.max(max, Number(entry.cpu) || 0), cpu);
+  const points = recent
+    .slice(-12)
+    .map(entry => ({
+      at: entry.at,
+      cpu: Number(Number(entry.cpu || 0).toFixed(2))
+    }));
   return {
     window: '6h',
     cpuPeak: cpuPeak.toFixed(2),
     samples: recent.length,
+    points,
     bootedAt,
     scopedToBoot: Boolean(bootedAt),
     lastSampleAt: at,

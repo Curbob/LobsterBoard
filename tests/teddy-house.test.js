@@ -2089,9 +2089,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/vitals-history.json',
       scopedToBoot: expect.any(Boolean),
       samples: expect.any(Number),
+      points: expect.any(Array),
       lastSampleAt: expect.any(String)
     }));
     expect(data.vitals.vitalsHistory.samples).toBeGreaterThan(0);
+    expect(data.vitals.vitalsHistory.points.length).toBeGreaterThan(0);
+    expect(data.vitals.vitalsHistory.points.length).toBeLessThanOrEqual(12);
     expect(visuals.vitalsGrid.inputs.vitalsHistory.source).toBe('data/teddy-house/vitals-history.json');
     expect(visuals.vitalsGrid.inputs.vitalsHistory.window).toBe('6h');
     expect(visuals.vitalsGrid.inputs.vitalsHistory.samples).toBeGreaterThan(0);
@@ -2107,10 +2110,14 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'data/teddy-house/vitals-history.json',
       confidence: 'persisted',
       sampleCount: expect.any(Number),
+      points: expect.any(Array),
       checkedAt: expect.any(String),
       freshness: expect.any(String)
     }));
     expect(cpuSummary.sampleCount).toBeGreaterThan(0);
+    expect(cpuSummary.points.length).toBeGreaterThan(0);
+    expect(cpuSummary.points.length).toBeLessThanOrEqual(12);
+    expect(cpuSummary.points.every(point => point.at && Number.isFinite(Number(point.cpu)))).toBe(true);
     expect(new Date(cpuSummary.checkedAt).getTime()).not.toBeNaN();
     const bootSummary = data.historicalSummaries.find(summary => summary.id === 'mac-boot-7d');
     expect(bootSummary).toEqual(expect.objectContaining({
@@ -2504,9 +2511,11 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       window: '6h',
       cpuPeak: '7.50',
       samples: 2,
+      points: expect.any(Array),
       scopedToBoot: true,
       source: 'data/teddy-house/vitals-history.json'
     }));
+    expect(history.points.map(point => point.cpu)).toEqual([7.5, 3]);
     expect(Math.abs(new Date(history.bootedAt).getTime() - new Date(currentBoot).getTime())).toBeLessThan(5000);
     expect(store.get('vitals-history.json').entries.some(entry => Number(entry.cpu) === 99)).toBe(true);
   });

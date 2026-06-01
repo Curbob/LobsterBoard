@@ -1344,6 +1344,8 @@ function assertPersistedHomebaseData(cwd, data) {
   assert(cpuSummary?.source === 'data/teddy-house/vitals-history.json', 'CPU history summary must cite vitals-history.json');
   assert(cpuSummary.window === '6h', 'CPU history summary must use the 6h window');
   assert(Number(cpuSummary.sampleCount) > 0, 'CPU history summary must include a persisted sample count');
+  assert(Array.isArray(cpuSummary.points) && cpuSummary.points.length > 0 && cpuSummary.points.length <= 12, 'CPU history summary must include bounded persisted sample points');
+  assert(cpuSummary.points.every(point => point.at && Number.isFinite(Number(point.cpu))), 'CPU history sample points must include at/cpu values');
   assert(bootSummary?.source === 'data/teddy-house/boot-history.json', 'Mac boot summary must cite boot-history.json');
   assert(bootSummary.window === '7d', 'Mac boot summary must use the 7d window');
   assert(Number(bootSummary.sampleCount) > 0, 'Mac boot summary must include persisted samples');

@@ -455,6 +455,7 @@ function renderHistoricalSummaries(summaries) {
       detail.textContent = summary.detail;
       card.append(detail);
     }
+    renderHistorySamples(card, summary);
     const meta = div("history-meta");
     meta.append(span("", summary.confidence === "persisted" ? "Persisted" : "Source backed"));
     meta.append(span("", `${summary.sampleCount || 0} sample${Number(summary.sampleCount) === 1 ? "" : "s"}`));
@@ -471,6 +472,22 @@ function renderHistoricalSummaries(summaries) {
     item.append(detail);
     grid.append(item);
   }
+}
+
+function renderHistorySamples(card, summary) {
+  const points = Array.isArray(summary.points) ? summary.points.filter(point => Number.isFinite(Number(point.cpu))).slice(-12) : [];
+  if (points.length < 2) return;
+  const max = Math.max(...points.map(point => Number(point.cpu) || 0), 1);
+  const row = div("history-samples");
+  row.setAttribute("aria-label", `${summary.title || "History"} samples from ${summary.source || "persisted evidence"}`);
+  points.forEach(point => {
+    const bar = span("history-sample");
+    const height = Math.max(18, Math.min(100, Math.round(((Number(point.cpu) || 0) / max) * 100)));
+    bar.style.height = `${height}%`;
+    bar.title = `${Number(point.cpu).toFixed(2)} at ${fmtCheckedAt(point.at).replace(/^Checked\s*/i, "")}`;
+    row.append(bar);
+  });
+  card.append(row);
 }
 
 function renderEvents(events) {

@@ -137,7 +137,22 @@ function healthyWithOneWarning() {
       weirdThings: []
     },
     historicalSummaries: [
-      { id: 'cpu-peak-6h', title: 'CPU peak', window: '6h', value: 'Peak 8.20', detail: 'Scoped to the current Mac mini boot session.', sampleCount: 12, source: 'data/teddy-house/vitals-history.json', confidence: 'persisted', freshness: '2m ago' },
+      {
+        id: 'cpu-peak-6h',
+        title: 'CPU peak',
+        window: '6h',
+        value: 'Peak 8.20',
+        detail: 'Scoped to the current Mac mini boot session.',
+        sampleCount: 12,
+        points: [
+          { at: '2026-05-31T20:00:00.000Z', cpu: 2.1 },
+          { at: '2026-05-31T20:05:00.000Z', cpu: 8.2 },
+          { at: '2026-05-31T20:10:00.000Z', cpu: 4.6 }
+        ],
+        source: 'data/teddy-house/vitals-history.json',
+        confidence: 'persisted',
+        freshness: '2m ago'
+      },
       { id: 'mac-boot-7d', title: 'Mac boot', window: '7d', value: 'Current boot stable', detail: 'Current boot started 5d ago.', sampleCount: 1, source: 'data/teddy-house/boot-history.json', confidence: 'persisted', freshness: '2m ago' },
       { id: 'wan-latency-24h', title: 'WAN latency', window: '24h', value: '20 ms now', detail: 'Worst check 32.0 ms across 8 persisted samples.', sampleCount: 8, source: 'data/teddy-house/wan-history.json', confidence: 'persisted', freshness: '2m ago' }
     ],
@@ -252,6 +267,8 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.getElementById('history-grid').textContent).toContain('Persisted');
     expect(document.getElementById('history-grid').textContent).toContain('8 samples');
     expect(document.getElementById('history-grid').textContent).toContain('2m ago');
+    expect(document.querySelectorAll('#history-grid .history-sample')).toHaveLength(3);
+    expect(document.querySelector('#history-grid .history-samples').getAttribute('aria-label')).toContain('data/teddy-house/vitals-history.json');
     expect(document.getElementById('next-action').textContent).toBe('No review items.');
   });
 });
