@@ -1832,6 +1832,44 @@ function mobileLoginSmokeChecklistCoverage() {
   };
 }
 
+function homebridgeGuardSpecCoverage(fixtureContracts) {
+  const specDir = join(process.cwd(), 'specs', '001-homebridge-guard-card');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const apiText = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'api.cjs'), 'utf8');
+  const qaText = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+  const unitText = readFileSync(join(process.cwd(), 'tests', 'teddy-house.test.js'), 'utf8');
+  const names = new Set((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => contract.name));
+  const homebridgeUiPatch = fixtureContracts.find(contract => contract.name === 'post-outage-homebridge-ui-patch');
+  const homebridgeDown = fixtureContracts.find(contract => contract.name === 'post-outage-homebridge-down') || fixtureContracts.find(contract => contract.name === 'homebridge-down');
+  const healthy = fixtureContracts.find(contract => contract.name === 'healthy');
+  const uncheckedItems = (text.match(/- \[ \]/g) || []).length;
+  const required = [
+    ['spec-complete', uncheckedItems === 0],
+    ['service-probe', /function checkHomebridge/.test(apiText) && /source detail|source-backed|reviewEvidence/i.test(qaText + text)],
+    ['accessory-cache', /Homebridge accessory cache/.test(apiText) && /accessories\.count|accessory count/i.test(qaText + text)],
+    ['recent-log-window', /requireDate:\s*true/.test(apiText) && /counts only dated Homebridge top-level warning entries/.test(unitText)],
+    ['recovered-log-burst', /Recovered log bursts do not remain stuck in the Review lane|recovered reconnects stay evidence/i.test(text) && names.has('post-reboot-recovered')],
+    ['ui-patch-info', Boolean(homebridgeUiPatch && homebridgeUiPatch.firstZone === 'outside-access' && homebridgeUiPatch.nowText === 'Nothing needs Dan.')],
+    ['eufy-ignored', /door lock evidence must stay hidden from trusted daily state/.test(qaText) && /Eufy plugin parser evidence ignored/i.test(unitText)],
+    ['automations-card', Boolean(healthy && /Automations/.test(apiText) && /Responding/.test(apiText))],
+    ['homebridge-warning', Boolean(homebridgeDown && homebridgeDown.firstZone === 'smart-home' && /Check Homebridge first/.test(homebridgeDown.nowText))],
+    ['no-raw-counts', /raw log counts out of the healthy first screen/i.test(text) && /FIRST_SCREEN_COPY_BLACKLIST/.test(qaText)],
+    ['logs-page-evidence', /GET \/logs/.test(apiText) && /logs detail must include Homebridge/.test(qaText)],
+    ['auth-smoke', /remote-looking Host 401\/401\/302|remote page redirects/i.test(qaText + text)],
+    ['no-fake-trends', /sparkline|fake trend/i.test(qaText) && /No graph-like UI appears without persisted historical samples/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
 function nightlyTruthSuiteSpecCoverage() {
   const specDir = join(process.cwd(), 'specs', '005-homebase-nightly-truth-suite');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
@@ -2119,6 +2157,7 @@ async function main() {
   const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
+  const homebridgeGuardCoverage = homebridgeGuardSpecCoverage(fixtureContracts);
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
   const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
@@ -2175,6 +2214,16 @@ async function main() {
     name: 'mobile-login-manual-smoke',
     status: mobileChecklistCoverage.status,
     detail: 'Android Chrome and iPhone/iPad PWA login persistence smokes are documented with reload, relaunch, first action, Ask Teddy, and overflow checks.'
+  });
+  gates.push({
+    name: 'homebridge-guard-spec',
+    status: homebridgeGuardCoverage.status,
+    detail: homebridgeGuardCoverage.detail
+  });
+  checks.push({
+    name: 'homebridge-guard-spec',
+    status: homebridgeGuardCoverage.status,
+    detail: 'Homebridge guard spec is backed by live probes, accessory cache evidence, log parser fixtures, Eufy exclusion, auth checks, and replay stories.'
   });
   gates.push({
     name: 'nightly-truth-suite-spec',
@@ -2261,6 +2310,7 @@ async function main() {
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
+    homebridgeGuardSpec: homebridgeGuardCoverage,
     nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
     scenarioReplayPackSpec: scenarioReplayPackCoverage,
     visualContractCoverage: visualCoverage,
