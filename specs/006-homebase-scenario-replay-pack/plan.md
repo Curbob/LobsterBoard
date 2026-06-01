@@ -17,6 +17,7 @@ Keep the curated pack small and high-signal:
 - `post-outage-resource-pressure`: Dan should check Mac mini load first when CPU or memory remains elevated after recovery.
 - `post-outage-adguard-stats-unavailable`: Dan should see a steady house when DNS works but AdGuard blocker stats need login.
 - `post-outage-homebridge-ui-patch`: Dan should see a steady house with the Homebridge UI patch parked in Later maintenance.
+- `post-outage-optional-app-update`: Dan should see a steady house with optional app updates parked in Later maintenance.
 - `homebridge-down`: Dan should check Homebridge first while Mac, internet, and public access stay scoped correctly.
 - `adguard-dns-down`: Dan should check DNS first while WAN quality remains scoped separately.
 - `tailscale-funnel-missing`: Dan should see public access first when the tailnet is online but the expected Funnel route is missing.
@@ -64,4 +65,4 @@ Start with the existing WindowServer restart, public access drift, Govee loop, a
 
 Add a new replay scenario only when it changes Dan's first decision:
 
-- post-outage optional app update after recovery
+- post-outage macOS optional update after recovery
