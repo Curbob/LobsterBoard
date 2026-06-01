@@ -37,7 +37,7 @@
 - [x] Collapse healthy evidence behind a quieter detail surface.
 - [x] Group repeated timeline entries into one meaningful row.
 - [ ] Add reboot-scoped mini trends only from persisted samples.
-- [ ] Add screenshot assertions for story, action, affected zone, and quiet evidence.
+- [x] Add screenshot assertions for story, action, affected zone, and quiet evidence.
 
 ## Phase 5: Daily Owner Mode
 

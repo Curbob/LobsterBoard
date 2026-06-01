@@ -861,6 +861,15 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.rects?.overview?.visible === true, `top story is not visible in first viewport at ${width}px: ${JSON.stringify(value.rects?.overview)}`);
   const warningState = !/steady/i.test(value.summaryTitle) || Boolean(value.firstReview);
   const healthyState = /steady/i.test(value.summaryTitle) && !value.firstReview;
+  const storySpecific = Boolean(value.summaryTitle && value.summaryCopy)
+    && !/checking|could not refresh|waiting|status unavailable/i.test(`${value.summaryTitle} ${value.summaryCopy}`);
+  const actionVisible = Boolean(value.nowDecision || value.firstDecision)
+    && !/no action|checking|waiting/i.test(`${value.nowDecision} ${value.firstDecision}`);
+  const quietEvidence = healthyState
+    ? value.evidenceOpen === false && value.signalsOpen === false
+    : value.positions.evidence === null || value.positions.ask < value.positions.evidence;
+  assert(storySpecific, `rendered first viewport lacks a specific house story at ${width}px: ${JSON.stringify(value)}`);
+  assert(actionVisible, `rendered first viewport lacks a useful first action at ${width}px: ${JSON.stringify(value)}`);
   if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
   }
@@ -879,6 +888,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.firstZone, `rendered first house zone missing at ${width}px`);
   assert(value.activeZone === value.firstZone, `active zone marker drifted from first ranked zone at ${width}px: ${JSON.stringify(value)}`);
+  assert(quietEvidence, `rendered evidence is competing with the first action at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.historyCount >= 1, `rendered history summaries missing at ${width}px: ${JSON.stringify(value)}`);
   assert(Array.isArray(value.recentChangeRows) && value.recentChangeRows.length > 0, `rendered recent changes missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.recentChangeRows.length <= 3, `rendered recent changes should stay grouped at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
@@ -914,10 +924,13 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
     summaryCopy: value.summaryCopy,
     visualContract: {
       topStoryVisible: value.rects?.overview?.visible === true,
+      storySpecific,
+      actionVisible,
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       affectedZoneMarked: value.activeZone === value.firstZone,
       healthyEvidenceCollapsed: healthyState ? value.evidenceOpen === false && value.signalsOpen === false : true,
       activeIncidentMetadata: incidentMetadataOk,
+      quietEvidence,
       evidenceBelowDecision: value.positions.evidence === null || value.positions.ask < value.positions.evidence,
       recentChangesGrouped: Array.isArray(value.recentChangeRows)
         && value.recentChangeRows.length > 0

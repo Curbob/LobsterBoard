@@ -2522,6 +2522,18 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(qa).toContain('healthCheckedAt: frozenHealth.checkedAt');
   });
 
+  it('asserts rendered screenshot story, action, affected zone, and quiet evidence', () => {
+    const qa = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+
+    expect(qa).toContain('storySpecific');
+    expect(qa).toContain('actionVisible');
+    expect(qa).toContain('affectedZoneMarked');
+    expect(qa).toContain('quietEvidence');
+    expect(qa).toContain('rendered first viewport lacks a specific house story');
+    expect(qa).toContain('rendered first viewport lacks a useful first action');
+    expect(qa).toContain('rendered evidence is competing with the first action');
+  });
+
   it('keeps routine app update availability out of the health warning path', () => {
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 
