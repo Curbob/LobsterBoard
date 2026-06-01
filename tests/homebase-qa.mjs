@@ -799,7 +799,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
       const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
-      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix/g, '')?.trim() || "";
+      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs/g, '')?.trim() || "";
       const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
       const historyCount = document.querySelectorAll("#history-grid .history-card").length;
       const recentChangeRows = [...document.querySelectorAll("#events-list .event")]

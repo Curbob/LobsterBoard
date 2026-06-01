@@ -58,6 +58,7 @@ expect(html.includes('Evidence'), 'missing evidence shell copy');
 expect(logsHtml.includes('Homebase Logs'), 'missing hidden logs detail page');
 expect(logsHtml.includes('/pages/teddy-house/logs.js'), 'logs detail page must load its client script');
 expect(logsScript.includes('/api/pages/teddy-house/logs'), 'logs detail client must call page-local logs API');
+expect(logsScript.includes('currentFocus'), 'logs detail client must support focused evidence links');
 expect(!logsScript.match(/password|token|access_token|refresh_token|id_token|cloud_token/i), 'logs detail client must not contain credential copy');
 expect(!html.includes('href="/pages/focus-room/"'), 'Homebase should not link to orphaned Focus Room');
 expect(pagesConfig.pages['focus-room']?.enabled === false, 'Focus Room must stay disabled in the app registry');

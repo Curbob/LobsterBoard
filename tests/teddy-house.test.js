@@ -525,6 +525,9 @@ describe('Teddy Homebase page', () => {
     expect(chip.dataset.confidence).toBe('live');
     expect(chip.dataset.checkedAt).toBe('2026-05-16T23:00:00.000Z');
     expect(chip.title).toContain('Homebridge Port | live | Checked');
+    const logsLink = chip.querySelector('.need-log-link');
+    expect(logsLink.textContent).toBe('Open logs');
+    expect(logsLink.getAttribute('href')).toBe('/pages/teddy-house/logs/?focus=homebridge');
 
     const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
     expect(signals.slice(0, 4)).toEqual(['Homebridge log', 'DNS blocks', 'Homebridge version', "What's exposed"]);
@@ -728,6 +731,9 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('setTimeout(() => controller.abort(), 75000)');
     expect(script).toContain('Explain');
     expect(script).toContain('Prepare fix');
+    expect(script).toContain('Open logs');
+    expect(script).toContain('logFocusForReview');
+    expect(script).toContain('/pages/teddy-house/logs/?focus=');
     expect(script).toContain('markIncidentKnown');
     expect(script).toContain('/api/pages/teddy-house/incidents/');
     expect(script).toContain('action: "prepare-fix"');
@@ -737,6 +743,57 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('data.source === "local-fallback"');
     expect(script).toContain('Fallback');
     expect(script).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
+  });
+
+  it('focuses the logs page from review-item evidence links', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/logs.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="logs-refresh"></button>
+      <div id="logs-last-check"></div>
+      <div id="logs-summary-title"></div>
+      <div id="logs-summary-copy"></div>
+      <div id="logs-score"></div>
+      <div id="logs-score-ring"></div>
+      <div id="logs-next-action"></div>
+      <div id="logs-state"></div>
+      <div id="logs-teddy-line"></div>
+      <div id="log-source-grid"></div>
+      <div id="codex-take"></div>
+      <div id="teddy-take"></div>
+      <div id="framework-grid"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/logs/?focus=homebridge',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/logs') {
+        return {
+          ok: true,
+          json: async () => ({
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            serviceLogs: {
+              checkedAt: '2026-05-16T23:00:00.000Z',
+              state: 'bad',
+              detail: 'Grouped evidence ready.',
+              items: [
+                { name: 'OpenClaw', state: 'bad', issues: 7, source: 'gateway.log', detail: 'Gateway issue.', examples: [] },
+                { name: 'Homebridge', state: 'warn', issues: 3, source: 'homebridge.log', detail: 'Govee connection degraded.', examples: [] }
+              ]
+            },
+            framework: { architecture: [] }
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const cards = [...dom.window.document.querySelectorAll('.log-source-card')];
+    expect(cards[0].querySelector('h4').textContent).toBe('Homebridge');
+    expect(cards[0].className).toContain('focused');
+    expect(dom.window.document.getElementById('logs-teddy-line').textContent).toBe('Homebridge evidence is first.');
   });
 
   it('labels Ask Teddy fallback visibly in the dashboard UI', async () => {

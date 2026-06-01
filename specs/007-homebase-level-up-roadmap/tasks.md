@@ -23,12 +23,12 @@
 
 ## Phase 3: Actions
 
-- [ ] Add `Explain` incident action.
-- [ ] Add `Prepare fix` dry-run action.
-- [ ] Add `Open logs` action for relevant local evidence.
+- [x] Add `Explain` incident action.
+- [x] Add `Prepare fix` dry-run action.
+- [x] Add `Open logs` action for relevant local evidence.
 - [ ] Add `Capture incident` action that writes a redacted draft bundle.
 - [x] Add `Mark known` action only if it is persisted, reversible, and source-backed.
-- [ ] Add tests proving no action mutates services without approval.
+- [x] Add tests proving no action mutates services without approval.
 
 ## Phase 4: Evidence Viz
 

@@ -1156,6 +1156,13 @@ h3 {
   border-color: rgba(255, 107, 98, 0.42);
 }
 
+.log-source-card.focused {
+  border-color: rgba(102, 217, 208, 0.56);
+  background:
+    linear-gradient(180deg, rgba(102, 217, 208, 0.13), rgba(255, 255, 255, 0.045)),
+    rgba(255, 255, 255, 0.055);
+}
+
 .log-source-card.ignored {
   opacity: 0.72;
 }

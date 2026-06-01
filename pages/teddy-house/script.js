@@ -178,9 +178,24 @@ function renderNeeds(needs, reviewEvidence) {
       prompt: `Prepare a dry-run fix plan for this Homebase review item. Do not run commands or change settings: ${item}`,
       clicked: { type: "review", label: item }
     }));
-    chip.append(explain, prepare);
+    const logs = document.createElement("a");
+    logs.className = "ask-mini need-log-link";
+    logs.href = `/pages/teddy-house/logs/?focus=${encodeURIComponent(logFocusForReview(item, evidence))}`;
+    logs.textContent = "Open logs";
+    logs.title = "Open source evidence for this review item.";
+    chip.append(explain, prepare, logs);
     list.append(chip);
   });
+}
+
+function logFocusForReview(item, evidence) {
+  const text = `${item || ""} ${evidence && evidence.source || ""}`.toLowerCase();
+  if (/govee|automation|homebridge|accessor|smart-home/.test(text)) return "homebridge";
+  if (/system logs|watchdog|panic|restart|mac system/.test(text)) return "system";
+  if (/openclaw|gateway|mac mini service/.test(text)) return "openclaw";
+  if (/dns|adguard|internet|wan|tailscale|network/.test(text)) return "network";
+  if (/public access|external access|funnel|route/.test(text)) return "tailscale";
+  return "service";
 }
 
 function formatNeedLabel(item) {

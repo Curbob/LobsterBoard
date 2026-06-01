@@ -1,5 +1,6 @@
 (function() {
   const stateRank = { bad: 0, warn: 1, info: 2, ok: 3 };
+  const currentFocus = new URLSearchParams(window.location.search).get('focus') || '';
 
   const elements = {
     refresh: document.getElementById('logs-refresh'),
@@ -41,9 +42,32 @@
     return 100;
   }
 
+  function focusMatches(item) {
+    if (!currentFocus) return false;
+    const focus = currentFocus.toLowerCase();
+    const haystack = `${item.name || ''} ${item.source || ''} ${item.detail || ''}`.toLowerCase();
+    if (focus === 'homebridge') return /homebridge|govee|eufy|accessor|automation/.test(haystack);
+    if (focus === 'system') return /system|diagnostic|panic|watchdog|kernel|windowserver/.test(haystack);
+    if (focus === 'openclaw') return /openclaw|gateway|homebase/.test(haystack);
+    if (focus === 'network') return /network|dns|adguard|tailscale|wan|internet/.test(haystack);
+    if (focus === 'tailscale') return /tailscale|funnel|public|route/.test(haystack);
+    return haystack.includes(focus);
+  }
+
+  function focusLabel() {
+    if (currentFocus === 'homebridge') return 'Homebridge evidence is first.';
+    if (currentFocus === 'system') return 'Mac system evidence is first.';
+    if (currentFocus === 'openclaw') return 'OpenClaw evidence is first.';
+    if (currentFocus === 'network') return 'Network evidence is first.';
+    if (currentFocus === 'tailscale') return 'Tailscale evidence is first.';
+    return currentFocus ? 'Matching evidence is first.' : '';
+  }
+
   function renderSources(items) {
     elements.sourceGrid.textContent = '';
     const sorted = [...items].sort((a, b) => {
+      const byFocus = Number(focusMatches(b)) - Number(focusMatches(a));
+      if (byFocus) return byFocus;
       if (a.ignored !== b.ignored) return a.ignored ? 1 : -1;
       const byState = (stateRank[a.state] ?? 4) - (stateRank[b.state] ?? 4);
       return byState || text(a.name).localeCompare(text(b.name));
@@ -52,6 +76,7 @@
     for (const item of sorted) {
       const card = document.createElement('article');
       card.className = `log-source-card ${item.state || 'info'}${item.ignored ? ' ignored' : ''}`;
+      if (focusMatches(item)) card.className += ' focused';
 
       const head = document.createElement('div');
       head.className = 'log-source-head';
@@ -139,6 +164,7 @@
         : 'No noisy source';
       elements.state.textContent = stateLabel(logs.state);
       elements.teddyLine.textContent = logs.state === 'ok' ? 'The log room is quiet.' : 'The loudest source is ranked first.';
+      if (currentFocus) elements.teddyLine.textContent = focusLabel();
       renderSources(items);
       renderFramework(data.framework || {});
     } catch (err) {
