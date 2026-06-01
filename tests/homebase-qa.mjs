@@ -2219,9 +2219,14 @@ function levelUpRoadmapSpecCoverage() {
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
   const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
   const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+  const architecture = readFileSync(join(process.cwd(), 'docs', 'TEDDY-HOMEBASE-ARCHITECTURE.md'), 'utf8');
   const required = [
     ['spec-directory', /Homebase Level-Up Roadmap Spec/.test(text)],
     ['readme-linked', /specs\/007-homebase-level-up-roadmap\/spec\.md/.test(readme)],
+    ['readme-incident-led', /Homebase is now incident-led/i.test(readme) && /phone copy is budgeted/i.test(readme)],
+    ['architecture-incident-led', /The daily model is incident-led/i.test(architecture) && /one primary house story/i.test(architecture)],
+    ['architecture-trust-labels', /Source labels are not decoration/i.test(architecture) && /Cached.+Needs login.+Degraded source.+Manual verified/s.test(architecture)],
+    ['architecture-copy-budget', /Phone first-viewport copy is budgeted in QA/i.test(architecture)],
     ['incident-led', /Incident Ledger/.test(text) && /new, recurring, resolved, ignored, or trusted/i.test(text)],
     ['story-engine', /House Story Engine/.test(text) && /one primary story/i.test(text)],
     ['action-safety', /Prepare fix/.test(text) && /Mark known/.test(text) && /explicit Dan approval|without explicit approval|persisted, reversible, and source-backed/i.test(text)],

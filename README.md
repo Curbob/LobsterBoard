@@ -30,6 +30,8 @@ https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/
 
 Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, OpenClaw, Homebridge/accessory log state, service logs, macOS/system logs, public route exposure and route changes, WAN latency, Mac mini boot sessions, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
 
+Homebase is now incident-led. Raw services feed an incident ledger and story engine; the first screen shows one house story, one first action, the affected zone, and quiet evidence below. Recurring issues stay named instead of rediscovered, resolved issues leave `Now` but remain in evidence, source labels appear only when trust changes, and phone copy is budgeted so the daily surface stays readable.
+
 Before changing Homebase behavior, read:
 
 - `AGENTS.md`
@@ -49,7 +51,7 @@ Homebase proof command:
 npm run check:homebase
 ```
 
-That runs lint/tests, 23 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, and scenario replay pack.
+That runs lint/tests, 24 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists and phone copy budget checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, scenario replay pack, and level-up roadmap.
 
 ![LobsterBoard](lobsterboard-logo-final.png)
 

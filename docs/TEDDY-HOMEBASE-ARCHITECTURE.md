@@ -77,6 +77,14 @@ Rules:
 
 Homebase separates daily state from evidence.
 
+The daily model is incident-led:
+
+1. Probes and persisted histories produce source-backed signals.
+2. Signals become named incidents when they need Dan's attention.
+3. Incidents carry lifecycle state: new, recurring, known, resolved, ignored, or active.
+4. The story engine chooses one primary house story, one first action, and one affected zone.
+5. Ask Teddy receives that same story, so the page, API, replay fixtures, and Ask answer agree.
+
 Daily state:
 
 - `outside-access`
@@ -99,6 +107,8 @@ Evidence stays lower on the page:
 
 Eufy lock state is degraded evidence only. It must not become trusted daily house state until the source is fixed or replaced.
 
+Source labels are not decoration. The UI shows trust labels only when they change Dan's interpretation: `Cached`, `Needs login`, `Degraded source`, or `Manual verified`. Routine live data stays visually quiet.
+
 ## First-Screen Contract
 
 The first screen is a decision surface, not a widget gallery.
@@ -120,6 +130,8 @@ Rules:
 - `Later` is for optional maintenance.
 - Healthy first screens must not show raw ports, IPs, package counts, stale labels, degraded labels, or ignored lock evidence as truth.
 - Active warning states must name the first useful check in house language.
+- Phone first-viewport copy is budgeted in QA. A useful Homebase screen should be readable at a glance, not a compressed log report.
+- Reboot-aware Mac mini evidence must use persisted samples scoped to the current boot session; do not draw fake trends.
 
 ## Auth Model
 
@@ -162,7 +174,7 @@ npm run check:homebase
 
 The current release gate also proves:
 
-- 23 curated replay stories.
+- 24 curated replay stories.
 - API, rendered page, and Ask Teddy story agreement.
 - Redacted recorded incident replay.
 - Parser golden fixtures for Homebridge logs, Govee grouping, Eufy ignored evidence, macOS diagnostics, Tailscale route drift, timestamp freshness, and AdGuard stats.
@@ -170,7 +182,9 @@ The current release gate also proves:
 - Daily Decision Strip spec coverage.
 - Nightly Truth Suite spec coverage.
 - Scenario Replay Pack spec coverage.
+- Level-up roadmap spec coverage.
 - Source contracts for trust, freshness, confidence, source, and first-screen eligibility.
+- Phone copy budget and trust-label visibility rules.
 
 Rendered UI proof is required when changing:
 
