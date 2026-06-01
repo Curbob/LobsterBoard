@@ -1,0 +1,21 @@
+{
+  "id": "new-govee",
+  "description": "First observation of the Govee/Homebridge automation loop.",
+  "baseFixture": "govee-loop",
+  "priorIncidents": {
+    "entries": []
+  },
+  "expected": {
+    "primaryTitle": "Govee connection degraded",
+    "primaryStatus": "new",
+    "primaryZone": "smart-home",
+    "headline": "Homebase found an issue.",
+    "summary": "New automation issue. Check automations first.",
+    "firstAction": "Check automations first.",
+    "nowText": "Check automations first.",
+    "nowSource": "Automation logs",
+    "activeCount": 1,
+    "resolvedCount": 0,
+    "lifecycle": "new"
+  }
+}

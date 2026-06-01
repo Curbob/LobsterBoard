@@ -65,6 +65,10 @@ function loadReplayFixture(name) {
   return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', `${name}.json`), 'utf8'));
 }
 
+function loadIncidentStateFixture(name) {
+  return JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incident-states', `${name}.json`), 'utf8'));
+}
+
 function replayHouseState(fixture) {
   const services = structuredClone(fixture.services);
   const intelligence = structuredClone(fixture.intelligence);
@@ -93,6 +97,39 @@ function replayHouseState(fixture) {
     houseState
   );
   return { services, intelligence, systemVitals, reviewItems, score, houseState, dailyDecision };
+}
+
+function replayIncidentStateFixture(name) {
+  const scenario = loadIncidentStateFixture(name);
+  const base = replayHouseState(loadReplayFixture(scenario.baseFixture));
+  const store = new Map([
+    ['incidents.json', structuredClone(scenario.priorIncidents || { entries: [] })]
+  ]);
+  const incidents = teddyHouseInternals.updateIncidentLedger({
+    readData(filename) {
+      return structuredClone(store.get(filename));
+    },
+    writeData(filename, data) {
+      store.set(filename, structuredClone(data));
+    }
+  }, base.services, base.intelligence, base.systemVitals);
+  const houseState = teddyHouseInternals.deriveHouseState(
+    base.services,
+    base.intelligence,
+    base.systemVitals,
+    base.reviewItems,
+    [],
+    base.score,
+    incidents
+  );
+  const dailyDecision = teddyHouseInternals.deriveDailyDecision(
+    base.services,
+    base.intelligence,
+    base.systemVitals,
+    base.reviewItems,
+    houseState
+  );
+  return { scenario, base, incidents, houseState, dailyDecision, stored: store.get('incidents.json') };
 }
 
 function firstScreenText(result) {
@@ -1607,6 +1644,53 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       status: 'resolved'
     }));
     expect(resolvedDecision.slots[0].text).toBe('Nothing needs Dan.');
+  });
+
+  it.each(['new-govee', 'recurring-govee', 'resolved-govee', 'stale-prior-govee'])('replays incident-state fixture %s through the story engine', (scenarioName) => {
+    const { scenario, incidents, houseState, dailyDecision, stored } = replayIncidentStateFixture(scenarioName);
+    const expected = scenario.expected;
+
+    expect(incidents.active).toHaveLength(expected.activeCount);
+    expect(incidents.resolved).toHaveLength(expected.resolvedCount);
+    expect(houseState.headline).toBe(expected.headline);
+    expect(houseState.summary).toBe(expected.summary);
+    expect(houseState.primaryAction).toBe(expected.firstAction);
+    expect(houseState.story.lifecycle).toBe(expected.lifecycle);
+    expect(dailyDecision.slots[0]).toEqual(expect.objectContaining({
+      text: expected.nowText,
+      source: expected.nowSource
+    }));
+    expect(stored.entries).toHaveLength(expected.activeCount + expected.resolvedCount);
+
+    if (expected.primaryTitle) {
+      expect(incidents.primary).toEqual(expect.objectContaining({
+        title: expected.primaryTitle,
+        status: expected.primaryStatus,
+        zone: expected.primaryZone
+      }));
+      expect(houseState.incident).toEqual(expect.objectContaining({
+        title: expected.primaryTitle,
+        status: expected.primaryStatus
+      }));
+    } else {
+      expect(incidents.primary).toBeNull();
+      expect(houseState.incident).toBeNull();
+    }
+
+    if (expected.resolvedTitle) {
+      expect(incidents.resolved[0]).toEqual(expect.objectContaining({
+        title: expected.resolvedTitle,
+        status: 'resolved'
+      }));
+      expect(JSON.stringify({
+        headline: houseState.headline,
+        summary: houseState.summary,
+        primaryAction: houseState.primaryAction,
+        now: dailyDecision.slots[0]
+      })).not.toMatch(/Govee|automation issue|automations first/i);
+    }
+
+    expectCleanFirstScreen({ houseState, dailyDecision });
   });
 
   it('keeps ignored door lock evidence out of the incident ledger', () => {

@@ -25,9 +25,11 @@ const SCREENSHOT_VIEWPORTS = [
 ];
 const DATA_DIR = join('data', 'teddy-house');
 const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incidents');
+const INCIDENT_STATE_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incident-states');
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
+const REQUIRED_INCIDENT_STATE_FIXTURES = ['new-govee', 'recurring-govee', 'resolved-govee', 'stale-prior-govee'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update'];
 const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
@@ -91,6 +93,10 @@ function readFixture(name) {
 
 function readIncidentBundle(file) {
   return JSON.parse(readFileSync(join(INCIDENT_FIXTURE_DIR, file), 'utf8'));
+}
+
+function readIncidentStateFixture(name) {
+  return JSON.parse(readFileSync(join(INCIDENT_STATE_FIXTURE_DIR, `${name}.json`), 'utf8'));
 }
 
 function readJsonFile(cwd, file) {
@@ -978,6 +984,38 @@ function replayHealthFromFixture(fixture) {
   return { score, needsDan, houseState, dailyDecision, services, intelligence, vitals: systemVitals };
 }
 
+function replayIncidentStateFixture(scenario) {
+  const replay = replayHealthFromFixture(readFixture(scenario.baseFixture));
+  const store = new Map([
+    ['incidents.json', structuredClone(scenario.priorIncidents || { entries: [] })]
+  ]);
+  const incidents = teddyHouseInternals.updateIncidentLedger({
+    readData(filename) {
+      return structuredClone(store.get(filename));
+    },
+    writeData(filename, data) {
+      store.set(filename, structuredClone(data));
+    }
+  }, replay.services, replay.intelligence, replay.vitals);
+  const houseState = teddyHouseInternals.deriveHouseState(
+    replay.services,
+    replay.intelligence,
+    replay.vitals,
+    replay.needsDan,
+    [],
+    replay.score,
+    incidents
+  );
+  const dailyDecision = teddyHouseInternals.deriveDailyDecision(
+    replay.services,
+    replay.intelligence,
+    replay.vitals,
+    replay.needsDan,
+    houseState
+  );
+  return { ...replay, incidents, houseState, dailyDecision, stored: store.get('incidents.json') };
+}
+
 function assertReplayStoryAgreement(name, fixture, data) {
   const expected = fixture.expected || {};
   const firstZone = data.houseState?.zones?.[0]?.id || '';
@@ -1821,6 +1859,71 @@ function recordedIncidentCoverage(incidents) {
   };
 }
 
+function verifyIncidentStateFixtures() {
+  const files = readdirSync(INCIDENT_STATE_FIXTURE_DIR).filter(file => file.endsWith('.json')).sort();
+  const names = files.map(file => file.replace(/\.json$/, ''));
+  for (const name of REQUIRED_INCIDENT_STATE_FIXTURES) {
+    assert(names.includes(name), `incident-state fixture ${name} is missing`);
+  }
+  return REQUIRED_INCIDENT_STATE_FIXTURES.map(name => {
+    const scenario = readIncidentStateFixture(name);
+    assert(scenario.id === name, `${name} incident-state fixture id drifted`);
+    assert(scenario.baseFixture, `${name} incident-state fixture is missing baseFixture`);
+    assert(scenario.expected, `${name} incident-state fixture is missing expected contract`);
+    const data = replayIncidentStateFixture(scenario);
+    const expected = scenario.expected;
+    const now = data.dailyDecision?.slots?.find(slot => slot.key === 'now') || {};
+    assert(data.incidents.active.length === expected.activeCount, `${name} active incident count drifted`);
+    assert(data.incidents.resolved.length === expected.resolvedCount, `${name} resolved incident count drifted`);
+    assert(data.houseState.headline === expected.headline, `${name} headline drifted`);
+    assert(data.houseState.summary === expected.summary, `${name} summary drifted`);
+    assert(data.houseState.primaryAction === expected.firstAction, `${name} primary action drifted`);
+    assert(data.houseState.story?.lifecycle === expected.lifecycle, `${name} lifecycle drifted`);
+    assert(now.text === expected.nowText, `${name} Now text drifted`);
+    assert(now.source === expected.nowSource, `${name} Now source drifted`);
+    assert((data.stored.entries || []).length === expected.activeCount + expected.resolvedCount, `${name} stored incident count drifted`);
+    if (expected.primaryTitle) {
+      assert(data.incidents.primary?.title === expected.primaryTitle, `${name} primary incident title drifted`);
+      assert(data.incidents.primary?.status === expected.primaryStatus, `${name} primary incident status drifted`);
+      assert(data.incidents.primary?.zone === expected.primaryZone, `${name} primary incident zone drifted`);
+    } else {
+      assert(data.incidents.primary === null, `${name} unexpectedly kept a primary incident`);
+      assert(data.houseState.incident === null, `${name} unexpectedly kept an active house-state incident`);
+    }
+    if (expected.resolvedTitle) {
+      assert(data.incidents.resolved[0]?.title === expected.resolvedTitle, `${name} resolved incident title drifted`);
+      assert(data.incidents.resolved[0]?.status === 'resolved', `${name} resolved incident status drifted`);
+      assert(!/Govee|automation issue|automations first/i.test(JSON.stringify({
+        headline: data.houseState.headline,
+        summary: data.houseState.summary,
+        primaryAction: data.houseState.primaryAction,
+        now
+      })), `${name} stale or resolved incident still drives first-screen truth`);
+    }
+    assertFirstScreenCopyClean(data, `${name} incident-state fixture`);
+    return {
+      id: name,
+      baseFixture: scenario.baseFixture,
+      lifecycle: expected.lifecycle,
+      primary: expected.primaryTitle || 'none',
+      active: data.incidents.active.length,
+      resolved: data.incidents.resolved.length,
+      ok: true
+    };
+  });
+}
+
+function incidentStateFixtureCoverage(items) {
+  const states = new Set((Array.isArray(items) ? items : []).map(item => item.id));
+  const allPresent = REQUIRED_INCIDENT_STATE_FIXTURES.every(name => states.has(name));
+  const allOk = Array.isArray(items) && items.every(item => item.ok);
+  return {
+    status: allPresent && allOk ? 'ok' : 'fail',
+    detail: items.length ? items.map(item => `${item.id}:${item.lifecycle}`).join(', ') : 'no incident-state fixtures',
+    items
+  };
+}
+
 function parserGoldenFixtureCoverage() {
   const testFile = readFileSync(join(process.cwd(), 'tests', 'teddy-house.test.js'), 'utf8');
   const checks = [
@@ -2263,6 +2366,7 @@ async function smokePublicAuth() {
 async function main() {
   const fixtureContracts = verifyReplayFixtures();
   const recordedIncidents = verifyRecordedIncidentBundles();
+  const incidentStateFixtures = verifyIncidentStateFixtures();
   const local = await smokeLocalRoutes();
   const renderedReplay = await renderReplayFixtures();
   const publicAuth = await smokePublicAuth();
@@ -2270,6 +2374,7 @@ async function main() {
   const zoneCoverage = zoneRankingCoverage(fixtureContracts);
   const replayStoryCoverage = replayStoryAgreementCoverage(fixtureContracts);
   const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
+  const incidentStateCoverage = incidentStateFixtureCoverage(incidentStateFixtures);
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
   const homebridgeGuardCoverage = homebridgeGuardSpecCoverage(fixtureContracts);
@@ -2311,6 +2416,16 @@ async function main() {
     name: 'recorded-incident-replay',
     status: recordedIncidentStoryCoverage.status,
     detail: 'Redacted incident bundles replay through the same story agreement path.'
+  });
+  gates.push({
+    name: 'incident-state-fixtures',
+    status: incidentStateCoverage.status,
+    detail: incidentStateCoverage.detail
+  });
+  checks.push({
+    name: 'incident-state-fixtures',
+    status: incidentStateCoverage.status,
+    detail: 'Incident state fixtures replay new, recurring, resolved, and stale warning lifecycle paths.'
   });
   gates.push({
     name: 'parser-golden-fixtures',
@@ -2445,6 +2560,7 @@ async function main() {
     zoneRankingCoverage: zoneCoverage.items,
     replayStoryAgreementCoverage: replayStoryCoverage.items,
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
+    incidentStateFixtureCoverage: incidentStateCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
     homebridgeGuardSpec: homebridgeGuardCoverage,

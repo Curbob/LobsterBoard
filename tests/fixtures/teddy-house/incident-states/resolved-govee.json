@@ -1,0 +1,40 @@
+{
+  "id": "resolved-govee",
+  "description": "The Govee/Homebridge automation loop is no longer present and moves to resolved evidence.",
+  "baseFixture": "healthy",
+  "priorIncidents": {
+    "entries": [
+      {
+        "key": "automation-govee-connection-degraded",
+        "title": "Govee connection degraded",
+        "zone": "smart-home",
+        "state": "bad",
+        "severity": "issue",
+        "detail": "Govee connection degraded in the recent Homebridge log window.",
+        "source": "fixture",
+        "confidence": "fixture",
+        "nextAction": "Check automations first.",
+        "evidence": ["Homebridge logs", "Service logs"],
+        "status": "recurring",
+        "firstSeenAt": "2026-05-31T00:00:00.000Z",
+        "lastSeenAt": "2026-05-31T00:07:00.000Z",
+        "observations": 2,
+        "resolvedAt": null
+      }
+    ]
+  },
+  "expected": {
+    "primaryTitle": null,
+    "primaryStatus": null,
+    "primaryZone": null,
+    "resolvedTitle": "Govee connection degraded",
+    "headline": "Dan's house is steady.",
+    "summary": "Internet, automations, public access, and the Mac mini are quiet.",
+    "firstAction": "No review items.",
+    "nowText": "Nothing needs Dan.",
+    "nowSource": "needsDan",
+    "activeCount": 0,
+    "resolvedCount": 1,
+    "lifecycle": "steady"
+  }
+}

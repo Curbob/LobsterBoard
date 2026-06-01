@@ -1,0 +1,39 @@
+{
+  "id": "recurring-govee",
+  "description": "Second observation of the same Govee/Homebridge automation loop.",
+  "baseFixture": "govee-loop",
+  "priorIncidents": {
+    "entries": [
+      {
+        "key": "automation-govee-connection-degraded",
+        "title": "Govee connection degraded",
+        "zone": "smart-home",
+        "state": "bad",
+        "severity": "issue",
+        "detail": "Govee connection degraded in the recent Homebridge log window.",
+        "source": "fixture",
+        "confidence": "fixture",
+        "nextAction": "Check automations first.",
+        "evidence": ["Homebridge logs", "Service logs"],
+        "status": "new",
+        "firstSeenAt": "2026-05-31T00:00:00.000Z",
+        "lastSeenAt": "2026-05-31T00:00:00.000Z",
+        "observations": 1,
+        "resolvedAt": null
+      }
+    ]
+  },
+  "expected": {
+    "primaryTitle": "Govee connection degraded",
+    "primaryStatus": "recurring",
+    "primaryZone": "smart-home",
+    "headline": "Homebase found an issue.",
+    "summary": "Recurring automation issue. Check automations first.",
+    "firstAction": "Check automations first.",
+    "nowText": "Check automations first.",
+    "nowSource": "Automation logs",
+    "activeCount": 1,
+    "resolvedCount": 0,
+    "lifecycle": "recurring"
+  }
+}

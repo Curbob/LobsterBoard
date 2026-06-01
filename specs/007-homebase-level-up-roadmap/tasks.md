@@ -17,7 +17,7 @@
 
 - [x] Create a single story derivation helper fed by current probes plus incidents.
 - [x] Make `houseState`, `dailyDecision`, `needsDan`, and Ask context agree with the primary story.
-- [ ] Add fixtures for new, recurring, resolved, and stale incident states.
+- [x] Add fixtures for new, recurring, resolved, and stale incident states.
 - [x] Add tests that a recurring issue is labeled as recurring instead of new.
 - [x] Add tests that resolved incidents leave `Now` but remain in evidence.
 
