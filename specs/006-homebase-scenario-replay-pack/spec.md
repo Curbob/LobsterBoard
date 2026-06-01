@@ -19,6 +19,7 @@ The replay pack must prove:
 - post-outage recovery with local DNS still down leads with internet, not reboot noise
 - post-outage recovery with the Homebase public route still missing leads with public access
 - post-outage recovery with the Tailscale node offline leads with internet/Tailscale, not public-route or reboot noise
+- post-outage recovery with the OpenClaw/Teddy bridge degraded leads with Mac mini/OpenClaw, not reboot noise
 - Homebridge offline becomes a direct automation action, not a generic Mac warning
 - AdGuard DNS down becomes a direct DNS action while WAN stays scoped separately
 - Tailscale online with Funnel missing becomes public-access review, not tailnet outage
@@ -40,6 +41,7 @@ The canonical curated fixture pack is:
 - `post-outage-dns-down`
 - `post-outage-funnel-missing`
 - `post-outage-tailscale-offline`
+- `post-outage-openclaw-bridge-degraded`
 - `homebridge-down`
 - `adguard-dns-down`
 - `tailscale-funnel-missing`
@@ -84,6 +86,7 @@ Incident bundles must include:
 - The post-outage-DNS-down scenario fails if low uptime or recovery context outranks the active local DNS outage.
 - The post-outage-Funnel-missing scenario fails if low uptime or recovery context outranks the missing Homebase public route.
 - The post-outage-Tailscale-offline scenario fails if low uptime, public-route copy, or recovery context outranks the Tailscale outage.
+- The post-outage-OpenClaw-bridge-degraded scenario fails if low uptime, public route copy, Tailscale copy, or recovery context outranks the Teddy bridge issue.
 - The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
 - The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Tailscale-Funnel-missing scenario fails if a missing Homebase public route is treated as healthy Tailscale.

@@ -2,7 +2,7 @@
 
 ## Phase 1: Spec And Coverage
 
-- [x] Define the fifteen canonical curated scenarios.
+- [x] Define the sixteen canonical curated scenarios.
 - [x] Define the API, rendered page, and Ask Teddy agreement contract.
 - [x] Define recorded incident bundle requirements.
 - [x] Add QA coverage that fails if the scenario replay pack spec drifts.
@@ -21,7 +21,8 @@
 - [x] Add a post-outage DNS-down replay when local DNS is still down after recovery.
 - [x] Add a post-outage public-access replay when Funnel is still down after recovery.
 - [x] Add a post-outage Tailscale-node-offline replay when the Mac mini drops from Tailscale after recovery.
-- [ ] Add a post-outage OpenClaw-bridge-degraded replay when the dashboard is up but Ask Teddy is degraded after recovery.
+- [x] Add a post-outage OpenClaw-bridge-degraded replay when the dashboard is up but Ask Teddy is degraded after recovery.
+- [ ] Add a post-outage macOS-update-required replay when a critical update is available after recovery.
 - [x] Add a Homebridge-down replay for the Mac-healthy automation outage case.
 - [x] Add an AdGuard-DNS-down replay for local DNS failure while WAN is otherwise normal.
 - [x] Add a Tailscale-Funnel-missing replay for tailnet-online but public-route-missing state.

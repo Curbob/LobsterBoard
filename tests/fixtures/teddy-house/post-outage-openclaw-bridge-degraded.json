@@ -1,0 +1,90 @@
+{
+  "name": "post-outage-openclaw-bridge-degraded",
+  "services": {
+    "adguard": { "state": "ok", "metric": "ok", "detail": "DNS is responding after recovery." },
+    "homebridge": { "state": "ok", "metric": "8581", "detail": "Homebridge responded." },
+    "tailscale": { "state": "ok", "metric": "online", "detail": "Tailscale is online." },
+    "internet": { "state": "ok", "metric": "ok", "detail": "Internet is responding." },
+    "openclaw": { "state": "warn", "metric": "bridge degraded", "detail": "Teddy bridge needs attention after recovery." },
+    "backups": { "state": "info", "metric": "paused", "detail": "Backups are parked for now." }
+  },
+  "intelligence": {
+    "adguard": { "state": "info", "metric": "locked", "detail": "AdGuard stats need login." },
+    "homebridge": {
+      "accessories": { "state": "ok", "count": 103, "detail": "Accessories loaded." },
+      "doorLocks": { "state": "info", "hidden": true, "value": "ignored", "detail": "Door locks ignored." },
+      "logHealth": { "state": "ok", "metric": "quiet", "detail": "Homebridge log below action threshold." },
+      "version": { "state": "ok", "metric": "current", "detail": "Homebridge is current." }
+    },
+    "tailscaleFunnel": { "state": "info", "metric": "accepted", "detail": "Known public routes are expected after recovery." },
+    "publicAccess": {
+      "state": "info",
+      "metric": "accepted",
+      "check": "Public access",
+      "label": "known",
+      "detail": "Known public routes are expected after recovery.",
+      "confidence": "fixture",
+      "source": "Tailscale Funnel",
+      "acceptedRoutes": [
+        { "name": "Teddy Homebase", "port": 10000 },
+        { "name": "BlueBubbles", "port": 8443 }
+      ],
+      "unexpectedRoutes": []
+    },
+    "wanQuality": { "state": "ok", "metric": "normal", "detail": "WAN is normal." },
+    "serviceLogs": {
+      "checkedAt": "2026-05-31T00:00:00.000Z",
+      "state": "ok",
+      "value": "quiet",
+      "metric": "quiet",
+      "label": "checked",
+      "detail": "Service logs are quiet after recovery.",
+      "confidence": "fixture",
+      "source": "fixture",
+      "items": [
+        { "name": "Homebridge", "state": "ok", "issues": 0, "detail": "Homebridge log is quiet." },
+        { "name": "Homebase", "state": "ok", "issues": 0, "detail": "Homebase log is quiet." },
+        { "name": "OpenClaw", "state": "warn", "issues": 1, "detail": "Teddy bridge fallback was used after recovery." },
+        { "name": "Tailscale", "state": "ok", "issues": 0, "detail": "Tailscale status has no health warnings." }
+      ]
+    },
+    "softwareUpdates": { "state": "ok", "metric": "current", "detail": "Apps are current." },
+    "macUpdates": { "state": "ok", "metric": "current", "detail": "macOS is current." },
+    "systemLogs": { "state": "ok", "metric": "0", "detail": "No critical system reports." },
+    "weirdThings": []
+  },
+  "systemVitals": {
+    "uptime": "37m",
+    "uptimeSeconds": 2220,
+    "health": {
+      "cpu": { "state": "ok", "metric": "2.4", "detail": "CPU normal." },
+      "memory": { "state": "ok", "metric": "58% free", "detail": "Memory normal." },
+      "disk": { "state": "ok", "metric": "12%", "detail": "Disk normal." }
+    }
+  },
+  "timeline": [
+    {
+      "at": "2026-05-31T12:10:00.000Z",
+      "time": "12:10 PM",
+      "title": "Recovery check",
+      "detail": "House services recovered; Teddy bridge is still degraded.",
+      "state": "warn"
+    }
+  ],
+  "expected": {
+    "headline": "Something needs a look.",
+    "summary": "Start with OpenClaw. Everything else is responding.",
+    "primaryAction": "Start with OpenClaw.",
+    "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
+    "dailySlots": [
+      { "key": "now", "text": "Check OpenClaw first.", "state": "warn", "source": "OpenClaw" },
+      { "key": "watch", "text": "Recovery check changed recently.", "state": "info", "source": "houseState" },
+      { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
+    ],
+    "firstZone": "mac-mini",
+    "firstZoneState": "warn",
+    "firstReview": "OpenClaw: bridge degraded",
+    "nowSource": "OpenClaw",
+    "nowText": "Check OpenClaw first."
+  }
+}

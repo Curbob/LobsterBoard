@@ -29,7 +29,7 @@ const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1239,6 +1239,7 @@ function verifyReplayFixtures() {
     'post-outage-dns-down': ['network', 'Check DNS first.'],
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
     'post-outage-tailscale-offline': ['network', 'Check Tailscale first.'],
+    'post-outage-openclaw-bridge-degraded': ['mac-mini', 'Check OpenClaw first.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1329,6 +1330,17 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'post-outage Tailscale outage should not invent panic/watchdog or public-access-first copy');
+    }
+    if (name === 'post-outage-openclaw-bridge-degraded') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage OpenClaw bridge outage should lead with Mac mini');
+      assert(replayData.needsDan?.[0] === 'OpenClaw: bridge degraded', 'post-outage OpenClaw bridge outage should keep OpenClaw as first review item');
+      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check OpenClaw first.', 'post-outage OpenClaw bridge outage should name OpenClaw as the first action');
+      assert(!/panic|watchdog|public access first|tailscale first/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage OpenClaw bridge outage should not invent panic/watchdog, public-access, or Tailscale copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
