@@ -1313,10 +1313,15 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       checkedAt: new Date().toISOString(),
       schema: 'system-logs-v4',
       state: 'warn',
-      detail: '1 critical diagnostic report in the last 24 hours.',
+      detail: 'WindowServer watchdog panic in the last 24 hours.',
       metric: '1',
       check: 'System logs',
-      confidence: 'live'
+      confidence: 'live',
+      incident: {
+        title: 'WindowServer watchdog panic',
+        reports: [{ file: 'panic-base+socd-example.panic', kind: 'WindowServer watchdog panic' }],
+        count: 1
+      }
     }, null, 2));
 
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);

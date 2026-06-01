@@ -2707,7 +2707,7 @@ async function buildInsights(services, systemVitals, intelligence) {
   const blockers = Object.values(services).filter(service => service.state === 'bad').length;
   const watches = Object.values(services).filter(service => service.state === 'warn').length;
   const vitalWatches = Object.values(systemVitals.health || {}).filter(vital => vital.state === 'warn').length;
-  const signalWatches = usefulSignals(intelligence).filter(item => item.state === 'warn' || item.state === 'bad').length;
+  const signalWatches = usefulSignals(intelligence, systemVitals).filter(item => item.state === 'warn' || item.state === 'bad').length;
   const parked = Object.values(services).filter(service => service.state === 'info').length;
   const teddySays = blockers > 0
     ? `${blockers} failed check${blockers === 1 ? '' : 's'}.`
@@ -2940,7 +2940,7 @@ function scoreServices(services, intelligence, systemVitals) {
     return sum;
   }, 0);
   const serviceScore = Math.round((points / values.length) * 100);
-  const signalPenalty = usefulSignals(intelligence).reduce((sum, signal) => {
+  const signalPenalty = usefulSignals(intelligence, systemVitals).reduce((sum, signal) => {
     if (signal.state === 'bad') return sum + 14;
     if (signal.state === 'warn') return sum + 8;
     return sum;
@@ -2988,8 +2988,15 @@ function hasMacRestartIncident(intelligence, systemVitals) {
   const systemLogs = intelligence && intelligence.systemLogs;
   if (!signalBadOrWarn(systemLogs)) return false;
   if (systemLogs.incident && Array.isArray(systemLogs.incident.reports) && systemLogs.incident.reports.length > 0) return true;
+  const detail = String(systemLogs && systemLogs.detail || '');
+  if (/\bno\b[^.]*\b(watchdog|panic|kernel panic|restart|reboot|shutdown cause)\b/i.test(detail)) return false;
+  if (!/watchdog|panic|kernel panic|restart|reboot|shutdown cause/i.test(detail)) return false;
   const uptimeSeconds = Number(systemVitals && systemVitals.uptimeSeconds);
   return Number.isFinite(uptimeSeconds) && uptimeSeconds > 0 && uptimeSeconds < 24 * 60 * 60;
+}
+
+function systemLogsReviewName(intelligence, systemVitals) {
+  return hasMacRestartIncident(intelligence, systemVitals) ? 'Mac restart incident' : 'Mac system logs';
 }
 
 function systemIncidentTitle(systemLogs) {
@@ -3016,6 +3023,7 @@ function translatePrimaryAction(needs) {
   if (/openclaw/.test(first)) return 'Start with OpenClaw.';
   if (/mac restart|watchdog|panic/.test(first)) return 'Start with the Mac mini restart.';
   if (/macos|mac os/.test(first)) return 'Start with macOS update.';
+  if (/system logs/.test(first)) return 'Start with system logs.';
   if (/mac|cpu|memory|disk|system logs|updates|app versions/.test(first)) return 'Start with the Mac mini.';
   return 'Start with the first review item.';
 }
@@ -3056,8 +3064,8 @@ function meaningfulRecentChanges(timeline, current = {}) {
     let title = event.title || 'Change';
     let detail = event.detail || 'Change detected.';
     if (/system logs/i.test(title) && current.systemLogs && signalBadOrWarn(current.systemLogs)) {
-      title = 'Mac restart incident';
-      detail = 'Mac system incident is still open.';
+      title = current.macIncident ? 'Mac restart incident' : 'Mac system logs';
+      detail = current.macIncident ? 'Mac system incident is still open.' : 'Mac system logs still need review.';
     }
     if (/service logs/i.test(title) && current.serviceLogs && signalBadOrWarn(current.serviceLogs)) {
       title = current.serviceLogs.value || 'Service logs';
@@ -3209,15 +3217,16 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       wanQuality: intelligence.wanQuality,
       tailscaleFunnel: intelligence.tailscaleFunnel,
       publicAccess,
-      services
+      services,
+      macIncident
     })
   };
 }
 
-function usefulSignals(intelligence) {
+function usefulSignals(intelligence, systemVitals) {
   if (!intelligence) return [];
   return [
-    ['Mac restart incident', intelligence.systemLogs],
+    [systemLogsReviewName(intelligence, systemVitals), intelligence.systemLogs],
     ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel],
     ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
@@ -3250,7 +3259,7 @@ function needsDan(services, intelligence, systemVitals) {
     .map(([key, service]) => {
       return `${SERVICE_NAMES[key] || key}: ${service.metric}`;
     });
-  const signalItems = usefulSignals(intelligence).map(item => {
+  const signalItems = usefulSignals(intelligence, systemVitals).map(item => {
     if (item.name === 'Mac restart incident') return item.name;
     return `${item.name}: ${item.metric}`;
   });
@@ -3274,7 +3283,7 @@ function reviewEvidenceFor(services, intelligence, systemVitals, reviewItems) {
         detail: service.detail || null
       };
     });
-  const signalEvidence = usefulSignals(intelligence).map(item => {
+  const signalEvidence = usefulSignals(intelligence, systemVitals).map(item => {
     const label = item.name === 'Mac restart incident' ? item.name : `${item.name}: ${item.metric}`;
     const signal = item.signal || {};
     return {
@@ -3375,8 +3384,9 @@ function watchSignal(intelligence, houseState) {
 function activeDecisionSignal(services, intelligence, systemVitals) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
+  const macIncident = hasMacRestartIncident(intelligence, systemVitals);
   const candidates = [
-    ['Mac restart incident', intelligence.systemLogs, 'Review the Mac mini restart.', 0],
+    ['Mac restart incident', macIncident ? intelligence.systemLogs : null, 'Review the Mac mini restart.', 0],
     ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel, 'Check public access first.', 10],
     ['Internet', intelligence.wanQuality, 'Check internet quality first.', 20],
     ['Tailscale', services.tailscale, 'Check Tailscale first.', 25],
@@ -3386,6 +3396,7 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
     ['Automation logs', intelligence.automationLogs, 'Check automations first.', 60],
     ['Mac mini service logs', intelligence.macMiniLogs, 'Check Mac mini service logs first.', 65],
     ['macOS', intelligence.macUpdates, 'Review macOS update.', 66],
+    ['Mac system logs', macIncident ? null : intelligence.systemLogs, 'Review system logs.', 66.5],
     ['Network service logs', intelligence.networkLogs, 'Check network service logs first.', 67],
     ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.', 70],
     ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.', 80],
