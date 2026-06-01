@@ -12,6 +12,7 @@ Keep the curated pack small and high-signal:
 - `post-outage-funnel-missing`: Dan should check public access first when the Mac mini is back but the Homebase public route is still missing.
 - `post-outage-tailscale-offline`: Dan should check Tailscale first when the Mac mini is back locally but missing from the tailnet.
 - `post-outage-openclaw-bridge-degraded`: Dan should check OpenClaw first when Homebase is up but Ask Teddy is degraded after recovery.
+- `post-outage-macos-update-required`: Dan should review macOS maintenance first when a critical update remains after recovery.
 - `homebridge-down`: Dan should check Homebridge first while Mac, internet, and public access stay scoped correctly.
 - `adguard-dns-down`: Dan should check DNS first while WAN quality remains scoped separately.
 - `tailscale-funnel-missing`: Dan should see public access first when the tailnet is online but the expected Funnel route is missing.
@@ -59,4 +60,4 @@ Start with the existing WindowServer restart, public access drift, Govee loop, a
 
 Add a new replay scenario only when it changes Dan's first decision:
 
-- post-outage macOS update required after recovery
+- post-outage system logs warning after recovery without low-uptime panic

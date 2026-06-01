@@ -3015,6 +3015,7 @@ function translatePrimaryAction(needs) {
   if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
   if (/openclaw/.test(first)) return 'Start with OpenClaw.';
   if (/mac restart|watchdog|panic/.test(first)) return 'Start with the Mac mini restart.';
+  if (/macos|mac os/.test(first)) return 'Start with macOS update.';
   if (/mac|cpu|memory|disk|system logs|updates|app versions/.test(first)) return 'Start with the Mac mini.';
   return 'Start with the first review item.';
 }
@@ -3384,6 +3385,7 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
     ['OpenClaw', services.openclaw, 'Check OpenClaw first.', 50],
     ['Automation logs', intelligence.automationLogs, 'Check automations first.', 60],
     ['Mac mini service logs', intelligence.macMiniLogs, 'Check Mac mini service logs first.', 65],
+    ['macOS', intelligence.macUpdates, 'Review macOS update.', 66],
     ['Network service logs', intelligence.networkLogs, 'Check network service logs first.', 67],
     ['Homebridge log', homebridge.logHealth, 'Check Homebridge logs first.', 70],
     ['CPU', reviewVital(health.cpu), 'Check Mac mini load first.', 80],

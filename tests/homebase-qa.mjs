@@ -29,7 +29,7 @@ const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -871,6 +871,7 @@ function askMentionsFirstAction(answer, firstAction) {
   if (/nothing needs/.test(action) && /nothing needs action|no review item|no review items/.test(text)) return true;
   if (/automations/.test(action) && /automations/.test(text)) return true;
   if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
+  if (/macos/.test(action) && /macos|mac os|update/.test(text)) return true;
   if (/tailscale/.test(action) && /tailscale/.test(text)) return true;
   if (/public access|external access/.test(action) && /public access|external access|funnel/.test(text)) return true;
   if (/internet|wan|dns|network/.test(action) && /internet|wan|dns|network/.test(text)) return true;
@@ -1240,6 +1241,7 @@ function verifyReplayFixtures() {
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
     'post-outage-tailscale-offline': ['network', 'Check Tailscale first.'],
     'post-outage-openclaw-bridge-degraded': ['mac-mini', 'Check OpenClaw first.'],
+    'post-outage-macos-update-required': ['mac-mini', 'Review macOS update.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1341,6 +1343,17 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'post-outage OpenClaw bridge outage should not invent panic/watchdog, public-access, or Tailscale copy');
+    }
+    if (name === 'post-outage-macos-update-required') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage macOS update should lead with Mac mini');
+      assert(replayData.needsDan?.[0] === 'macOS: update required', 'post-outage macOS update should keep macOS as first review item');
+      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Review macOS update.', 'post-outage macOS update should name macOS as the first action');
+      assert(!/panic|watchdog|restart|openclaw first|public access first|tailscale first/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage macOS update should not invent restart, OpenClaw, public-access, or Tailscale copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
