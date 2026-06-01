@@ -21,7 +21,7 @@ The page should answer:
 
 Already covered by `npm run check:homebase`:
 
-- Six replayed house states.
+- 23 replayed house states.
 - First-screen copy blacklist.
 - Zone ranking and first review ownership.
 - Local route smokes for page, health, logs, and Ask.
@@ -29,6 +29,9 @@ Already covered by `npm run check:homebase`:
 - Phone, iPad, and desktop screenshots.
 - Persisted evidence and no-fake-state checks.
 - Ask action safety and dry-run approval language.
+- Recorded incident replay for real failure modes.
+- Parser golden fixtures for scary logs and source drift.
+- Source contracts for trust, freshness, confidence, and first-screen eligibility.
 
 That is strong. It is not the finish line.
 
@@ -36,11 +39,13 @@ That is strong. It is not the finish line.
 
 Homebase still needs tests that act more like Dan:
 
-- Compare the rendered page, the API story, and Teddy's answer for the same state.
-- Replay real incidents from persisted evidence instead of only curated fixtures.
-- Prove mobile login stays cached over time.
-- Prove local freshness labels cannot drift into trusted house state.
-- Prove the dashboard stays quiet as new evidence sources are added.
+- Auto-capture a redacted replay bundle when Dan flags a live dashboard failure.
+- Keep adding real incident fixtures when the house finds a new weird thing.
+- Distinguish live Teddy, fallback Teddy, and bridge failure in every Ask path.
+- Hard-ban raw operator labels from the first screen as copy regressions.
+- Prove source freshness and confidence before any new widget becomes trusted house state.
+- Prove screenshot quality beyond overflow: ranking, quietness, and first action visibility.
+- Track post-boot resource peaks without carrying stale pre-reboot history into the current story.
 
 ## Acceptance Criteria
 
@@ -51,6 +56,19 @@ Homebase still needs tests that act more like Dan:
 - Log parsers are fixture-backed for Homebridge, service logs, macOS diagnostics, Tailscale, and AdGuard.
 - Every new home-state source must declare freshness, confidence, source path, trusted/ignored status, and first-screen eligibility.
 - No test depends on mutating Homebridge, Tailscale, AdGuard, macOS, or OpenClaw services.
+
+## Wanted Tests
+
+These are the next tests worth paying for before adding more widgets:
+
+- Incident capture test: turn a live bad dashboard state into a redacted fixture with expected headline, first action, zone order, source snapshots, and log excerpts.
+- Copy contract test: fail if raw labels like `System Logs: 2`, `Service Logs: 70`, `APP VERSIONS 1`, or `INTERNET 19 ms` return to the top screen.
+- Ask Teddy contract test: assert live Teddy, local fallback, timeout, and bridge-down responses are labeled differently.
+- Mobile visual contract test: evaluate phone, iPad, and desktop screenshots for ranking, first action visibility, text fit, and calm healthy state.
+- Source freshness test: prove cached, stale, degraded, ignored, or needs-login sources cannot drive `Now` or trusted house-state cards.
+- Homebridge parser regression test: prove dated top-level entries count, stack traces do not, Eufy stays ignored, and Govee loops group into one named issue.
+- Route/auth smoke test: prove local Homebase loads, public/Tailscale access stays passworded, `/data` stays blocked, and cached login still works.
+- Reboot-aware vitals test: prove CPU and memory peaks shown on the page come from the current boot session.
 
 ## Non-Goals
 

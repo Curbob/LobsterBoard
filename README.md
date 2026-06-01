@@ -36,8 +36,11 @@ Before changing Homebase behavior, read:
 - `CLAUDE.md`
 - `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`
 - `docs/UNIFIED-LOGGING-PLAN.md`
+- `specs/001-homebridge-guard-card/spec.md`
+- `specs/002-daily-decision-strip/spec.md`
 - `specs/003-legit-home-dashboard/spec.md`
 - `specs/004-homebase-next-level-qa/spec.md`
+- `specs/006-homebase-scenario-replay-pack/spec.md`
 
 Homebase proof command:
 
@@ -45,7 +48,7 @@ Homebase proof command:
 npm run check:homebase
 ```
 
-That runs lint/tests, six replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, and public Funnel auth smoke when reachable.
+That runs lint/tests, 23 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, and scenario replay pack.
 
 ![LobsterBoard](lobsterboard-logo-final.png)
 

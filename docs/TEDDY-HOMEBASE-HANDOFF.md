@@ -1,7 +1,7 @@
 # Teddy Homebase Handoff
 
 Recorded: 2026-05-17 05:38:53 PDT
-Updated: 2026-05-18
+Updated: 2026-06-01
 
 Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 
@@ -14,6 +14,18 @@ Dan said "Tell Teddy" after fixing the Homebase health-check issues.
   - `POST /api/pages/teddy-house/ask`
 - Public, tailnet, LAN, and Funnel-looking hosts stay passworded.
 - Set `TEDDY_HOMEBASE_LOCAL_PROBES=0` to disable the local probe bypass.
+- Direct `/data/...` routes stay blocked.
+- Eufy/door-lock state stays ignored/degraded until there is a trusted lock source.
+- Optional Homebridge UI, app, and macOS updates stay in maintenance unless they are truly urgent.
+
+## First Screen
+
+- The page should answer what Dan should check first, not ask him to interpret telemetry.
+- The Daily Decision Strip is the primary five-second read: `Now`, `Watch`, `Later`.
+- `Now` uses current health data only.
+- Evidence-only or optional maintenance states stay out of `Now`.
+- Review items must map to the first warned house zone.
+- Raw ports, IPs, package counts, stale labels, degraded labels, and ignored lock evidence do not belong on the healthy first screen.
 
 ## Ask Teddy
 
@@ -35,11 +47,29 @@ Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 
 ## Current SDLC Checkpoint
 
-- Latest Homebase commit: `fe3af9c` (`Polish Teddy Homebase dashboard`).
-- Current full proof command: `npm run check -- --runInBand`.
-- Latest checked result during the SDLC pass: 98 tests passed.
+- Latest Homebase commit at this handoff update: `ac23311` (`Add daily decision strip QA gate`).
+- Current full proof command: `npm run check:homebase`.
+- Latest checked result during this pass: static lint passed, 132 unit tests passed, and Homebase QA passed with 23 replay stories.
 - `AGENTS.md` is now the operational contract for future Codex work.
 - Architecture map: `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`.
+
+## Current QA Gates
+
+`npm run check:homebase` proves:
+
+- Live local page, health, logs, and Ask route smokes.
+- Public Funnel auth boundary when reachable.
+- Cached login behavior in an isolated browser context.
+- API, rendered page, and Ask Teddy agree on the first action.
+- Ask Teddy fallback is labeled honestly.
+- 23 curated replay stories.
+- Redacted recorded incident replay.
+- Phone, iPad, and desktop screenshot contracts.
+- Source contracts for trust, freshness, confidence, and first-screen eligibility.
+- Homebridge Guard spec coverage.
+- Daily Decision Strip spec coverage.
+- Nightly Truth Suite spec coverage.
+- Scenario Replay Pack spec coverage.
 
 ## Product Decisions To Preserve
 

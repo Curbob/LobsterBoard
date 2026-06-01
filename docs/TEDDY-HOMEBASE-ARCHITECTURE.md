@@ -1,6 +1,6 @@
 # Teddy Homebase Architecture
 
-Last updated: 2026-05-18
+Last updated: 2026-06-01
 
 ## Purpose
 
@@ -99,6 +99,28 @@ Evidence stays lower on the page:
 
 Eufy lock state is degraded evidence only. It must not become trusted daily house state until the source is fixed or replaced.
 
+## First-Screen Contract
+
+The first screen is a decision surface, not a widget gallery.
+
+Top-level order:
+
+1. Status band: current house story.
+2. Daily Decision Strip: `Now`, `Watch`, `Later`.
+3. Review lane when something needs Dan.
+4. Affected house zone before raw evidence.
+5. Mac mini vitals before deep evidence in incident states.
+6. Ask Teddy.
+7. Evidence, signals, logs, and grouped changes.
+
+Rules:
+
+- `Now` uses current health response data only.
+- `Watch` may mention non-urgent context.
+- `Later` is for optional maintenance.
+- Healthy first screens must not show raw ports, IPs, package counts, stale labels, degraded labels, or ignored lock evidence as truth.
+- Active warning states must name the first useful check in house language.
+
 ## Auth Model
 
 Remote and Tailscale access stays passworded.
@@ -138,6 +160,18 @@ npm run check:homebase
 
 `npm run check:homebase` is the canonical Homebase release gate. It covers the full test suite, replayed house-state fixtures, local page/health/log route smokes, first-screen copy blacklist checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, and public Funnel auth smoke when reachable.
 
+The current release gate also proves:
+
+- 23 curated replay stories.
+- API, rendered page, and Ask Teddy story agreement.
+- Redacted recorded incident replay.
+- Parser golden fixtures for Homebridge logs, Govee grouping, Eufy ignored evidence, macOS diagnostics, Tailscale route drift, timestamp freshness, and AdGuard stats.
+- Homebridge Guard spec coverage.
+- Daily Decision Strip spec coverage.
+- Nightly Truth Suite spec coverage.
+- Scenario Replay Pack spec coverage.
+- Source contracts for trust, freshness, confidence, source, and first-screen eligibility.
+
 Rendered UI proof is required when changing:
 
 - layout
@@ -174,4 +208,5 @@ Rollback is git-first:
 
 1. Add CI for `npm run check -- --runInBand` and `npm run check:homebase`.
 2. Add guarded, dry-run-first action hooks for update tasks.
-3. Keep the daily screen quiet as new evidence sources arrive.
+3. Add new recorded incident bundles whenever Dan catches a genuinely new failure mode.
+4. Keep the daily screen quiet as new evidence sources arrive.
