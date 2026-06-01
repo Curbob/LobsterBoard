@@ -429,6 +429,7 @@ async function renderReplayFixtures() {
   const chrome = await startChrome(userDataDir);
   try {
     const outputs = [];
+    outputs.push(await renderReplayFixture(chrome, 'healthy'));
     for (const name of WARNING_REPLAY_FIXTURES) {
       outputs.push(await renderReplayFixture(chrome, name));
     }
@@ -803,6 +804,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs/g, '')?.trim() || "";
       const incidentMeta = document.querySelector('#incident-meta')?.textContent?.trim() || "";
       const incidentVisible = Boolean(document.querySelector('#incident-ribbon') && !document.querySelector('#incident-ribbon').hidden);
+      const evidenceOpen = document.querySelector('#evidence-details')?.open ?? null;
+      const signalsOpen = document.querySelector('#signals-details')?.open ?? null;
       const zoneCount = document.querySelectorAll("#house-zone-grid .house-zone-card").length;
       const historyCount = document.querySelectorAll("#history-grid .history-card").length;
       const recentChangeRows = [...document.querySelectorAll("#events-list .event")]
@@ -820,6 +823,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         firstReview,
         incidentMeta,
         incidentVisible,
+        evidenceOpen,
+        signalsOpen,
         zoneCount,
         historyCount,
         recentChangeRows,
@@ -855,8 +860,16 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.summaryTitle && !/Checking|Could not refresh/i.test(value.summaryTitle), `rendered summary is not loaded at ${width}px: ${JSON.stringify(value)}`);
   assert(value.rects?.overview?.visible === true, `top story is not visible in first viewport at ${width}px: ${JSON.stringify(value.rects?.overview)}`);
   const warningState = !/steady/i.test(value.summaryTitle) || Boolean(value.firstReview);
+  const healthyState = /steady/i.test(value.summaryTitle) && !value.firstReview;
   if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
+  }
+  if (healthyState) {
+    assert(value.evidenceOpen === false, `healthy service evidence should be collapsed at ${width}px: ${JSON.stringify(value)}`);
+    assert(value.signalsOpen === false, `healthy signal evidence should be collapsed at ${width}px: ${JSON.stringify(value)}`);
+  } else {
+    assert(value.evidenceOpen === true, `warning service evidence should stay available at ${width}px: ${JSON.stringify(value)}`);
+    assert(value.signalsOpen === true, `warning signal evidence should stay available at ${width}px: ${JSON.stringify(value)}`);
   }
   const incidentMetadataOk = !value.incidentVisible
     || ['Last seen', 'Source', 'Confidence', 'Next'].every(label => String(value.incidentMeta || '').includes(label));
@@ -872,12 +885,16 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(new Set(value.recentChangeRows).size === value.recentChangeRows.length, `rendered recent changes include duplicate rows at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
   assert(!/Status check|No drift|Recent Mac logs need attention/i.test(value.recentChangeRows.join('\n')), `rendered recent changes include noisy raw timeline copy at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
   assert(value.positions.dailyDecision !== null, `daily decision section missing at ${width}px`);
-  assert(value.positions.review !== null, `review section missing at ${width}px`);
+  if (!healthyState) {
+    assert(value.positions.review !== null, `review section missing at ${width}px`);
+  }
   assert(value.positions.houseState !== null, `house-state section missing at ${width}px`);
   assert(value.positions.vitals !== null, `Mac vitals section missing at ${width}px`);
   assert(value.positions.ask !== null, `Ask Teddy section missing at ${width}px`);
-  assert(value.positions.dailyDecision < value.positions.review, `review appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
-  assert(value.positions.review < value.positions.houseState, `house state appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
+  if (value.positions.review !== null) {
+    assert(value.positions.dailyDecision < value.positions.review, `review appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
+    assert(value.positions.review < value.positions.houseState, `house state appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
+  }
   assert(value.positions.houseState < value.positions.vitals, `Mac vitals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.vitals < value.positions.ask, `Ask Teddy appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.evidence === null || value.positions.ask < value.positions.evidence, `evidence appears before Ask Teddy at ${width}px: ${JSON.stringify(value.positions)}`);
@@ -899,6 +916,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       topStoryVisible: value.rects?.overview?.visible === true,
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       affectedZoneMarked: value.activeZone === value.firstZone,
+      healthyEvidenceCollapsed: healthyState ? value.evidenceOpen === false && value.signalsOpen === false : true,
       activeIncidentMetadata: incidentMetadataOk,
       evidenceBelowDecision: value.positions.evidence === null || value.positions.ask < value.positions.evidence,
       recentChangesGrouped: Array.isArray(value.recentChangeRows)
@@ -2254,6 +2272,7 @@ function visualContractCoverage(local, healthyFreshness) {
       && item.visualContract.topStoryVisible
       && item.visualContract.reviewVisibleWhenWarning
       && item.visualContract.affectedZoneMarked
+      && item.visualContract.healthyEvidenceCollapsed
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
       && item.visualContract.recentChangesGrouped
@@ -2271,7 +2290,7 @@ function visualContractCoverage(local, healthyFreshness) {
 
 function renderedReplayCoverage(renderedReplay) {
   const outputs = renderedReplay && Array.isArray(renderedReplay.outputs) ? renderedReplay.outputs : [];
-  const expectedNames = WARNING_REPLAY_FIXTURES;
+  const expectedNames = ['healthy', ...WARNING_REPLAY_FIXTURES];
   const ok = renderedReplay && renderedReplay.status === 'captured'
     && outputs.length === expectedNames.length
     && expectedNames.every(name => outputs.some(item => item.name === name))
@@ -2279,6 +2298,7 @@ function renderedReplayCoverage(renderedReplay) {
       && item.visualContract.topStoryVisible
       && item.visualContract.reviewVisibleWhenWarning
       && item.visualContract.affectedZoneMarked
+      && item.visualContract.healthyEvidenceCollapsed
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
       && item.visualContract.firstViewportFreeOfRawTelemetry);

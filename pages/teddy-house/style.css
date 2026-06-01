@@ -563,6 +563,18 @@ h3 {
   gap: 14px;
 }
 
+.evidence-details {
+  margin-top: 14px;
+}
+
+.evidence-details summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .house-state-panel,
 .link-panel,
 .evidence-panel {

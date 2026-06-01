@@ -178,7 +178,10 @@
           </div>
           <span class="state-pill">Details</span>
         </div>
-        <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
+        <details class="evidence-details" id="evidence-details" open>
+          <summary id="evidence-summary">Service evidence</summary>
+          <section class="grid service-grid" id="service-grid" aria-label="Core service health"></section>
+        </details>
       </section>
 
       <section class="panel signals-panel hidden-until-loaded" id="signals" aria-labelledby="signals-title">
@@ -189,7 +192,10 @@
           </div>
           <span class="state-pill">Fresh check</span>
         </div>
-        <div class="signal-grid" id="signal-grid"></div>
+        <details class="evidence-details" id="signals-details" open>
+          <summary id="signals-summary">Signal evidence</summary>
+          <div class="signal-grid" id="signal-grid"></div>
+        </details>
       </section>
 
       <section class="panel history-panel hidden-until-loaded" id="history" aria-labelledby="history-title">

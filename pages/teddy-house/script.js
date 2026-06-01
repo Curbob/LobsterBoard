@@ -548,6 +548,21 @@ function setLoadedState(isLoaded) {
   document.body.classList.toggle("homebase-loading", !isLoaded);
 }
 
+function setEvidenceDetailState(data) {
+  const isSteady = data && data.houseState && data.houseState.tone === "steady"
+    && (!Array.isArray(data.needsDan) || data.needsDan.length === 0);
+  document.body.classList.toggle("homebase-steady", Boolean(isSteady));
+  [
+    ["evidence-details", "evidence-summary", isSteady ? "Show service evidence" : "Service evidence"],
+    ["signals-details", "signals-summary", isSteady ? "Show signal evidence" : "Signal evidence"]
+  ].forEach(([detailsId, summaryId, label]) => {
+    const details = document.getElementById(detailsId);
+    const summary = document.getElementById(summaryId);
+    if (details) details.open = !isSteady;
+    if (summary) summary.textContent = label;
+  });
+}
+
 async function loadHealth() {
   const button = document.getElementById("refresh-button");
   button.disabled = true;
@@ -565,6 +580,7 @@ async function loadHealth() {
     renderServices(data);
     renderVitals(data.vitals || {});
     renderSignals(data.intelligence);
+    setEvidenceDetailState(data);
     renderHistoricalSummaries(data.historicalSummaries);
     renderEvents((data.houseState && data.houseState.recentChanges) || data.timeline || data.events || []);
     setLoadedState(true);
