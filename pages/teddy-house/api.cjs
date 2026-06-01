@@ -28,6 +28,7 @@ const WAN_HISTORY_LIMIT = 500;
 const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
 const AUTOMATION_LOG_HISTORY_LIMIT = 120;
+const INCIDENT_LEDGER_LIMIT = 80;
 const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
@@ -703,6 +704,14 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         source: 'data/teddy-house/timeline.json',
         latest: timeline[0] || null
       },
+      incidents: {
+        type: 'incident-ledger',
+        source: 'data/teddy-house/incidents.json',
+        primary: houseState && houseState.incident ? houseState.incident : null,
+        active: houseState && houseState.incidents && Array.isArray(houseState.incidents.active)
+          ? houseState.incidents.active
+          : []
+      },
       historicalSummaries: {
         type: 'persisted-summaries',
         count: Array.isArray(historicalSummaries) ? historicalSummaries.length : 0,
@@ -787,7 +796,14 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
     sourceContract('door-locks', 'Door locks', homebridge.doorLocks, { source: 'Homebridge cached accessories', usedBy: ['hidden-evidence'], firstScreenEligible: false }),
     sourceContract('cpu-vitals', 'CPU load', health.cpu, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
     sourceContract('memory-vitals', 'Memory pressure', health.memory, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
-    sourceContract('disk-vitals', 'Disk usage', health.disk, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] })
+    sourceContract('disk-vitals', 'Disk usage', health.disk, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
+    sourceContract('incident-ledger', 'Incident ledger', houseState && houseState.incident, {
+      trust: houseState && houseState.incident ? 'trusted' : 'degraded',
+      confidence: houseState && houseState.incident ? houseState.incident.confidence || 'derived' : 'derived',
+      source: 'data/teddy-house/incidents.json',
+      usedBy: ['house-state', 'incident-ribbon'],
+      firstScreenEligible: Boolean(houseState && houseState.incident)
+    })
   ];
   if (Array.isArray(historicalSummaries)) {
     for (const summary of historicalSummaries) {
@@ -3097,7 +3113,222 @@ function meaningfulRecentChanges(timeline, current = {}) {
     .slice(0, 3);
 }
 
-function deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score) {
+function incidentKeyForCandidate(candidate) {
+  return String(candidate && candidate.key || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown-incident';
+}
+
+function incidentCandidate(key, title, zone, signal, nextAction, options = {}) {
+  if (!signalBadOrWarn(signal)) return null;
+  const source = signal.source || signal.check || options.source || title;
+  return {
+    key: incidentKeyForCandidate({ key }),
+    title,
+    zone,
+    state: signal.state || 'warn',
+    severity: signal.state === 'bad' ? 'issue' : 'review',
+    detail: options.detail || signal.detail || `${title} needs review.`,
+    source,
+    confidence: signal.confidence || options.confidence || 'live',
+    nextAction,
+    evidence: options.evidence || []
+  };
+}
+
+function incidentCandidates(services, intelligence, systemVitals) {
+  const homebridge = intelligence.homebridge || {};
+  const health = systemVitals.health || {};
+  const macIncident = hasMacRestartIncident(intelligence, systemVitals);
+  const candidates = [
+    macIncident ? incidentCandidate(
+      'mac-restart-incident',
+      'Mac restart incident',
+      'mac-mini',
+      intelligence.systemLogs,
+      'Review the Mac mini restart.',
+      {
+        detail: macIncidentDetail(intelligence.systemLogs, systemVitals),
+        source: 'System logs',
+        evidence: ['System logs', 'Uptime']
+      }
+    ) : null,
+    incidentCandidate(
+      `public-access-${(intelligence.publicAccess || intelligence.tailscaleFunnel || {}).metric || 'route'}`,
+      'Public route drift',
+      'outside-access',
+      intelligence.publicAccess || intelligence.tailscaleFunnel,
+      'Check public access first.',
+      { evidence: ['Tailscale Funnel'] }
+    ),
+    incidentCandidate(
+      'wan-quality',
+      'WAN quality degraded',
+      'network',
+      intelligence.wanQuality,
+      'Check internet quality first.',
+      { evidence: ['WAN', 'DNS'] }
+    ),
+    incidentCandidate(
+      'tailscale-offline',
+      'Tailscale needs review',
+      'network',
+      services.tailscale,
+      'Check Tailscale first.',
+      { evidence: ['Tailscale'] }
+    ),
+    incidentCandidate(
+      'dns-failed',
+      'DNS needs review',
+      'network',
+      services.adguard,
+      'Check DNS first.',
+      { evidence: ['DNS', 'AdGuard'] }
+    ),
+    incidentCandidate(
+      'homebridge-down',
+      'Homebridge needs review',
+      'smart-home',
+      services.homebridge,
+      'Check Homebridge first.',
+      { evidence: ['Homebridge'] }
+    ),
+    incidentCandidate(
+      `automation-${(intelligence.automationLogs || {}).value || (intelligence.automationLogs || {}).metric || 'logs'}`,
+      (intelligence.automationLogs && intelligence.automationLogs.value) || 'Automation logs need review',
+      'smart-home',
+      intelligence.automationLogs,
+      'Check automations first.',
+      { evidence: ['Homebridge logs', 'Service logs'] }
+    ),
+    incidentCandidate(
+      'openclaw-bridge',
+      'Teddy bridge needs attention',
+      'mac-mini',
+      services.openclaw,
+      'Check OpenClaw first.',
+      { evidence: ['OpenClaw'] }
+    ),
+    incidentCandidate(
+      'mac-mini-service-logs',
+      (intelligence.macMiniLogs && intelligence.macMiniLogs.value) || 'Mac mini service logs need review',
+      'mac-mini',
+      intelligence.macMiniLogs,
+      'Check Mac mini service logs first.',
+      { evidence: ['Service logs'] }
+    ),
+    incidentCandidate(
+      'mac-system-logs',
+      'Mac system logs need review',
+      'mac-mini',
+      macIncident ? null : intelligence.systemLogs,
+      'Review system logs.',
+      { evidence: ['System logs'] }
+    ),
+    incidentCandidate(
+      'macos-update',
+      'macOS needs review',
+      'mac-mini',
+      intelligence.macUpdates,
+      'Review macOS update.',
+      { evidence: ['macOS'] }
+    ),
+    incidentCandidate(
+      'cpu-load',
+      'Mac mini load elevated',
+      'mac-mini',
+      reviewVital(health.cpu),
+      'Check Mac mini load first.',
+      { source: 'Mac mini vitals', evidence: ['CPU'] }
+    ),
+    incidentCandidate(
+      'memory-pressure',
+      'Mac mini memory pressure',
+      'mac-mini',
+      reviewVital(health.memory),
+      'Check Mac mini memory pressure first.',
+      { source: 'Mac mini vitals', evidence: ['Memory'] }
+    ),
+    incidentCandidate(
+      'disk-pressure',
+      'Mac mini disk needs review',
+      'mac-mini',
+      reviewVital(health.disk),
+      'Check Mac mini disk first.',
+      { source: 'Mac mini vitals', evidence: ['Disk'] }
+    )
+  ].filter(Boolean);
+  return candidates.filter(candidate => candidate.source !== 'ignored' && candidate.confidence !== 'ignored');
+}
+
+function rankIncident(candidate) {
+  const zoneRank = {
+    'mac-mini': candidate.title === 'Mac restart incident' ? 0 : 40,
+    'outside-access': 10,
+    network: 20,
+    'smart-home': 30
+  };
+  const stateRank = candidate.state === 'bad' ? 0 : 1;
+  return stateRank * 100 + (zoneRank[candidate.zone] ?? 50);
+}
+
+function updateIncidentLedger(ctx, services, intelligence, systemVitals) {
+  const at = nowIso();
+  const candidates = incidentCandidates(services, intelligence, systemVitals);
+  const currentKeys = new Set(candidates.map(candidate => candidate.key));
+  const previous = readDataSafe(ctx, 'incidents.json', { entries: [] }) || { entries: [] };
+  const previousEntries = Array.isArray(previous.entries) ? previous.entries : [];
+  const byKey = new Map(previousEntries.map(entry => [entry.key, entry]));
+  const active = candidates.map(candidate => {
+    const prior = byKey.get(candidate.key);
+    const observations = Number(prior && prior.observations || 0) + 1;
+    const status = prior && prior.status === 'known'
+      ? 'known'
+      : observations > 1
+        ? 'recurring'
+        : 'new';
+    return {
+      ...candidate,
+      status,
+      firstSeenAt: prior && prior.firstSeenAt ? prior.firstSeenAt : at,
+      lastSeenAt: at,
+      observations,
+      resolvedAt: null
+    };
+  });
+  const resolved = previousEntries
+    .filter(entry => entry && (entry.status === 'new' || entry.status === 'recurring' || entry.status === 'known') && !currentKeys.has(entry.key))
+    .map(entry => ({
+      ...entry,
+      status: 'resolved',
+      resolvedAt: entry.resolvedAt || at,
+      lastSeenAt: entry.lastSeenAt || at
+    }));
+  const stillHistorical = previousEntries
+    .filter(entry => entry && !currentKeys.has(entry.key) && entry.status === 'resolved')
+    .slice(0, INCIDENT_LEDGER_LIMIT);
+  const entries = [...active, ...resolved, ...stillHistorical]
+    .sort((a, b) => {
+      if (a.status !== 'resolved' && b.status === 'resolved') return -1;
+      if (a.status === 'resolved' && b.status !== 'resolved') return 1;
+      return new Date(b.lastSeenAt || b.resolvedAt || 0).getTime() - new Date(a.lastSeenAt || a.resolvedAt || 0).getTime();
+    })
+    .slice(0, INCIDENT_LEDGER_LIMIT);
+  writeDataSafe(ctx, 'incidents.json', { updatedAt: at, entries });
+  const sortedActive = active.slice().sort((a, b) => rankIncident(a) - rankIncident(b));
+  return {
+    updatedAt: at,
+    source: 'data/teddy-house/incidents.json',
+    primary: sortedActive[0] || null,
+    active: sortedActive,
+    resolved: resolved.slice(0, 5),
+    known: entries.filter(entry => entry.status === 'known').slice(0, 5),
+    entries
+  };
+}
+
+function deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents = null) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const macIncident = hasMacRestartIncident(intelligence, systemVitals);
@@ -3203,10 +3434,17 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     summary,
     tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
     primaryAction: macIncident ? 'Start with the Mac mini restart.' : translatePrimaryAction(reviewItems),
-    incident: macIncident ? {
-      title: systemIncidentTitle(intelligence.systemLogs),
-      detail: macIncidentDetail(intelligence.systemLogs, systemVitals),
-      source: 'System logs'
+    incident: incidents && incidents.primary
+      ? incidents.primary
+      : macIncident ? {
+        title: systemIncidentTitle(intelligence.systemLogs),
+        detail: macIncidentDetail(intelligence.systemLogs, systemVitals),
+        source: 'System logs'
+      } : null,
+    incidents: incidents ? {
+      source: incidents.source,
+      active: incidents.active,
+      resolved: incidents.resolved
     } : null,
     zones,
     recentChanges: meaningfulRecentChanges(timeline, {
@@ -3473,7 +3711,8 @@ function teddyHouseApi(ctx = {}) {
         const insights = await buildInsights(services, systemVitals, intelligence);
         const reviewItems = needsDan(services, intelligence, systemVitals);
         const reviewEvidence = reviewEvidenceFor(services, intelligence, systemVitals, reviewItems);
-        const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score);
+        const incidents = updateIncidentLedger(ctx, services, intelligence, systemVitals);
+        const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents);
         const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
         const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
         const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);
@@ -3486,6 +3725,7 @@ function teddyHouseApi(ctx = {}) {
           score,
           needsDan: reviewItems,
           reviewEvidence,
+          incidents,
           houseState,
           dailyDecision,
           services,
@@ -3507,6 +3747,8 @@ function teddyHouseApi(ctx = {}) {
 teddyHouseApi._internals = {
   deriveDailyDecision,
   deriveHouseState,
+  updateIncidentLedger,
+  incidentCandidates,
   domainServiceLogs,
   buildHistoricalSummaries,
   updateVitalsHistory,

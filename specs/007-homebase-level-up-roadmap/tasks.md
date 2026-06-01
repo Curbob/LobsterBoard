@@ -2,15 +2,16 @@
 
 ## Phase 1: Incident Ledger
 
-- [ ] Add `incidents` derived field to the health payload without breaking existing fields.
-- [ ] Define active, known, resolved, ignored, and recurring incident states.
-- [ ] Map Govee/Homebridge loops to an automation incident.
-- [ ] Map macOS diagnostics plus low uptime to a Mac restart incident.
-- [ ] Map unexpected public exposure to a public route incident.
-- [ ] Map OpenClaw/Teddy fallback to a Teddy bridge incident.
-- [ ] Map WAN/DNS quality problems to an internet quality incident.
-- [ ] Persist incident first-seen and last-seen metadata.
-- [ ] Add tests proving ignored Eufy/door-lock state cannot create an incident.
+- [x] Add `incidents` derived field to the health payload without breaking existing fields.
+- [x] Define active, resolved, ignored, and recurring incident states.
+- [x] Map Govee/Homebridge loops to an automation incident.
+- [x] Map macOS diagnostics plus low uptime to a Mac restart incident.
+- [x] Map unexpected public exposure to a public route incident.
+- [x] Map OpenClaw/Teddy fallback to a Teddy bridge incident.
+- [x] Map WAN/DNS quality problems to an internet quality incident.
+- [x] Persist incident first-seen and last-seen metadata.
+- [x] Add tests proving ignored Eufy/door-lock state cannot create an incident.
+- [ ] Add UI controls for marking an incident as known.
 
 ## Phase 2: Story Engine
 

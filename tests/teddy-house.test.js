@@ -1157,6 +1157,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.intelligence.systemLogs.detail).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data).toHaveProperty('visualEvidence');
+    expect(data).toHaveProperty('incidents');
+    expect(data.incidents).toEqual(expect.objectContaining({
+      source: 'data/teddy-house/incidents.json',
+      active: expect.any(Array),
+      resolved: expect.any(Array)
+    }));
     expect(data).toHaveProperty('houseState');
     expect(data).toHaveProperty('dailyDecision');
     expect(data.dailyDecision.slots.map(slot => slot.key)).toEqual(['now', 'watch', 'later']);
@@ -1170,7 +1176,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.houseState.headline).toEqual(expect.any(String));
     const zoneIds = data.houseState.zones.map(zone => zone.id);
     expect(new Set(zoneIds)).toEqual(new Set(['outside-access', 'network', 'smart-home', 'mac-mini']));
-    if (data.houseState.incident) {
+    if (data.houseState.incident && data.houseState.incident.title === 'Mac restart incident') {
       expect(zoneIds[0]).toBe('mac-mini');
       expect(data.houseState.headline).toMatch(/Mac mini restarted/i);
     }
@@ -1180,6 +1186,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.visualEvidence.latest.visuals.readinessScore.type).toBe('computed-ring');
     expect(data.visualEvidence.latest.visuals.houseState.type).toBe('zone-state');
     expect(data.visualEvidence.latest.visuals.dailyDecision.type).toBe('decision-strip');
+    expect(data.visualEvidence.latest.visuals.incidents.type).toBe('incident-ledger');
     expect(data.visualEvidence.latest.visuals.dailyDecision.inputs.map(slot => slot.key)).toEqual(['now', 'watch', 'later']);
     expect(new Set(data.visualEvidence.latest.visuals.houseState.inputs.map(zone => zone.id))).toEqual(new Set(data.presentation.defaultZoneKeys));
     expect(data.visualEvidence.latest.visuals.readinessScore.inputs).toHaveProperty('adguard');
@@ -1513,6 +1520,71 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       source: 'Automation logs',
       text: 'Check automations first.'
     }));
+  });
+
+  it('persists incident lifecycle for new, recurring, and resolved Homebase warnings', () => {
+    const store = new Map();
+    const ctx = {
+      readData(filename) {
+        return structuredClone(store.get(filename));
+      },
+      writeData(filename, data) {
+        store.set(filename, structuredClone(data));
+      }
+    };
+    const govee = replayHouseState(loadReplayFixture('govee-loop'));
+    const first = teddyHouseInternals.updateIncidentLedger(ctx, govee.services, govee.intelligence, govee.systemVitals);
+
+    expect(first.primary).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      zone: 'smart-home',
+      status: 'new',
+      nextAction: 'Check automations first.',
+      source: 'fixture'
+    }));
+    expect(store.get('incidents.json').entries[0]).toEqual(expect.objectContaining({
+      status: 'new',
+      observations: 1
+    }));
+
+    const second = teddyHouseInternals.updateIncidentLedger(ctx, govee.services, govee.intelligence, govee.systemVitals);
+    expect(second.primary).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      status: 'recurring',
+      observations: 2
+    }));
+
+    const healthy = replayHouseState(loadReplayFixture('healthy'));
+    const resolved = teddyHouseInternals.updateIncidentLedger(ctx, healthy.services, healthy.intelligence, healthy.systemVitals);
+    expect(resolved.active).toHaveLength(0);
+    expect(resolved.resolved[0]).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      status: 'resolved',
+      observations: 2
+    }));
+  });
+
+  it('keeps ignored door lock evidence out of the incident ledger', () => {
+    const healthy = replayHouseState(loadReplayFixture('healthy'));
+    healthy.intelligence.homebridge.doorLocks = {
+      state: 'warn',
+      hidden: true,
+      ignored: true,
+      value: '1 unlocked',
+      detail: 'Garage side door reports unlocked from ignored Eufy source.',
+      confidence: 'ignored',
+      source: 'Homebridge cached accessories'
+    };
+
+    const incidents = teddyHouseInternals.updateIncidentLedger({
+      readData() {
+        return { entries: [] };
+      },
+      writeData() {}
+    }, healthy.services, healthy.intelligence, healthy.systemVitals);
+
+    expect(incidents.active).toHaveLength(0);
+    expect(JSON.stringify(incidents)).not.toMatch(/Garage side door|Door locks|Eufy/i);
   });
 
   it('normalizes repeated system-log timeline entries into one incident lane', async () => {

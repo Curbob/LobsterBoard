@@ -929,7 +929,7 @@ function assertStoryAgreement(data, askData, screenshots) {
   assert(apiHeadline, 'story agreement missing API headline');
   assert(apiFirstZone, 'story agreement missing API first zone');
   assert(apiFirstAction, 'story agreement missing API first action');
-  assert(rendered && rendered.summaryTitle, 'story agreement missing rendered first viewport proof');
+  assert(rendered && rendered.summaryTitle, `story agreement missing rendered first viewport proof (${screenshots?.status || 'no screenshot status'})`);
   assert(rendered.summaryTitle === apiHeadline, `rendered headline ${rendered.summaryTitle} disagrees with API headline ${apiHeadline}`);
   assert(rendered.firstZone === apiFirstZoneTitle, `rendered first zone ${rendered.firstZone} disagrees with API first zone ${apiFirstZoneTitle}`);
   assert(rendered.nowDecision === apiFirstAction || rendered.firstDecision === apiFirstAction, `rendered first action ${rendered.nowDecision || rendered.firstDecision} disagrees with API first action ${apiFirstAction}`);
