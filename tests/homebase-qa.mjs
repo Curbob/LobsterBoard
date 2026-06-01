@@ -29,7 +29,7 @@ const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1234,6 +1234,7 @@ function verifyReplayFixtures() {
     healthy: ['outside-access', 'Nothing needs Dan.'],
     'stale-android-proof': ['outside-access', 'Nothing needs Dan.'],
     'post-reboot-recovered': ['outside-access', 'Nothing needs Dan.'],
+    'post-outage-homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1283,6 +1284,16 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'clean post-reboot recovery leaked scary restart copy into first-screen truth');
+    }
+    if (name === 'post-outage-homebridge-down') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'smart-home', 'post-outage Homebridge outage should lead with automations');
+      assert(replayData.needsDan?.[0] === 'Homebridge: offline', 'post-outage Homebridge outage should keep Homebridge as first review item');
+      assert(!/panic|watchdog/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage Homebridge outage should not invent panic/watchdog copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
