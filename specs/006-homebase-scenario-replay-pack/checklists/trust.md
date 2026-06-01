@@ -10,6 +10,7 @@
 - [x] The pack includes `post-outage-openclaw-bridge-degraded`.
 - [x] The pack includes `post-outage-macos-update-required`.
 - [x] The pack includes `post-outage-system-logs-warning`.
+- [x] The pack includes `post-outage-resource-pressure`.
 - [x] The pack includes `homebridge-down`.
 - [x] The pack includes `adguard-dns-down`.
 - [x] The pack includes `tailscale-funnel-missing`.

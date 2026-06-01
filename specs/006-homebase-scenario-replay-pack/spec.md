@@ -22,6 +22,7 @@ The replay pack must prove:
 - post-outage recovery with the OpenClaw/Teddy bridge degraded leads with Mac mini/OpenClaw, not reboot noise
 - post-outage recovery with a critical macOS update leads with macOS maintenance, not restart or generic Mac noise
 - post-outage recovery with generic system-log warnings leads with system logs, not restart/panic copy
+- post-outage recovery with elevated CPU or memory leads with Mac mini load, not restart, service, route, or log noise
 - Homebridge offline becomes a direct automation action, not a generic Mac warning
 - AdGuard DNS down becomes a direct DNS action while WAN stays scoped separately
 - Tailscale online with Funnel missing becomes public-access review, not tailnet outage
@@ -46,6 +47,7 @@ The canonical curated fixture pack is:
 - `post-outage-openclaw-bridge-degraded`
 - `post-outage-macos-update-required`
 - `post-outage-system-logs-warning`
+- `post-outage-resource-pressure`
 - `homebridge-down`
 - `adguard-dns-down`
 - `tailscale-funnel-missing`
@@ -93,6 +95,7 @@ Incident bundles must include:
 - The post-outage-OpenClaw-bridge-degraded scenario fails if low uptime, public route copy, Tailscale copy, or recovery context outranks the Teddy bridge issue.
 - The post-outage-macOS-update-required scenario fails if low uptime, restart copy, OpenClaw copy, public route copy, or Tailscale copy outranks the macOS update.
 - The post-outage-system-logs-warning scenario fails if low uptime or generic system-log warnings become Mac restart, panic, or watchdog copy without matching incident evidence.
+- The post-outage-resource-pressure scenario fails if CPU or memory pressure is hidden under restart, service, public-route, Tailscale, or system-log copy.
 - The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
 - The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Tailscale-Funnel-missing scenario fails if a missing Homebase public route is treated as healthy Tailscale.

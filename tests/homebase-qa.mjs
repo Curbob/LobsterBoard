@@ -29,7 +29,7 @@ const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -871,6 +871,7 @@ function askMentionsFirstAction(answer, firstAction) {
   if (/nothing needs/.test(action) && /nothing needs action|no review item|no review items/.test(text)) return true;
   if (/automations/.test(action) && /automations/.test(text)) return true;
   if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
+  if (/load|memory pressure/.test(action) && /mac mini|cpu|load|memory|pressure/.test(text)) return true;
   if (/macos/.test(action) && /macos|mac os|update/.test(text)) return true;
   if (/tailscale/.test(action) && /tailscale/.test(text)) return true;
   if (/public access|external access/.test(action) && /public access|external access|funnel/.test(text)) return true;
@@ -1244,6 +1245,7 @@ function verifyReplayFixtures() {
     'post-outage-openclaw-bridge-degraded': ['mac-mini', 'Check OpenClaw first.'],
     'post-outage-macos-update-required': ['mac-mini', 'Review macOS update.'],
     'post-outage-system-logs-warning': ['mac-mini', 'Review system logs.'],
+    'post-outage-resource-pressure': ['mac-mini', 'Check Mac mini load first.'],
     'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'adguard-dns-down': ['network', 'Check DNS first.'],
     'tailscale-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1368,6 +1370,19 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'post-outage system logs warning should not invent restart, OpenClaw, public-access, or Tailscale copy');
+    }
+    if (name === 'post-outage-resource-pressure') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage resource pressure should lead with Mac mini');
+      assert(replayData.needsDan?.[0] === 'CPU: elevated', 'post-outage resource pressure should keep CPU as first review item');
+      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check Mac mini load first.', 'post-outage resource pressure should name Mac mini load as the first action');
+      assert(replayData.dailyDecision?.slots?.[0]?.source === 'CPU', 'post-outage resource pressure should source the Now action to CPU');
+      assert(!replayData.houseState?.incident, 'post-outage resource pressure should not create a Mac restart incident');
+      assert(!/panic|watchdog|restart|reboot|openclaw first|public access first|tailscale first|system logs/i.test(JSON.stringify({
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage resource pressure should not invent restart, OpenClaw, public-access, Tailscale, or system-log copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
