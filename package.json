@@ -70,6 +70,7 @@
     "check": "npm run lint && npm test",
     "check:homebase": "npm run check -- --runInBand && node tests/homebase-qa.mjs",
     "homebase:verdict": "node scripts/homebase-verdict.mjs",
+    "homebase:nightly": "npm run check:homebase && npm run homebase:verdict",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -1645,6 +1645,7 @@ function nightlyTruthSuiteSpecCoverage() {
   const required = [
     ['canonical-command', /npm run check:homebase/],
     ['verdict-command', /npm run homebase:verdict/.test(text) && /"homebase:verdict": "node scripts\/homebase-verdict\.mjs"/.test(packageText)],
+    ['nightly-command', /npm run homebase:nightly/.test(text) && /"homebase:nightly": "npm run check:homebase && npm run homebase:verdict"/.test(packageText)],
     ['verdict-reader', /truthVerdict/.test(verdictScript) && /Homebase is lying/.test(verdictScript)],
     ['report-artifact', /artifacts\/qa\/homebase-latest\.json/],
     ['read-only', /read-only/i],

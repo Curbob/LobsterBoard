@@ -16,10 +16,11 @@
 
 ## Phase 3: Scheduling
 
-- [ ] Decide whether the scheduler should be Codex automation or launchd.
-- [ ] Keep the scheduler read-only.
+- [x] Decide whether the scheduler should be Codex automation or launchd.
+- [x] Keep the scheduler read-only.
+- [x] Add one operator-facing nightly command.
 - [ ] Save nightly report artifacts without filling internal disk.
-- [ ] Add exact smoke path for checking the latest nightly result.
+- [x] Add exact smoke path for checking the latest nightly result.
 
 ## Phase 4: Mobile Follow-Up
 

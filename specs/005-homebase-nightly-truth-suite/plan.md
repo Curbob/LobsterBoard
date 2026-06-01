@@ -2,7 +2,7 @@
 
 ## Phase 1: Canonical Proof Path
 
-Use `npm run check:homebase` as the single command for now.
+Use `npm run check:homebase` as the canonical proof command.
 
 It already runs:
 
@@ -16,6 +16,8 @@ It already runs:
 - rendered replay screenshots
 - source contract checks
 
+Use `npm run homebase:nightly` as the operator-facing command. It runs the proof path and then prints the morning verdict.
+
 ## Phase 2: Nightly Verdict
 
 Derive a plain verdict from the existing QA report:
@@ -28,13 +30,20 @@ The first implementation can store this as report metadata. A later automation c
 
 ## Phase 3: Scheduled Run
 
-Add a Codex/launchd automation only after the local report contract is stable.
+Use Codex automation as the preferred scheduler once Dan wants it live.
+
+Why Codex automation first:
+
+- it can run the existing repo command without mutating services
+- it can report the plain verdict back into the thread
+- it avoids adding another local LaunchAgent until the report contract has more nights of proof
 
 Schedule target:
 
 - nightly around early morning local time
 - read-only
 - write report and screenshots
+- run `npm run homebase:nightly`
 - do not restart services
 - do not clear sessions or credentials
 
