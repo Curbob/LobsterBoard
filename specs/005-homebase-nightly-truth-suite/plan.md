@@ -36,7 +36,15 @@ The first implementation can store this as report metadata. A later automation c
 
 ## Phase 3: Scheduled Run
 
-Use Codex automation as the preferred scheduler once Dan wants it live.
+Use Codex automation as the scheduler.
+
+Active automation:
+
+- id: `morning-homebase-health-check`
+- name: `Morning Homebase Truth Suite`
+- schedule: every day at 7:15 AM local time
+- workspace: `/Users/teddyclaw/teddy-house-lobsterboard`
+- command: `npm run homebase:nightly`
 
 Why Codex automation first:
 
@@ -44,7 +52,7 @@ Why Codex automation first:
 - it can report the plain verdict back into the thread
 - it avoids adding another local LaunchAgent until the report contract has more nights of proof
 
-Schedule target:
+Schedule contract:
 
 - nightly around early morning local time
 - read-only

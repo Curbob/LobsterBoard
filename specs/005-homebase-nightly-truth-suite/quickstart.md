@@ -7,6 +7,15 @@ cd /Users/teddyclaw/teddy-house-lobsterboard
 npm run homebase:nightly
 ```
 
+## Automation
+
+Active Codex automation:
+
+- id: `morning-homebase-health-check`
+- name: `Morning Homebase Truth Suite`
+- schedule: every day at 7:15 AM local time
+- command: `npm run homebase:nightly`
+
 For a faster read after the latest suite already ran:
 
 ```zsh

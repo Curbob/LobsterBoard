@@ -1649,6 +1649,7 @@ function nightlyTruthSuiteSpecCoverage() {
     ['nightly-command', /npm run homebase:nightly/.test(text) && /"homebase:nightly": "npm run check:homebase && npm run homebase:archive && npm run homebase:verdict"/.test(packageText)],
     ['verdict-reader', /truthVerdict/.test(verdictScript) && /Homebase is lying/.test(verdictScript)],
     ['bounded-history', /homebase-nightly-history\.json/.test(text) && /HOMEBASE_NIGHTLY_HISTORY_LIMIT/.test(archiveScript) && /\.slice\(-limit\)/.test(archiveScript)],
+    ['active-automation', /morning-homebase-health-check/.test(text) && /Morning Homebase Truth Suite/.test(text) && /7:15 AM/.test(text)],
     ['report-artifact', /artifacts\/qa\/homebase-latest\.json/],
     ['read-only', /read-only/i],
     ['public-auth', /public (?:Funnel )?auth|Public page redirects/i],

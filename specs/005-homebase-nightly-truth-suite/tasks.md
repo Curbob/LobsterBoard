@@ -17,6 +17,8 @@
 ## Phase 3: Scheduling
 
 - [x] Decide whether the scheduler should be Codex automation or launchd.
+- [x] Activate the Codex automation for the nightly truth suite.
+- [x] Document the active automation id, schedule, workspace, and command.
 - [x] Keep the scheduler read-only.
 - [x] Add one operator-facing nightly command.
 - [x] Save nightly report artifacts without filling internal disk.
