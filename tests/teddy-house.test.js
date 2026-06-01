@@ -533,6 +533,110 @@ describe('Teddy Homebase page', () => {
     expect(vitals[0]).toBe('CPU load');
   });
 
+  it('lets the incident ribbon mark a persisted incident known and refreshes the story', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    let known = false;
+    const healthPayload = () => ({
+      checkedAt: '2026-05-16T23:00:00.000Z',
+      score: 82,
+      needsDan: ['Automation logs: Govee connection degraded'],
+      reviewEvidence: [],
+      houseState: {
+        headline: 'Homebase found an issue.',
+        summary: `${known ? 'Known' : 'Recurring'} automation issue. Check automations first.`,
+        tone: 'issue',
+        primaryAction: 'Check automations first.',
+        incident: {
+          key: 'automation-govee-connection-degraded',
+          title: 'Govee connection degraded',
+          status: known ? 'known' : 'recurring',
+          zone: 'smart-home',
+          detail: 'Govee connection degraded in the recent Homebridge log window.',
+          nextAction: 'Check automations first.'
+        },
+        zones: [],
+        recentChanges: []
+      },
+      dailyDecision: {
+        slots: [
+          { key: 'now', label: 'Now', text: 'Check automations first.', state: 'bad', source: 'Automation logs' },
+          { key: 'watch', label: 'Watch', text: 'Public access is known and passworded.', state: 'info', source: 'houseState' },
+          { key: 'later', label: 'Later', text: 'Maintenance can wait.', state: 'info', source: 'maintenance' }
+        ]
+      },
+      services: {},
+      vitals: { health: {} },
+      intelligence: {},
+      timeline: []
+    });
+    const dom = new JSDOM(`<!doctype html>
+      <button id="refresh-button"></button>
+      <form id="ask-form"><input id="ask-input"><button id="ask-submit"></button></form>
+      <button id="ask-status-button"></button>
+      <div id="ask-state"></div>
+      <div id="ask-response"></div>
+      <div id="summary-title"></div>
+      <div id="summary-copy"></div>
+      <div id="health-score"></div>
+      <div id="score-ring"></div>
+      <div id="next-action"></div>
+      <div id="last-check"></div>
+      <div id="teddy-line"></div>
+      <section id="review-lane" class="needs-lane"><div id="needs-title"></div><div id="needs-list"></div></section>
+      <section id="incident-ribbon" hidden>
+        <div><h3 id="incident-title"></h3></div>
+        <div class="incident-copy"><p id="incident-detail"></p><button id="incident-known-button" type="button"></button></div>
+      </section>
+      <section id="daily-decision"><div data-decision-slot="now"><p class="eyebrow"></p><h3></h3></div><div data-decision-slot="watch"><p class="eyebrow"></p><h3></h3></div><div data-decision-slot="later"><p class="eyebrow"></p><h3></h3></div></section>
+      <section id="house-state"><span id="house-state-pill"></span><div id="house-zone-grid"></div></section>
+      <div id="service-grid"></div>
+      <div id="vitals-grid"></div>
+      <div id="signal-grid"></div>
+      <div id="history-grid"></div>
+      <div id="events-list"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async (url, options = {}) => {
+      if (url === '/api/pages/teddy-house/health') {
+        return { ok: true, json: async () => healthPayload() };
+      }
+      if (url === '/api/pages/teddy-house/incidents/automation-govee-connection-degraded/known') {
+        known = JSON.parse(options.body).known;
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'ok',
+            source: 'data/teddy-house/incidents.json',
+            known,
+            incident: { key: 'automation-govee-connection-degraded', status: known ? 'known' : 'recurring' }
+          })
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const button = dom.window.document.getElementById('incident-known-button');
+    expect(dom.window.document.getElementById('incident-ribbon').hidden).toBe(false);
+    expect(button.textContent).toBe('Mark known');
+
+    button.click();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    expect(known).toBe(true);
+    expect(dom.window.fetch).toHaveBeenCalledWith('/api/pages/teddy-house/incidents/automation-govee-connection-degraded/known', expect.objectContaining({
+      method: 'POST',
+      credentials: 'same-origin'
+    }));
+    expect(button.textContent).toBe('Track again');
+    expect(button.dataset.known).toBe('true');
+  });
+
   it('hides ignored Eufy locks but still shows confidence for visible cached signals', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = new JSDOM(`<!doctype html>
@@ -624,8 +728,12 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('setTimeout(() => controller.abort(), 75000)');
     expect(script).toContain('Explain');
     expect(script).toContain('Prepare fix');
+    expect(script).toContain('markIncidentKnown');
+    expect(script).toContain('/api/pages/teddy-house/incidents/');
     expect(script).toContain('action: "prepare-fix"');
     expect(script).toContain('Do not run commands or change settings');
+    expect(html).toContain('id="incident-known-button"');
+    expect(html).toContain('Mark known');
     expect(script).toContain('data.source === "local-fallback"');
     expect(script).toContain('Fallback');
     expect(script).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
@@ -1644,6 +1752,54 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       status: 'resolved'
     }));
     expect(resolvedDecision.slots[0].text).toBe('Nothing needs Dan.');
+  });
+
+  it('marks active incidents known and reverses them without touching service state', () => {
+    const store = new Map();
+    const ctx = {
+      readData(filename) {
+        return structuredClone(store.get(filename));
+      },
+      writeData(filename, data) {
+        store.set(filename, structuredClone(data));
+      }
+    };
+    const govee = replayHouseState(loadReplayFixture('govee-loop'));
+    teddyHouseInternals.updateIncidentLedger(ctx, govee.services, govee.intelligence, govee.systemVitals);
+
+    const known = teddyHouseInternals.markIncidentKnown(ctx, 'automation-govee-connection-degraded', true, 'Dan knows this loop.');
+    expect(known).toEqual(expect.objectContaining({
+      status: 'ok',
+      source: 'data/teddy-house/incidents.json',
+      known: true
+    }));
+    expect(known.incident).toEqual(expect.objectContaining({
+      key: 'automation-govee-connection-degraded',
+      status: 'known',
+      knownBy: 'dashboard',
+      knownNote: 'Dan knows this loop.'
+    }));
+
+    const next = teddyHouseInternals.updateIncidentLedger(ctx, govee.services, govee.intelligence, govee.systemVitals);
+    expect(next.primary).toEqual(expect.objectContaining({
+      title: 'Govee connection degraded',
+      status: 'known',
+      observations: 2
+    }));
+
+    const unmarked = teddyHouseInternals.markIncidentKnown(ctx, 'automation-govee-connection-degraded', false);
+    expect(unmarked).toEqual(expect.objectContaining({
+      status: 'ok',
+      known: false
+    }));
+    expect(unmarked.incident).toEqual(expect.objectContaining({
+      status: 'recurring'
+    }));
+    expect(unmarked.incident).not.toHaveProperty('knownAt');
+    expect(store.get('incidents.json').entries[0]).toEqual(expect.objectContaining({
+      status: 'recurring',
+      title: 'Govee connection degraded'
+    }));
   });
 
   it.each(['new-govee', 'recurring-govee', 'resolved-govee', 'stale-prior-govee'])('replays incident-state fixture %s through the story engine', (scenarioName) => {

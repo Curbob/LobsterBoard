@@ -11,7 +11,7 @@
 - [x] Map WAN/DNS quality problems to an internet quality incident.
 - [x] Persist incident first-seen and last-seen metadata.
 - [x] Add tests proving ignored Eufy/door-lock state cannot create an incident.
-- [ ] Add UI controls for marking an incident as known.
+- [x] Add UI controls for marking an incident as known.
 
 ## Phase 2: Story Engine
 
@@ -27,7 +27,7 @@
 - [ ] Add `Prepare fix` dry-run action.
 - [ ] Add `Open logs` action for relevant local evidence.
 - [ ] Add `Capture incident` action that writes a redacted draft bundle.
-- [ ] Add `Mark known` action only if it is persisted, reversible, and source-backed.
+- [x] Add `Mark known` action only if it is persisted, reversible, and source-backed.
 - [ ] Add tests proving no action mutates services without approval.
 
 ## Phase 4: Evidence Viz

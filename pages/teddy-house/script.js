@@ -256,15 +256,53 @@ function renderIncident(houseState) {
   const ribbon = document.getElementById("incident-ribbon");
   if (!ribbon) return;
   const incident = houseState && houseState.incident;
+  const knownButton = document.getElementById("incident-known-button");
   if (!incident) {
     ribbon.hidden = true;
+    if (knownButton) {
+      knownButton.disabled = true;
+      delete knownButton.dataset.incidentKey;
+    }
     return;
   }
   const title = document.getElementById("incident-title");
   const detail = document.getElementById("incident-detail");
   if (title) title.textContent = incident.title || "Mac mini needs review";
   if (detail) detail.textContent = incident.detail || "System evidence needs review.";
+  if (knownButton) {
+    knownButton.disabled = !incident.key;
+    knownButton.dataset.incidentKey = incident.key || "";
+    knownButton.dataset.known = incident.status === "known" ? "true" : "false";
+    knownButton.textContent = incident.status === "known" ? "Track again" : "Mark known";
+    knownButton.title = incident.status === "known"
+      ? "Move this incident back into normal tracking."
+      : "Mark this source-backed incident as known without changing services.";
+  }
   ribbon.hidden = false;
+}
+
+async function markIncidentKnown() {
+  const button = document.getElementById("incident-known-button");
+  const key = button && button.dataset.incidentKey;
+  if (!key) return;
+  const known = button.dataset.known !== "true";
+  button.disabled = true;
+  button.textContent = known ? "Marking" : "Tracking";
+  try {
+    const res = await fetch(`/api/pages/teddy-house/incidents/${encodeURIComponent(key)}/known`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ known })
+    });
+    const data = await res.json();
+    if (!res.ok || data.status !== "ok") throw new Error(data.message || data.error || `Incident update returned ${res.status}`);
+    await loadHealth();
+  } catch (err) {
+    setAskState("Incident", err.message || "Could not update incident state.");
+    button.disabled = false;
+    button.textContent = known ? "Mark known" : "Track again";
+  }
 }
 
 function primaryAction(needs) {
@@ -506,6 +544,7 @@ async function loadHealth() {
 }
 
 document.getElementById("refresh-button").addEventListener("click", loadHealth);
+document.getElementById("incident-known-button")?.addEventListener("click", markIncidentKnown);
 
 function setAskState(state, text, source = "") {
   const pill = document.getElementById("ask-state");

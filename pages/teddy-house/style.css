@@ -346,7 +346,15 @@ h3 {
   line-height: 1.2;
 }
 
-.incident-ribbon p:last-child {
+.incident-copy {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  max-width: 520px;
+}
+
+.incident-ribbon p:last-child,
+.incident-copy p {
   max-width: 520px;
   margin: 0;
   color: var(--muted);
@@ -354,6 +362,29 @@ h3 {
   line-height: 1.35;
   text-align: right;
   overflow-wrap: anywhere;
+}
+
+.incident-known-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(241, 182, 76, 0.30);
+  border-radius: 999px;
+  background: rgba(241, 182, 76, 0.10);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.incident-known-button:hover,
+.incident-known-button:focus-visible {
+  border-color: rgba(241, 182, 76, 0.56);
+  background: rgba(241, 182, 76, 0.16);
+}
+
+.incident-known-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .status-band {

@@ -1129,6 +1129,34 @@ async function smokeLocalRoutes() {
     assert(String(prepareData.promptPreview || '').includes('exact approval needed'), 'prepare-fix prompt is missing approval language');
     assert(!/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/.test(String(prepareData.promptPreview || '')), 'prepare-fix dry run included a mutation command');
 
+    const activeIncident = data.houseState?.incident;
+    let markKnown = { status: 'skipped', detail: 'no active incident' };
+    if (activeIncident?.key) {
+      const knownRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/${encodeURIComponent(activeIncident.key)}/known`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ known: true, note: 'QA mark-known smoke' })
+      });
+      assert(knownRes.status === 200, `Mark known returned ${knownRes.status}`);
+      const knownData = await knownRes.json();
+      assert(knownData.status === 'ok' && knownData.known === true, `Mark known did not persist known state: ${JSON.stringify(knownData)}`);
+      assert(knownData.source === 'data/teddy-house/incidents.json', 'Mark known did not name the incident ledger source');
+      const trackRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/${encodeURIComponent(activeIncident.key)}/known`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ known: false })
+      });
+      assert(trackRes.status === 200, `Track again returned ${trackRes.status}`);
+      const trackData = await trackRes.json();
+      assert(trackData.status === 'ok' && trackData.known === false, `Track again did not reverse known state: ${JSON.stringify(trackData)}`);
+      markKnown = {
+        status: 'ok',
+        key: activeIncident.key,
+        source: knownData.source,
+        reversible: true
+      };
+    }
+
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
@@ -1162,7 +1190,8 @@ async function smokeLocalRoutes() {
         prepareFixDryRun: prepareData.dryRun === true,
         prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
           && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
-          && /exact approval needed/.test(String(prepareData.promptPreview || ''))
+          && /exact approval needed/.test(String(prepareData.promptPreview || '')),
+        markKnown
       },
       storyAgreement,
       loopbackProbe: {
@@ -2139,7 +2168,7 @@ function levelUpRoadmapSpecCoverage() {
     ['readme-linked', /specs\/007-homebase-level-up-roadmap\/spec\.md/.test(readme)],
     ['incident-led', /Incident Ledger/.test(text) && /new, recurring, resolved, ignored, or trusted/i.test(text)],
     ['story-engine', /House Story Engine/.test(text) && /one primary story/i.test(text)],
-    ['action-safety', /Prepare fix/.test(text) && /explicit Dan approval|without explicit approval/i.test(text)],
+    ['action-safety', /Prepare fix/.test(text) && /Mark known/.test(text) && /explicit Dan approval|without explicit approval|persisted, reversible, and source-backed/i.test(text)],
     ['evidence-viz', /Better Evidence Viz/.test(text) && /No fake trends|No chart without stored data/i.test(text)],
     ['daily-owner-mode', /Personal Daily Mode/.test(text) && /Dan's house is steady/i.test(text)],
     ['trust-checklist', /Every incident has source, freshness, confidence, and lifecycle state/i.test(text)],
@@ -2310,10 +2339,10 @@ function trustChecks(local, publicAuth) {
     },
     {
       name: 'ask-action-safety',
-      status: local && local.ask && local.ask.prepareFixDryRun && local.ask.prepareFixGuarded ? 'ok' : 'fail',
+      status: local && local.ask && local.ask.prepareFixDryRun && local.ask.prepareFixGuarded && ['ok', 'skipped'].includes(local.ask.markKnown?.status) ? 'ok' : 'fail',
       detail: local && local.ask && local.ask.prepareFixDryRun
-        ? 'Ask Teddy prepare-fix is dry-run only and names approval before mutation.'
-        : 'Ask Teddy prepare-fix safety was not proved.'
+        ? 'Ask Teddy prepare-fix is dry-run only; Mark known persists and reverses only the incident ledger.'
+        : 'Ask Teddy prepare-fix and Mark known safety were not proved.'
     },
     {
       name: 'login-persistence',

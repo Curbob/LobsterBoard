@@ -92,25 +92,36 @@ describe('Password auth', () => {
       status: 'complete',
       source: 'local'
     }));
+
+    const knownRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/incidents/not-present/known`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ known: true })
+    });
+    expect(knownRes.status).toBe(404);
+    const known = await knownRes.json();
+    expect(known.message).toContain('not found');
   });
 
   it('keeps Homebase probes passworded for non-loopback hosts', async () => {
-    const requestStatus = (path) => new Promise((resolve, reject) => {
+    const requestStatus = (path, method = 'GET') => new Promise((resolve, reject) => {
       const req = http.request({
         hostname: '127.0.0.1',
         port: srv.port,
         path,
-        method: 'GET',
-        headers: { Host: 'openclaw-mac-mini.tail02a3b6.ts.net:10000' }
+        method,
+        headers: { Host: 'openclaw-mac-mini.tail02a3b6.ts.net:10000', 'Content-Type': 'application/json' }
       }, res => {
         res.resume();
         res.on('end', () => resolve(res.statusCode));
       });
       req.on('error', reject);
+      if (method === 'POST') req.write(JSON.stringify({ known: true }));
       req.end();
     });
     await expect(requestStatus('/api/pages/teddy-house/health')).resolves.toBe(401);
     await expect(requestStatus('/api/pages/teddy-house/logs')).resolves.toBe(401);
+    await expect(requestStatus('/api/pages/teddy-house/incidents/not-present/known', 'POST')).resolves.toBe(401);
     await expect(requestStatus('/pages/teddy-house/logs.js')).resolves.toBe(302);
   });
 

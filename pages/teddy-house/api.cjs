@@ -3339,6 +3339,55 @@ function updateIncidentLedger(ctx, services, intelligence, systemVitals) {
   };
 }
 
+function markIncidentKnown(ctx, key, known = true, note = '') {
+  const canonicalKey = incidentKeyForCandidate({ key: String(key || '') });
+  if (!canonicalKey || canonicalKey === 'unknown-incident') {
+    return { status: 'error', message: 'Incident key is required.', code: 400 };
+  }
+  const previous = readDataSafe(ctx, 'incidents.json', { entries: [] }) || { entries: [] };
+  const entries = Array.isArray(previous.entries) ? previous.entries : [];
+  const at = nowIso();
+  let found = false;
+  let blocked = false;
+  const updated = entries.map(entry => {
+    if (!entry || entry.key !== canonicalKey) return entry;
+    found = true;
+    if (entry.status === 'resolved') {
+      blocked = true;
+      return entry;
+    }
+    if (known) {
+      return {
+        ...entry,
+        status: 'known',
+        knownAt: at,
+        knownBy: 'dashboard',
+        knownNote: String(note || '').trim().slice(0, 240) || null,
+        lastSeenAt: entry.lastSeenAt || at
+      };
+    }
+    const observations = Number(entry.observations || 0);
+    const nextStatus = observations > 1 ? 'recurring' : 'new';
+    const { knownAt, knownBy, knownNote, ...rest } = entry;
+    return {
+      ...rest,
+      status: nextStatus,
+      lastSeenAt: entry.lastSeenAt || at
+    };
+  });
+  if (!found) return { status: 'error', message: 'Incident was not found in the ledger.', code: 404 };
+  if (blocked) return { status: 'error', message: 'Resolved incidents cannot be marked known.', code: 409 };
+  const payload = { updatedAt: at, entries: updated.slice(0, INCIDENT_LEDGER_LIMIT) };
+  writeDataSafe(ctx, 'incidents.json', payload);
+  const incident = payload.entries.find(entry => entry && entry.key === canonicalKey) || null;
+  return {
+    status: 'ok',
+    source: 'data/teddy-house/incidents.json',
+    incident,
+    known: incident ? incident.status === 'known' : false
+  };
+}
+
 function incidentZoneNoun(incident) {
   const zone = incident && incident.zone;
   if (zone === 'smart-home') return 'automation';
@@ -3763,6 +3812,11 @@ function teddyHouseApi(ctx = {}) {
   return {
     routes: {
       'POST /ask': async (req, res, { body }) => askTeddy(ctx, body || {}),
+      'POST /incidents/:key/known': async (req, res, { body, params }) => {
+        const result = markIncidentKnown(ctx, params.key, body && body.known !== false, body && body.note || '');
+        if (result.status === 'error') res.statusCode = result.code || 400;
+        return result;
+      },
       'GET /logs': async () => logDetailPayload(ctx),
       'GET /health': async () => {
         const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence] = await Promise.all([
@@ -3820,6 +3874,7 @@ teddyHouseApi._internals = {
   deriveHouseState,
   deriveHomebaseStory,
   updateIncidentLedger,
+  markIncidentKnown,
   incidentCandidates,
   domainServiceLogs,
   buildHistoricalSummaries,
