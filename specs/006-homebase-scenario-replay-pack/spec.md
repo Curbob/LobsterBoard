@@ -13,6 +13,7 @@ Dan opens Homebase and knows what to do first without reading telemetry.
 The replay pack must prove:
 
 - healthy mornings stay quiet
+- Homebridge offline becomes a direct automation action, not a generic Mac warning
 - Mac mini restart incidents outrank routine service noise
 - Homebridge or automation loops become one named issue
 - public route drift is visible without making expected routes scary
@@ -25,6 +26,7 @@ The replay pack must prove:
 The canonical curated fixture pack is:
 
 - `healthy`
+- `homebridge-down`
 - `mac-panic`
 - `govee-loop`
 - `public-exposure-drift`
@@ -60,6 +62,7 @@ Incident bundles must include:
 - Rendered replay screenshots prove the first story, review lane, affected zone, vitals, Ask Teddy, and evidence order on phone width.
 - Recorded incident bundles replay through the same story-agreement path.
 - The healthy scenario fails if raw ports, IPs, package counts, stale labels, degraded labels, ignored Eufy data, or telemetry counts appear as first-screen truth.
+- The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
 - The Mac restart scenario fails if Homebridge log counts outrank the restart incident.
 - The public access scenario fails if known routes are presented as unknown exposure.
 - The Teddy bridge scenario fails if fallback is hidden or presented as live Teddy.

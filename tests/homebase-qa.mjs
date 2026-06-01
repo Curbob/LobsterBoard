@@ -28,6 +28,8 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'homebridge-down', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => name !== 'healthy');
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
   /\bService Logs:\s*\d+\b/i,
@@ -392,10 +394,9 @@ async function renderReplayFixtures() {
   await mkdir(SCREENSHOT_DIR, { recursive: true });
   const userDataDir = join(tmpdir(), `homebase-replay-chrome-${Date.now()}`);
   const chrome = await startChrome(userDataDir);
-  const fixtureNames = ['govee-loop', 'mac-panic', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
   try {
     const outputs = [];
-    for (const name of fixtureNames) {
+    for (const name of WARNING_REPLAY_FIXTURES) {
       outputs.push(await renderReplayFixture(chrome, name));
     }
     return { status: 'captured', outputs };
@@ -1228,6 +1229,7 @@ function assertPersistedHomebaseData(cwd, data) {
 function verifyReplayFixtures() {
   const expected = {
     healthy: ['outside-access', 'Nothing needs Dan.'],
+    'homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'govee-loop': ['smart-home', 'Check automations first.'],
     'mac-panic': ['mac-mini', 'Review the Mac mini restart.'],
     'public-exposure-drift': ['outside-access', 'Check public access first.'],
@@ -1278,7 +1280,7 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
   return [
     {
       name: 'replay-contracts',
-      status: fixtureContracts.length === 6 ? 'ok' : 'fail',
+      status: fixtureContracts.length === REQUIRED_REPLAY_FIXTURES.length ? 'ok' : 'fail',
       detail: `${fixtureContracts.length} house stories validated.`
     },
     {
@@ -1495,6 +1497,7 @@ function truthVerdict(gates, checks, local, publicAuth) {
 function zoneRankingCoverage(fixtureContracts) {
   const byName = new Map((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => [contract.name, contract]));
   const expected = [
+    ['homebridge-down', 'smart-home', 'Automations'],
     ['govee-loop', 'smart-home', 'Automations'],
     ['mac-panic', 'mac-mini', 'Mac mini'],
     ['public-exposure-drift', 'outside-access', 'Public access'],
@@ -1525,7 +1528,7 @@ function replayStoryAgreementCoverage(fixtureContracts) {
     ok: Boolean(contract.storyAgreement && contract.storyAgreement.firstAction === contract.nowText)
   }));
   return {
-    status: items.length === 6 && items.every(item => item.ok) ? 'ok' : 'fail',
+    status: items.length === REQUIRED_REPLAY_FIXTURES.length && items.every(item => item.ok) ? 'ok' : 'fail',
     detail: items.map(item => `${item.fixture}:${item.ok ? 'ok' : 'fail'}`).join(', '),
     items
   };
@@ -1680,12 +1683,12 @@ function scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, record
   const fixtureNames = new Set((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => contract.name));
   const renderedNames = new Set((renderedReplay?.outputs || []).map(output => output.name));
   const incidentCount = Array.isArray(recordedIncidents) ? recordedIncidents.length : 0;
-  const requiredFixtures = ['healthy', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+  const requiredFixtures = REQUIRED_REPLAY_FIXTURES;
   const required = [
     ['spec-directory', /Homebase Scenario Replay Pack Spec/.test(text)],
     ...requiredFixtures.map(name => [name, text.includes(`\`${name}\``) && fixtureNames.has(name)]),
     ['story-agreement', /API, rendered page, and Ask Teddy agree|API-derived `houseState`/.test(text)],
-    ['rendered-replay', /Rendered replay screenshots|rendered first viewport/i.test(text) && ['mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'].every(name => renderedNames.has(name))],
+    ['rendered-replay', /Rendered replay screenshots|rendered first viewport/i.test(text) && WARNING_REPLAY_FIXTURES.every(name => renderedNames.has(name))],
     ['recorded-incidents', /Recorded incident bundles|redacted recorded incident/i.test(text) && incidentCount >= 1],
     ['healthy-quiet', /healthy.*raw ports|raw telemetry.*healthy first screen/is.test(text)],
     ['mac-restart-outranks-noise', /Mac restart scenario fails if Homebridge log counts outrank the restart incident/i.test(text)],
@@ -1709,7 +1712,7 @@ function scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, record
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
-  const dailySlotsLocked = contracts.length === 6
+  const dailySlotsLocked = contracts.length === REQUIRED_REPLAY_FIXTURES.length
     && contracts.every(contract => Array.isArray(contract.dailySlots) && contract.dailySlots.length === 3);
   const macIncidentSpecific = byName.get('mac-panic')?.headline === 'Mac mini restarted this morning.';
   const reviewCopySpecific = contracts.every(contract => {
@@ -1772,7 +1775,7 @@ function visualContractCoverage(local, healthyFreshness) {
 
 function renderedReplayCoverage(renderedReplay) {
   const outputs = renderedReplay && Array.isArray(renderedReplay.outputs) ? renderedReplay.outputs : [];
-  const expectedNames = ['govee-loop', 'mac-panic', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+  const expectedNames = WARNING_REPLAY_FIXTURES;
   const ok = renderedReplay && renderedReplay.status === 'captured'
     && outputs.length === expectedNames.length
     && expectedNames.every(name => outputs.some(item => item.name === name))
@@ -1998,7 +2001,7 @@ async function main() {
   checks.push({
     name: 'scenario-replay-pack-spec',
     status: scenarioReplayPackCoverage.status,
-    detail: 'Scenario replay pack locks the six mandatory house stories and recorded-incident path.'
+    detail: 'Scenario replay pack locks the mandatory house stories and recorded-incident path.'
   });
   gates.push({
     name: 'visual-contracts',
