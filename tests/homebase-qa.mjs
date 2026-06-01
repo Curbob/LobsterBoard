@@ -28,8 +28,8 @@ const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-hou
 const EXPECTED_ZONE_IDS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
-const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
   /\b(?:APP VERSIONS|SERVICE LOGS|SYSTEM LOGS)\s+\d+\b/i,
@@ -1238,6 +1238,7 @@ function verifyReplayFixtures() {
     healthy: ['outside-access', 'Nothing needs Dan.'],
     'stale-android-proof': ['outside-access', 'Nothing needs Dan.'],
     'post-reboot-recovered': ['outside-access', 'Nothing needs Dan.'],
+    'post-outage-adguard-stats-unavailable': ['outside-access', 'Nothing needs Dan.'],
     'post-outage-homebridge-down': ['smart-home', 'Check Homebridge first.'],
     'post-outage-dns-down': ['network', 'Check DNS first.'],
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
@@ -1295,6 +1296,21 @@ function verifyReplayFixtures() {
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
       })), 'clean post-reboot recovery leaked scary restart copy into first-screen truth');
+    }
+    if (name === 'post-outage-adguard-stats-unavailable') {
+      assert(replayData.services?.adguard?.state === 'ok', 'post-outage AdGuard stats unavailable should keep DNS service healthy');
+      assert(replayData.intelligence?.adguard?.state === 'info', 'post-outage AdGuard stats unavailable should keep blocker stats evidence-only');
+      assert(replayData.houseState?.tone === 'steady', 'post-outage AdGuard stats unavailable should stay steady');
+      assert(Array.isArray(replayData.needsDan) && replayData.needsDan.length === 0, 'post-outage AdGuard stats unavailable should not create review items');
+      assert(replayData.houseState?.zones?.[0]?.id === 'outside-access', 'post-outage AdGuard stats unavailable should keep default steady zone order');
+      assert(!/dns first|adguard|blocked-query|stats|locked|needs login|panic|watchdog|restart|reboot/i.test(JSON.stringify({
+        needsDan: replayData.needsDan,
+        headline: replayData.houseState?.headline,
+        summary: replayData.houseState?.summary,
+        primaryAction: replayData.houseState?.primaryAction,
+        zones: replayData.houseState?.zones,
+        dailyDecision: replayData.dailyDecision
+      })), 'post-outage AdGuard stats unavailable should not leak evidence-only AdGuard login copy into first-screen truth');
     }
     if (name === 'post-outage-homebridge-down') {
       assert(replayData.houseState?.zones?.[0]?.id === 'smart-home', 'post-outage Homebridge outage should lead with automations');
