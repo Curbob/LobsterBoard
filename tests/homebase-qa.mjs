@@ -1543,6 +1543,35 @@ function mobileLoginSmokeChecklistCoverage() {
   };
 }
 
+function nightlyTruthSuiteSpecCoverage() {
+  const specDir = join(process.cwd(), 'specs', '005-homebase-nightly-truth-suite');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const required = [
+    ['canonical-command', /npm run check:homebase/],
+    ['report-artifact', /artifacts\/qa\/homebase-latest\.json/],
+    ['read-only', /read-only/i],
+    ['public-auth', /public (?:Funnel )?auth|Public page redirects/i],
+    ['story-agreement', /API, rendered page, and Ask Teddy agree|story agreement/i],
+    ['fallback-honesty', /fallback/i],
+    ['source-contracts', /source contracts?|freshness|confidence/i],
+    ['responsive-screenshots', /phone, iPad, and desktop screenshots|Phone screenshot/i],
+    ['incident-replay', /recorded incident|WindowServer restart/i],
+    ['mobile-smoke', /Android Chrome|iPhone Home Screen PWA|iPad Home Screen PWA/i],
+    ['truth-verdict', /Homebase is useful|Homebase is lying|Homebase needs Dan/],
+    ['no-mutations', /does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw/i]
+  ].map(([name, pattern]) => ({
+    name,
+    ok: pattern.test(text)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -1760,6 +1789,7 @@ async function main() {
   const recordedIncidentStoryCoverage = recordedIncidentCoverage(recordedIncidents);
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
+  const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -1816,6 +1846,16 @@ async function main() {
     detail: 'Android Chrome and iPhone/iPad PWA login persistence smokes are documented with reload, relaunch, first action, Ask Teddy, and overflow checks.'
   });
   gates.push({
+    name: 'nightly-truth-suite-spec',
+    status: nightlyTruthSuiteCoverage.status,
+    detail: nightlyTruthSuiteCoverage.detail
+  });
+  checks.push({
+    name: 'nightly-truth-suite-spec',
+    status: nightlyTruthSuiteCoverage.status,
+    detail: 'Nightly Homebase truth-suite spec covers command, report, auth, story agreement, fallback honesty, source trust, visuals, incident replay, mobile smoke, and read-only safety.'
+  });
+  gates.push({
     name: 'visual-contracts',
     status: visualCoverage.status,
     detail: visualCoverage.detail
@@ -1868,6 +1908,7 @@ async function main() {
     recordedIncidentReplay: recordedIncidentStoryCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
+    nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
     visualContractCoverage: visualCoverage,
     renderedReplay,
     renderedReplayVisualCoverage,
