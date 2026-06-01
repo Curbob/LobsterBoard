@@ -37,11 +37,11 @@
 
 - [x] `npm run check -- --runInBand`
 - [x] Local health API smoke
-- [ ] Local browser QA at phone width
-- [ ] Desktop browser QA
+- [x] Local browser QA at phone width
+- [x] Desktop browser QA
 - [x] Tailscale auth redirect smoke
 
 ## Commit Gate
 
-- [ ] Commit code, tests, and any doc update together.
-- [ ] Final note reports proof and whether any slot used cached data.
+- [x] Commit code, tests, and any doc update together.
+- [x] Final note reports proof and whether any slot used cached data.

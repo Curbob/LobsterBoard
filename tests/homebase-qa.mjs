@@ -1870,6 +1870,54 @@ function homebridgeGuardSpecCoverage(fixtureContracts) {
   };
 }
 
+function dailyDecisionStripSpecCoverage(fixtureContracts, local) {
+  const specDir = join(process.cwd(), 'specs', '002-daily-decision-strip');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const apiText = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'api.cjs'), 'utf8');
+  const scriptText = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
+  const qaText = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+  const names = new Set((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => contract.name));
+  const byName = new Map((Array.isArray(fixtureContracts) ? fixtureContracts : []).map(contract => [contract.name, contract]));
+  const uncheckedItems = (text.match(/- \[ \]/g) || []).length;
+  const evidenceOnlyOk = EVIDENCE_ONLY_REPLAY_FIXTURES.every(name => byName.get(name)?.nowText === 'Nothing needs Dan.');
+  const warningNowOk = WARNING_REPLAY_FIXTURES.every(name => {
+    const item = byName.get(name);
+    return item && item.nowText && item.nowText !== 'Nothing needs Dan.';
+  });
+  const rendered = local?.screenshots?.outputs || [];
+  const phone = rendered.find(output => output.name === 'phone');
+  const desktop = rendered.find(output => output.name === 'desktop');
+  const required = [
+    ['spec-complete', uncheckedItems === 0],
+    ['api-field', /dailyDecision/.test(apiText) && /deriveDailyDecision/.test(apiText)],
+    ['three-slots', /slots:\s*\[now,\s*watch,\s*later\]/.test(apiText) && /now,watch,later/.test(qaText)],
+    ['real-sources', /source: slot\.source|null/.test(apiText) && /fixture\.expected\.dailySlots/.test(qaText)],
+    ['now-current', /activeDecisionSignal\(services, intelligence, systemVitals\)/.test(apiText) && /Now` must be based on current health response data/i.test(text)],
+    ['cached-not-now', /Cached data is allowed only for `Watch` or `Later`/.test(text) && !/source":\s*"cached"/.test(JSON.stringify([...byName.values()].map(item => item.dailySlots?.[0])) )],
+    ['evidence-only-quiet', evidenceOnlyOk],
+    ['warning-now', warningNowOk],
+    ['resolved-filter', names.has('post-reboot-recovered') && byName.get('post-reboot-recovered')?.nowText === 'Nothing needs Dan.'],
+    ['no-eufy', /No Eufy\/door-lock copy/.test(text) && /trusted daily surface includes ignored Eufy or door-lock evidence/.test(qaText)],
+    ['no-raw-healthy', /Healthy-state test asserts `Now` does not contain raw ports/.test(text) && /FIRST_SCREEN_COPY_BLACKLIST/.test(qaText)],
+    ['no-fake-trends', /No slot invents a trend/.test(text) && /sparkline|fake trend/i.test(qaText)],
+    ['rendered-before-evidence', /positions\.dailyDecision < value\.positions\.review/.test(qaText)],
+    ['phone-qa', Boolean(phone && phone.scrollWidth === phone.width && phone.visualContract?.topStoryVisible)],
+    ['desktop-qa', Boolean(desktop && desktop.scrollWidth === desktop.width && desktop.visualContract?.topStoryVisible)],
+    ['auth-smoke', /remote-looking Host 401\/401\/302|remote page redirects/i.test(qaText + text)],
+    ['renderer', /data-decision-slot/.test(scriptText) && /renderDailyDecision/.test(scriptText)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
 function nightlyTruthSuiteSpecCoverage() {
   const specDir = join(process.cwd(), 'specs', '005-homebase-nightly-truth-suite');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
@@ -2158,6 +2206,7 @@ async function main() {
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
   const homebridgeGuardCoverage = homebridgeGuardSpecCoverage(fixtureContracts);
+  const dailyDecisionStripCoverage = dailyDecisionStripSpecCoverage(fixtureContracts, local);
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
   const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
   const copyCoverage = copyQualityCoverage(fixtureContracts);
@@ -2224,6 +2273,16 @@ async function main() {
     name: 'homebridge-guard-spec',
     status: homebridgeGuardCoverage.status,
     detail: 'Homebridge guard spec is backed by live probes, accessory cache evidence, log parser fixtures, Eufy exclusion, auth checks, and replay stories.'
+  });
+  gates.push({
+    name: 'daily-decision-strip-spec',
+    status: dailyDecisionStripCoverage.status,
+    detail: dailyDecisionStripCoverage.detail
+  });
+  checks.push({
+    name: 'daily-decision-strip-spec',
+    status: dailyDecisionStripCoverage.status,
+    detail: 'Daily Decision Strip spec is backed by API slots, replay ranking, first-screen rendering, mobile/desktop screenshots, auth checks, and no-fake-copy rules.'
   });
   gates.push({
     name: 'nightly-truth-suite-spec',
@@ -2311,6 +2370,7 @@ async function main() {
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
     homebridgeGuardSpec: homebridgeGuardCoverage,
+    dailyDecisionStripSpec: dailyDecisionStripCoverage,
     nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
     scenarioReplayPackSpec: scenarioReplayPackCoverage,
     visualContractCoverage: visualCoverage,
