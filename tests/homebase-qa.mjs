@@ -797,6 +797,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         .filter(Boolean)
         .join("\\n");
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
+      const activeZone = document.querySelector("#house-zone-grid .house-zone-card.active-zone .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
       const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
       const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs/g, '')?.trim() || "";
@@ -813,6 +814,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         summaryTitle: textOf("#summary-title"),
         summaryCopy: textOf("#summary-copy"),
         firstZone,
+        activeZone,
         firstDecision,
         nowDecision,
         firstReview,
@@ -863,6 +865,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   }
   assert(value.zoneCount === 4, `rendered house-state zones missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.firstZone, `rendered first house zone missing at ${width}px`);
+  assert(value.activeZone === value.firstZone, `active zone marker drifted from first ranked zone at ${width}px: ${JSON.stringify(value)}`);
   assert(value.historyCount >= 1, `rendered history summaries missing at ${width}px: ${JSON.stringify(value)}`);
   assert(Array.isArray(value.recentChangeRows) && value.recentChangeRows.length > 0, `rendered recent changes missing at ${width}px: ${JSON.stringify(value)}`);
   assert(value.recentChangeRows.length <= 3, `rendered recent changes should stay grouped at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
@@ -895,6 +898,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
     visualContract: {
       topStoryVisible: value.rects?.overview?.visible === true,
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
+      affectedZoneMarked: value.activeZone === value.firstZone,
       activeIncidentMetadata: incidentMetadataOk,
       evidenceBelowDecision: value.positions.evidence === null || value.positions.ask < value.positions.evidence,
       recentChangesGrouped: Array.isArray(value.recentChangeRows)
@@ -2249,6 +2253,7 @@ function visualContractCoverage(local, healthyFreshness) {
     ok: Boolean(item.visualContract
       && item.visualContract.topStoryVisible
       && item.visualContract.reviewVisibleWhenWarning
+      && item.visualContract.affectedZoneMarked
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
       && item.visualContract.recentChangesGrouped
@@ -2273,6 +2278,7 @@ function renderedReplayCoverage(renderedReplay) {
     && outputs.every(item => item.visualContract
       && item.visualContract.topStoryVisible
       && item.visualContract.reviewVisibleWhenWarning
+      && item.visualContract.affectedZoneMarked
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
       && item.visualContract.firstViewportFreeOfRawTelemetry);

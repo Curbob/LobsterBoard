@@ -641,6 +641,10 @@ h3 {
 .house-zone-card.state-warn::before { background: var(--amber); }
 .house-zone-card.state-bad::before { background: var(--red); }
 
+.house-zone-card.active-zone {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
 .house-zone-card.state-ok {
   border-color: rgba(88, 214, 141, 0.20);
   background:

@@ -226,9 +226,12 @@ function renderHouseState(houseState) {
         ? "Issue"
         : "Review";
   }
-  houseState.zones.forEach(zone => {
+  houseState.zones.forEach((zone, index) => {
     const card = document.createElement("article");
-    card.className = `house-zone-card ${stateClass(zone.state)}`;
+    card.className = `house-zone-card ${stateClass(zone.state)}${index === 0 ? " active-zone" : ""}`;
+    if (index === 0) {
+      card.setAttribute("aria-label", `First check: ${zone.title || "House zone"}`);
+    }
     const top = div("house-zone-top");
     const copy = div();
     copy.append(div("tiny-label", zone.title || "Zone"), div("house-zone-value", zone.value || "--"));

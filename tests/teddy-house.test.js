@@ -750,6 +750,7 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('markIncidentKnown');
     expect(script).toContain('renderIncidentMeta');
     expect(script).toContain('houseState.zones.forEach');
+    expect(script).toContain('active-zone');
     expect(script).toContain('/api/pages/teddy-house/incidents/');
     expect(script).toContain('action: "prepare-fix"');
     expect(script).toContain('Do not run commands or change settings');

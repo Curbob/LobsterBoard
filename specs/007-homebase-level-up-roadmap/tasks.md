@@ -33,7 +33,7 @@
 ## Phase 4: Evidence Viz
 
 - [x] Add an active incident ribbon with time, source, confidence, and next action.
-- [ ] Move affected zone and vitals above generic evidence in warning states.
+- [x] Move affected zone and vitals above generic evidence in warning states.
 - [ ] Collapse healthy evidence behind a quieter detail surface.
 - [ ] Group repeated timeline entries into one meaningful row.
 - [ ] Add reboot-scoped mini trends only from persisted samples.
