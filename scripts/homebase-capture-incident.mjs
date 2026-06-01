@@ -114,7 +114,8 @@ async function main() {
   const report = existsSync(QA_REPORT) ? await readJson(QA_REPORT) : {};
   const defaultTitle = report?.truthVerdict?.label || report?.local?.headline || 'Homebase incident';
   const title = argValue('title', defaultTitle);
-  const id = slug(argValue('id', `${now.slice(0, 10)}-${title}`));
+  const redactedTitle = redactText(title);
+  const id = slug(redactText(argValue('id', `${now.slice(0, 10)}-${redactedTitle}`)));
   const fixture = argValue('fixture', 'needs-fixture');
   const checkedAt = report?.generatedAt || now;
 
@@ -136,7 +137,7 @@ async function main() {
 
   const bundle = {
     id,
-    title: redactText(title),
+    title: redactedTitle,
     recordedAt: checkedAt,
     fixture,
     status: 'draft',
