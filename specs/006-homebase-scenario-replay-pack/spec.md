@@ -16,6 +16,7 @@ The replay pack must prove:
 - stale Android proof-node evidence stays evidence-only
 - clean post-reboot recovery stays calm when services and system logs are healthy
 - post-outage recovery with Homebridge still down leads with automations, not reboot noise
+- post-outage recovery with local DNS still down leads with internet, not reboot noise
 - Homebridge offline becomes a direct automation action, not a generic Mac warning
 - AdGuard DNS down becomes a direct DNS action while WAN stays scoped separately
 - Tailscale online with Funnel missing becomes public-access review, not tailnet outage
@@ -34,6 +35,7 @@ The canonical curated fixture pack is:
 - `stale-android-proof`
 - `post-reboot-recovered`
 - `post-outage-homebridge-down`
+- `post-outage-dns-down`
 - `homebridge-down`
 - `adguard-dns-down`
 - `tailscale-funnel-missing`
@@ -75,6 +77,7 @@ Incident bundles must include:
 - The stale-Android-proof scenario fails if Android proof-node evidence changes the headline, first action, or house-state zones.
 - The post-reboot-recovered scenario fails if low uptime alone creates scary restart, reboot, panic, or watchdog copy.
 - The post-outage-Homebridge-down scenario fails if low uptime or recovery context outranks the active Homebridge outage.
+- The post-outage-DNS-down scenario fails if low uptime or recovery context outranks the active local DNS outage.
 - The Homebridge-down scenario fails if the Mac mini, internet, or public access outranks the automation outage.
 - The AdGuard-DNS-down scenario fails if DNS failure is hidden under generic WAN or service noise.
 - The Tailscale-Funnel-missing scenario fails if a missing Homebase public route is treated as healthy Tailscale.
