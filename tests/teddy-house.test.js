@@ -2035,6 +2035,17 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(store.get('vitals-history.json').entries.some(entry => Number(entry.cpu) === 99)).toBe(true);
   });
 
+  it('freezes screenshot health data across responsive QA viewports', () => {
+    const qa = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+
+    expect(qa).toContain('const frozenHealth = await healthRes.json()');
+    expect(qa).toContain('window.__HOMEBASE_FROZEN_HEALTH');
+    expect(qa).toContain('assertFrozenScreenshotConsistency(outputs)');
+    expect(qa).toContain("for (const key of ['summaryTitle', 'summaryCopy', 'firstDecision', 'nowDecision', 'firstReview'])");
+    expect(qa).toContain('frozenHealth: true');
+    expect(qa).toContain('healthCheckedAt: frozenHealth.checkedAt');
+  });
+
   it('keeps routine app update availability out of the health warning path', () => {
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 

@@ -256,13 +256,16 @@ function assertSourceContracts(data) {
 async function captureScreenshots(baseUrl) {
   if (process.env.HOMEBASE_SKIP_SCREENSHOTS === '1') return { status: 'skipped' };
   await mkdir(SCREENSHOT_DIR, { recursive: true });
+  const healthRes = await fetchWithTimeout(`${baseUrl}/api/pages/teddy-house/health`, {}, LOCAL_TIMEOUT_MS);
+  assert(healthRes.ok, `frozen screenshot health payload returned ${healthRes.status}`);
+  const frozenHealth = await healthRes.json();
   const userDataDir = join(tmpdir(), `homebase-chrome-${Date.now()}`);
   const chrome = await startChrome(userDataDir);
   const outputs = [];
   try {
     for (const [name, width, height] of SCREENSHOT_VIEWPORTS) {
       const file = join(SCREENSHOT_DIR, `homebase-latest-${name}.png`);
-      const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height);
+      const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height, { frozenHealth });
       const fileStat = await stat(file);
       assert(fileStat.size > 5000, `${name} screenshot is too small to be useful`);
       outputs.push({
@@ -278,10 +281,13 @@ async function captureScreenshots(baseUrl) {
         firstDecision: layout.firstDecision,
         nowDecision: layout.nowDecision,
         firstReview: layout.firstReview,
+        frozenHealth: true,
+        healthCheckedAt: frozenHealth.checkedAt,
         visualContract: layout.visualContract,
         firstScreenTextLength: layout.firstScreenTextLength
       });
     }
+    assertFrozenScreenshotConsistency(outputs);
     return { status: 'captured', outputs };
   } catch (err) {
     if (process.env.HOMEBASE_REQUIRE_SCREENSHOTS === '1') throw err;
@@ -289,6 +295,16 @@ async function captureScreenshots(baseUrl) {
   } finally {
     await stopChrome(chrome);
     await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+}
+
+function assertFrozenScreenshotConsistency(outputs) {
+  const [first, ...rest] = outputs;
+  assert(first, 'frozen screenshot pass produced no outputs');
+  for (const output of rest) {
+    for (const key of ['summaryTitle', 'summaryCopy', 'firstDecision', 'nowDecision', 'firstReview']) {
+      assert(output[key] === first[key], `frozen screenshot ${output.name} ${key} drifted from ${first.name}: ${output[key]} !== ${first[key]}`);
+    }
   }
 }
 
@@ -664,11 +680,25 @@ async function waitForLoginReady(chrome, sessionId) {
   throw new Error('login form did not render in Chrome smoke');
 }
 
-async function captureViewport(chrome, url, file, width, height) {
+async function captureViewport(chrome, url, file, width, height, options = {}) {
   const { targetId } = await chromeCommand(chrome, 'Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await chromeCommand(chrome, 'Target.attachToTarget', { targetId, flatten: true });
   await chromeCommand(chrome, 'Page.enable', {}, sessionId);
   await chromeCommand(chrome, 'Runtime.enable', {}, sessionId);
+  if (options.frozenHealth) {
+    await chromeCommand(chrome, 'Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        window.__HOMEBASE_FROZEN_HEALTH = ${JSON.stringify(options.frozenHealth)};
+        const __homebaseOriginalFetch = window.fetch.bind(window);
+        window.fetch = async function(url, init) {
+          if (String(url).includes('/api/pages/teddy-house/health')) {
+            return { ok: true, status: 200, json: async () => window.__HOMEBASE_FROZEN_HEALTH };
+          }
+          return __homebaseOriginalFetch(url, init);
+        };
+      `
+    }, sessionId);
+  }
   await chromeCommand(chrome, 'Emulation.setDeviceMetricsOverride', {
     width,
     height,
