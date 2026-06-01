@@ -43,7 +43,7 @@
 
 - [ ] Tighten top-screen copy around Dan's house language.
 - [x] Add text-length budgets for phone first viewport.
-- [ ] Make source labels visible only when they affect trust.
+- [x] Make source labels visible only when they affect trust.
 - [ ] Update README and architecture docs with the incident-led model.
 - [ ] Run `npm run check:homebase`.
 - [ ] Smoke the public Tailscale URL and verify auth still gates remote access.

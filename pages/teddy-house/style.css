@@ -905,6 +905,12 @@ h3 {
   background: rgba(241, 182, 76, 0.10);
 }
 
+.confidence-needs-login {
+  border-color: rgba(120, 168, 255, 0.30);
+  color: #bfd4ff;
+  background: rgba(120, 168, 255, 0.10);
+}
+
 .signal-card p {
   margin-top: 10px;
   color: var(--muted);

@@ -653,7 +653,7 @@ describe('Teddy Homebase page', () => {
     expect(button.dataset.known).toBe('true');
   });
 
-  it('hides ignored Eufy locks but still shows confidence for visible cached signals', async () => {
+  it('shows trust labels only for visible signals where source affects trust', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = new JSDOM(`<!doctype html>
       <button id="refresh-button"></button>
@@ -709,6 +709,20 @@ describe('Teddy Homebase page', () => {
                 check: 'macOS',
                 detail: 'Cached update result.',
                 confidence: 'cached'
+              },
+              softwareUpdates: {
+                state: 'ok',
+                metric: 'current',
+                label: 'version check',
+                detail: 'Live update result.',
+                confidence: 'live'
+              },
+              adguard: {
+                state: 'info',
+                value: 'locked',
+                label: 'locked',
+                detail: 'Blocked-query stats need the local AdGuard login.',
+                confidence: 'needs-login'
               }
             },
             timeline: []
@@ -724,6 +738,8 @@ describe('Teddy Homebase page', () => {
     const confidence = [...dom.window.document.querySelectorAll('#signal-grid .confidence-pill')].map(el => el.textContent);
     const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
     expect(confidence).toContain('Cached');
+    expect(confidence).toContain('Needs login');
+    expect(confidence).not.toContain('Live');
     expect(signals).not.toContain('Door locks');
   });
 
@@ -2600,8 +2616,10 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(html).toContain('Evidence signals');
     expect(html).toContain('Mac vitals');
     expect(html).toContain('Core service health');
+    expect(html).toContain('Local memory');
     expect(html).toContain('Readiness');
     expect(html).toContain('Private');
+    expect(html).not.toContain('Source backed</span>');
     expect(html).not.toContain('Not checked yet');
     expect(html).not.toContain('Checking status.');
     expect(html).not.toContain('Network, automation, and Mac mini signals.');
@@ -2622,6 +2640,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(script).toContain('Homebridge version');
     expect(script).toContain('App versions');
     expect(script).toContain('System logs');
+    expect(script).toContain('function shouldShowConfidence');
+    expect(script).toContain('if (value === "needs-login") return "Needs login";');
     expect(script).not.toMatch(/needs eyes|worth eyes/i);
     expect(script).not.toMatch(/Everything important|Nothing to do|Live reads|Real data/i);
     expect(script).not.toContain('No action needed.');

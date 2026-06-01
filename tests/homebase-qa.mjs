@@ -204,6 +204,8 @@ function assertNoFakeHomeState(data) {
 function assertCachedUpdateLabels(data) {
   const script = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
   assert(script.includes('if (value === "cached") return "Cached";'), 'cached signal renderer must label cached data as Cached');
+  assert(script.includes('function shouldShowConfidence'), 'signal renderer must gate visible trust labels');
+  assert(script.includes('if (value === "needs-login") return "Needs login";'), 'signal renderer must label login-gated data as Needs login');
   const signals = [
     ['softwareUpdates', data.intelligence?.softwareUpdates],
     ['macUpdates', data.intelligence?.macUpdates]

@@ -365,13 +365,18 @@ function confidenceLabel(signal) {
   if (value === "manual") return "Manual verified";
   if (value === "cached") return "Cached";
   if (value === "degraded") return "Degraded source";
+  if (value === "needs-login") return "Needs login";
   if (value === "live") return "Live";
   return "";
 }
 
+function shouldShowConfidence(signal) {
+  return ["manual", "cached", "degraded", "needs-login"].includes(signal && signal.confidence);
+}
+
 function renderConfidence(signal) {
   const label = confidenceLabel(signal);
-  if (!label || label === "Live") return null;
+  if (!label || !shouldShowConfidence(signal)) return null;
   const pill = span(`confidence-pill confidence-${signal.confidence}`, label);
   if (signal.confidenceDetail) pill.title = signal.confidenceDetail;
   return pill;
