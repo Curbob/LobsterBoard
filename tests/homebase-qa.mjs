@@ -1209,6 +1209,30 @@ async function smokeLocalRoutes() {
       };
     }
 
+    const captureRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `${data.needsDan[0] || 'Homebase status'} dan@example.com 192.168.7.10`,
+        clicked: { type: 'review', label: data.needsDan[0] || 'Homebase status' },
+        checkedAt: data.checkedAt,
+        context: data
+      })
+    });
+    assert(captureRes.status === 200, `Capture incident returned ${captureRes.status}`);
+    const captureData = await captureRes.json();
+    assert(captureData.status === 'ok', `Capture incident did not complete: ${JSON.stringify(captureData)}`);
+    assert(captureData.source === 'data/teddy-house/qa/incident-drafts', 'Capture incident did not write to the draft directory');
+    assert(captureData.redacted === true, 'Capture incident did not report redacted output');
+    assert(captureData.snapshots > 0, 'Capture incident did not include source snapshots');
+    assert(captureData.outputFile && captureData.outputFile.includes('/qa/incident-drafts/'), 'Capture incident output path is not a draft path');
+    const captureBundle = JSON.parse(readFileSync(captureData.outputFile, 'utf8'));
+    const captureText = JSON.stringify(captureBundle);
+    assert(captureBundle.status === 'draft', 'Capture incident bundle is not marked draft');
+    assert(captureBundle.sourceSnapshots.every(item => item.redacted === true), 'Capture incident source snapshots are not all redacted');
+    assert(captureText.includes('Homebase'), 'Capture incident bundle is missing Homebase story context');
+    assert(!/dan@example\.com|192\.168\.7\.10|8443,\s*10000|openclaw-mac-mini|tail02a3b6\.ts\.net/i.test(captureText), 'Capture incident leaked sensitive route, host, email, or IP text');
+
     const logs = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/logs`);
     assert(logs.status === 200, `local logs returned ${logs.status}`);
     const logData = await logs.json();
@@ -1243,7 +1267,15 @@ async function smokeLocalRoutes() {
         prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
           && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
           && /exact approval needed/.test(String(prepareData.promptPreview || '')),
-        markKnown
+        markKnown,
+        captureIncident: {
+          status: captureData.status,
+          source: captureData.source,
+          draft: captureBundle.status === 'draft',
+          redacted: captureData.redacted === true,
+          snapshots: captureData.snapshots,
+          logExcerpts: captureData.logExcerpts || 0
+        }
       },
       storyAgreement,
       loopbackProbe: {
@@ -1668,6 +1700,16 @@ function acceptanceGates(fixtureContracts, local, publicAuth) {
         : 'Prepare fix dry-run did not prove action safety.'
     },
     {
+      name: 'incident-capture',
+      status: local && local.ask && local.ask.captureIncident?.status === 'ok'
+        && local.ask.captureIncident.draft
+        && local.ask.captureIncident.redacted
+        && local.ask.captureIncident.snapshots > 0 ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.captureIncident
+        ? `Capture writes redacted ${local.ask.captureIncident.source}; ${local.ask.captureIncident.snapshots} snapshots, ${local.ask.captureIncident.logExcerpts} log excerpts.`
+        : 'Capture incident action was not proved.'
+    },
+    {
       name: 'ask-fallback-visibility',
       status: local && local.ask && local.ask.fallbackLabeled ? 'ok' : 'fail',
       detail: local && local.ask && local.ask.fallbackLabeled
@@ -1762,6 +1804,7 @@ function truthVerdict(gates, checks, local, publicAuth) {
     'review-provenance',
     'ask-teddy',
     'ask-action-safety',
+    'incident-capture',
     'ask-fallback-visibility',
     'story-agreement',
     'public-auth',
@@ -2229,7 +2272,7 @@ function levelUpRoadmapSpecCoverage() {
     ['architecture-copy-budget', /Phone first-viewport copy is budgeted in QA/i.test(architecture)],
     ['incident-led', /Incident Ledger/.test(text) && /new, recurring, resolved, ignored, or trusted/i.test(text)],
     ['story-engine', /House Story Engine/.test(text) && /one primary story/i.test(text)],
-    ['action-safety', /Prepare fix/.test(text) && /Mark known/.test(text) && /explicit Dan approval|without explicit approval|persisted, reversible, and source-backed/i.test(text)],
+    ['action-safety', /Prepare fix/.test(text) && /Mark known/.test(text) && /Capture incident/.test(text) && /explicit Dan approval|without explicit approval|persisted, reversible, and source-backed|redacted draft bundle/i.test(text)],
     ['evidence-viz', /Better Evidence Viz/.test(text) && /No fake trends|No chart without stored data/i.test(text)],
     ['daily-owner-mode', /Personal Daily Mode/.test(text) && /Dan's house is steady/i.test(text)],
     ['trust-checklist', /Every incident has source, freshness, confidence, and lifecycle state/i.test(text)],
@@ -2410,6 +2453,16 @@ function trustChecks(local, publicAuth) {
       detail: local && local.ask && local.ask.prepareFixDryRun
         ? 'Ask Teddy prepare-fix is dry-run only; Mark known persists and reverses only the incident ledger.'
         : 'Ask Teddy prepare-fix and Mark known safety were not proved.'
+    },
+    {
+      name: 'incident-capture',
+      status: local && local.ask && local.ask.captureIncident?.status === 'ok'
+        && local.ask.captureIncident.draft
+        && local.ask.captureIncident.redacted
+        && local.ask.captureIncident.snapshots > 0 ? 'ok' : 'fail',
+      detail: local && local.ask && local.ask.captureIncident
+        ? 'Capture incident writes a redacted draft bundle outside permanent replay fixtures.'
+        : 'Capture incident action was not proved.'
     },
     {
       name: 'login-persistence',
