@@ -45,6 +45,7 @@ Before changing Homebase behavior, read:
 - `specs/006-homebase-scenario-replay-pack/spec.md`
 - `specs/007-homebase-level-up-roadmap/spec.md`
 - `specs/008-homebase-test-ladder/spec.md`
+- `specs/009-homebase-visual-baseline/spec.md`
 
 Homebase proof command:
 
@@ -52,12 +53,18 @@ Homebase proof command:
 npm run check:homebase
 ```
 
-That runs lint/tests, 24 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists and phone copy budget checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, scenario replay pack, and level-up roadmap.
+That runs lint/tests, 24 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists and phone copy budget checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, structural visual baseline checks, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, scenario replay pack, level-up roadmap, test ladder, and visual baseline.
 
 To see which tests are proven, partial, or still missing:
 
 ```bash
 npm run homebase:test-ladder
+```
+
+To check the structural visual baseline directly:
+
+```bash
+npm run homebase:visual-baseline
 ```
 
 ![LobsterBoard](lobsterboard-logo-final.png)

@@ -2360,10 +2360,41 @@ function testLadderSpecCoverage() {
     ['incident-ranking', /Incident ranking golden pack/.test(script) && /zone-ranking-coverage/.test(script)],
     ['first-screen-copy', /First-screen slop blacklist/.test(script) && /copy-quality-coverage/.test(script) && /visual-contracts/.test(script)],
     ['source-trust', /Source freshness and trust/.test(script) && /source-contracts/.test(script)],
-    ['visual-baselines', /Visual baseline regression/.test(script) && /image-diff baselines/.test(script)],
+    ['visual-baselines', /Visual baseline regression/.test(script) && /structural baseline proof/.test(script)],
     ['timeline-action-auth-log', /Timeline intelligence/.test(script) && /Action safety matrix/.test(script) && /Public auth route matrix/.test(script) && /Log parser fixture pack/.test(script)],
     ['dan-trust-gauntlet', /Dan trust gauntlet/.test(script) && /Twenty-plus messy house stories/.test(script)],
     ['read-only-trust', /The command is read-only/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
+function visualBaselineSpecCoverage() {
+  const specDir = join(process.cwd(), 'specs', '009-homebase-visual-baseline');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+  const packageConfig = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+  const script = readFileSync(join(process.cwd(), 'scripts', 'homebase-visual-baseline.mjs'), 'utf8');
+  const baseline = JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'visual-baseline.json'), 'utf8'));
+  const required = [
+    ['spec-directory', /Homebase Visual Baseline Spec/.test(text)],
+    ['readme-linked', /specs\/009-homebase-visual-baseline\/spec\.md/.test(readme)],
+    ['script-registered', packageConfig.scripts?.['homebase:visual-baseline'] === 'node scripts/homebase-visual-baseline.mjs'],
+    ['baseline-fixture', baseline.version === 1 && Object.keys(baseline.viewports || {}).length === SCREENSHOT_VIEWPORTS.length],
+    ['phone-ipad-desktop', ['phone', 'ipad', 'desktop'].every(name => baseline.viewports?.[name])],
+    ['copy-budget', /maxFirstScreenTextLength/.test(script) && /first-screen copy budget/i.test(text)],
+    ['overflow', /scrollOverrun/.test(script) && /horizontal overflow/i.test(text)],
+    ['visual-contracts', /requiredVisualContracts/.test(script) && /visual contract/i.test(text + script)],
+    ['structural-not-pixel', /not pixel-perfect|structural/i.test(text)],
+    ['read-only', /read-only/i.test(text)]
   ].map(([name, ok]) => ({
     name,
     ok: Boolean(ok)
@@ -2441,6 +2472,61 @@ function visualContractCoverage(local, healthyFreshness) {
     detail: `${items.map(item => `${item.name}:${item.ok ? 'ok' : 'fail'}`).join(', ')}; healthy:${healthyQuiet ? 'ok' : 'fail'}`,
     items,
     healthyQuiet
+  };
+}
+
+function visualBaselineCoverage(local) {
+  const baselinePath = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'visual-baseline.json');
+  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
+  const screenshots = local && local.screenshots && Array.isArray(local.screenshots.outputs)
+    ? local.screenshots.outputs
+    : [];
+  const failures = [];
+  const items = [];
+  for (const [name, expected] of Object.entries(baseline.viewports || {})) {
+    const shot = screenshots.find(item => item.name === name);
+    if (!shot) {
+      failures.push(`${name}:missing`);
+      continue;
+    }
+    const missingFields = (baseline.requiredFields || []).filter(field => {
+      if (field === 'frozenHealth') return shot.frozenHealth !== true;
+      return shot[field] === null || shot[field] === undefined || shot[field] === '';
+    });
+    const missingContracts = (baseline.requiredVisualContracts || []).filter(key => shot.visualContract?.[key] !== true);
+    const scrollOverrun = Number(shot.scrollWidth) - Number(shot.width);
+    const textLength = Number(shot.firstScreenTextLength || 0);
+    const ok = shot.width === expected.width
+      && shot.height === expected.height
+      && scrollOverrun <= Number(expected.maxScrollOverrun || 0)
+      && textLength <= Number(expected.maxFirstScreenTextLength || 0)
+      && missingFields.length === 0
+      && missingContracts.length === 0;
+    if (!ok) {
+      failures.push(`${name}:${[
+        shot.width === expected.width && shot.height === expected.height ? null : `viewport ${shot.width}x${shot.height}`,
+        scrollOverrun <= Number(expected.maxScrollOverrun || 0) ? null : `overflow ${shot.scrollWidth}/${shot.width}`,
+        textLength <= Number(expected.maxFirstScreenTextLength || 0) ? null : `copy ${textLength}/${expected.maxFirstScreenTextLength}`,
+        missingFields.length ? `fields ${missingFields.join('+')}` : null,
+        missingContracts.length ? `contracts ${missingContracts.join('+')}` : null
+      ].filter(Boolean).join('|')}`);
+    }
+    items.push({
+      name,
+      ok,
+      width: shot.width,
+      height: shot.height,
+      scrollWidth: shot.scrollWidth,
+      firstScreenTextLength: textLength,
+      maxFirstScreenTextLength: expected.maxFirstScreenTextLength
+    });
+  }
+  return {
+    status: failures.length === 0 && items.length === Object.keys(baseline.viewports || {}).length ? 'ok' : 'fail',
+    detail: failures.length
+      ? failures.join(', ')
+      : items.map(item => `${item.name}:${item.firstScreenTextLength}/${item.maxFirstScreenTextLength}`).join(', '),
+    items
   };
 }
 
@@ -2619,9 +2705,11 @@ async function main() {
   const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
   const levelUpRoadmapCoverage = levelUpRoadmapSpecCoverage();
   const testLadderCoverage = testLadderSpecCoverage();
+  const visualBaselineSpec = visualBaselineSpecCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
+  const visualBaseline = visualBaselineCoverage(local);
   const renderedReplayVisualCoverage = renderedReplayCoverage(renderedReplay);
   const checks = trustChecks(local, publicAuth);
   gates.push({
@@ -2755,6 +2843,26 @@ async function main() {
     detail: 'Test ladder keeps needed, wanted, partial, and dream proof visible from the latest QA report.'
   });
   gates.push({
+    name: 'visual-baseline',
+    status: visualBaseline.status,
+    detail: visualBaseline.detail
+  });
+  checks.push({
+    name: 'visual-baseline',
+    status: visualBaseline.status,
+    detail: 'Phone, iPad, and desktop screenshots match the structural visual baseline.'
+  });
+  gates.push({
+    name: 'visual-baseline-spec',
+    status: visualBaselineSpec.status,
+    detail: visualBaselineSpec.detail
+  });
+  checks.push({
+    name: 'visual-baseline-spec',
+    status: visualBaselineSpec.status,
+    detail: 'Visual baseline spec locks structural screenshot proof without pretending to be pixel-perfect.'
+  });
+  gates.push({
     name: 'visual-contracts',
     status: visualCoverage.status,
     detail: visualCoverage.detail
@@ -2825,7 +2933,9 @@ async function main() {
     dailyDecisionStripSpec: dailyDecisionStripCoverage,
     nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
     scenarioReplayPackSpec: scenarioReplayPackCoverage,
+    visualBaselineSpec,
     visualContractCoverage: visualCoverage,
+    visualBaselineCoverage: visualBaseline,
     renderedReplay,
     renderedReplayVisualCoverage,
     copyQualityCoverage: copyCoverage,

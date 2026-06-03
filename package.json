@@ -71,6 +71,7 @@
     "check:homebase": "npm run check -- --runInBand && node tests/homebase-qa.mjs",
     "homebase:verdict": "node scripts/homebase-verdict.mjs",
     "homebase:test-ladder": "node scripts/homebase-test-ladder.mjs",
+    "homebase:visual-baseline": "node scripts/homebase-visual-baseline.mjs",
     "homebase:capture-incident": "node scripts/homebase-capture-incident.mjs",
     "homebase:nightly": "npm run check:homebase && npm run homebase:archive && npm run homebase:verdict",
     "homebase:archive": "node scripts/homebase-archive-nightly.mjs",

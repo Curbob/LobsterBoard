@@ -69,9 +69,11 @@ const need = [
 const want = [
   {
     name: 'Visual baseline regression',
-    status: screenshots.length >= 3 ? 'partial' : 'gap',
-    detail: screenshots.length >= 3
-      ? 'Phone, iPad, and desktop screenshots are captured; image-diff baselines would catch subtle ugliness.'
+    status: proof(report, 'visual-baseline') ? 'ok' : screenshots.length >= 3 ? 'partial' : 'gap',
+    detail: proof(report, 'visual-baseline')
+      ? 'Phone, iPad, and desktop screenshots passed the structural visual baseline.'
+      : screenshots.length >= 3
+      ? 'Phone, iPad, and desktop screenshots are captured; structural baseline proof is still missing.'
       : 'Responsive screenshots were not captured in the latest QA report.'
   },
   {
@@ -100,7 +102,7 @@ const dream = [
   {
     name: 'Dan trust gauntlet',
     status: proof(report, 'replay-contracts') ? 'partial' : 'gap',
-    detail: 'Twenty-plus messy house stories replay today; the dream is real-device replay plus visual baselines for every story.'
+    detail: 'Twenty-plus messy house stories replay today; the dream is real-device replay plus structural visual baselines for every story.'
   }
 ];
 

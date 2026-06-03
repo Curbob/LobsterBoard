@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "Structural Homebase visual baseline. This is intentionally not pixel-perfect; it protects the daily dashboard shape.",
+  "viewports": {
+    "phone": {
+      "width": 390,
+      "height": 844,
+      "maxFirstScreenTextLength": 700,
+      "maxScrollOverrun": 1
+    },
+    "ipad": {
+      "width": 820,
+      "height": 1180,
+      "maxFirstScreenTextLength": 1300,
+      "maxScrollOverrun": 1
+    },
+    "desktop": {
+      "width": 1440,
+      "height": 1000,
+      "maxFirstScreenTextLength": 1300,
+      "maxScrollOverrun": 1
+    }
+  },
+  "requiredVisualContracts": [
+    "topStoryVisible",
+    "storySpecific",
+    "actionVisible",
+    "phoneCopyBudgetOk",
+    "reviewVisibleWhenWarning",
+    "affectedZoneMarked",
+    "healthyEvidenceCollapsed",
+    "activeIncidentMetadata",
+    "quietEvidence",
+    "evidenceBelowDecision",
+    "recentChangesGrouped",
+    "firstViewportFreeOfRawTelemetry"
+  ],
+  "requiredFields": [
+    "summaryTitle",
+    "summaryCopy",
+    "firstZone",
+    "firstDecision",
+    "nowDecision",
+    "frozenHealth"
+  ]
+}

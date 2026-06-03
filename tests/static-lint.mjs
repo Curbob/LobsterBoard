@@ -13,6 +13,7 @@ const files = [
   'server/config.cjs',
   'server.cjs',
   'scripts/homebase-test-ladder.mjs',
+  'scripts/homebase-visual-baseline.mjs',
   'scripts/homebase-capture-incident.mjs'
 ];
 
@@ -44,6 +45,7 @@ const pagesConfig = JSON.parse(read('pages.json'));
 const focusPageConfig = JSON.parse(read('pages/focus-room/page.json'));
 const packageConfig = JSON.parse(read('package.json'));
 const testLadderScript = read('scripts/homebase-test-ladder.mjs');
+const visualBaselineScript = read('scripts/homebase-visual-baseline.mjs');
 const incidentCaptureScript = read('scripts/homebase-capture-incident.mjs');
 
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
@@ -105,11 +107,16 @@ expect(/['"]\.mp4['"]:\s*['"]video\/mp4['"]/.test(serverConfig), 'server must se
 expect(!/process\.env\.DASHBOARD_PASSWORD\s*=/.test(server), 'server must not assign dashboard passwords in code');
 expect(packageConfig.scripts['homebase:capture-incident'] === 'node scripts/homebase-capture-incident.mjs', 'missing incident capture npm script');
 expect(packageConfig.scripts['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs', 'missing Homebase test ladder npm script');
+expect(packageConfig.scripts['homebase:visual-baseline'] === 'node scripts/homebase-visual-baseline.mjs', 'missing Homebase visual baseline npm script');
 expect(testLadderScript.includes('Live Teddy bridge contract'), 'test ladder must keep live Teddy bridge proof visible');
 expect(testLadderScript.includes('Real-device saved login'), 'test ladder must keep real-device login proof visible');
 expect(testLadderScript.includes('Dan trust gauntlet'), 'test ladder must keep the long-form trust gauntlet visible');
 expect(testLadderScript.includes("askSource === 'teddy'"), 'test ladder must not mark live bridge proof complete from fallback/local answers');
 expect(testLadderScript.includes("askAgentMode === 'enabled'"), 'test ladder must distinguish expected default-local Ask from enabled bridge failure');
+expect(testLadderScript.includes('visual-baseline'), 'test ladder must read the visual baseline gate');
+expect(visualBaselineScript.includes('tests\', \'fixtures\', \'teddy-house\', \'visual-baseline.json'), 'visual baseline must read the committed structural baseline');
+expect(visualBaselineScript.includes('maxFirstScreenTextLength'), 'visual baseline must enforce first-screen copy budget');
+expect(visualBaselineScript.includes('requiredVisualContracts'), 'visual baseline must enforce visual contract booleans');
 expect(incidentCaptureScript.includes("join(DATA_DIR, 'qa', 'incident-drafts')"), 'incident capture must write drafts outside committed fixture directory');
 expect(incidentCaptureScript.includes("status: 'draft'"), 'incident capture output must be marked draft');
 expect(incidentCaptureScript.includes('function redactText'), 'incident capture must redact persisted evidence');
