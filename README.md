@@ -46,6 +46,7 @@ Before changing Homebase behavior, read:
 - `specs/007-homebase-level-up-roadmap/spec.md`
 - `specs/008-homebase-test-ladder/spec.md`
 - `specs/009-homebase-visual-baseline/spec.md`
+- `specs/010-homebase-mobile-proof/spec.md`
 
 Homebase proof command:
 
@@ -65,6 +66,12 @@ To check the structural visual baseline directly:
 
 ```bash
 npm run homebase:visual-baseline
+```
+
+To validate real-device Android/iPhone/iPad proof when captured:
+
+```bash
+npm run homebase:mobile-proof
 ```
 
 ![LobsterBoard](lobsterboard-logo-final.png)

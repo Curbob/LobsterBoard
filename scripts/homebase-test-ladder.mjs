@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { mobileProofStatus } from './homebase-mobile-proof.mjs';
 
 const reportPath = join(process.cwd(), 'artifacts', 'qa', 'homebase-latest.json');
 
@@ -31,6 +32,7 @@ const report = readReport();
 const askSource = report?.local?.ask?.source || 'unknown';
 const askAgentMode = report?.local?.ask?.agentMode || 'unknown';
 const screenshots = report?.local?.screenshots?.outputs || [];
+const mobileProof = mobileProofStatus();
 
 const need = [
   {
@@ -44,10 +46,12 @@ const need = [
   },
   {
     name: 'Real-device saved login',
-    status: proof(report, 'login-persistence') ? 'partial' : 'gap',
-    detail: proof(report, 'login-persistence')
-      ? 'Isolated browser login persistence is automated; Android/iPhone/iPad relaunch proof remains manual after auth changes.'
-      : 'No cached-login proof found in the latest QA report.'
+    status: mobileProof.status === 'ok' ? 'ok' : proof(report, 'login-persistence') ? 'partial' : 'gap',
+    detail: mobileProof.status === 'ok'
+      ? `Real-device proof passed: ${mobileProof.detail}`
+      : proof(report, 'login-persistence')
+        ? `Isolated browser login persistence is automated; real-device proof is still partial. ${mobileProof.detail}`
+        : `No cached-login proof found in the latest QA report. ${mobileProof.detail}`
   },
   {
     name: 'Incident ranking golden pack',
