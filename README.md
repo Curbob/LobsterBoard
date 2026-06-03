@@ -48,6 +48,7 @@ Before changing Homebase behavior, read:
 - `specs/009-homebase-visual-baseline/spec.md`
 - `specs/010-homebase-mobile-proof/spec.md`
 - `specs/011-homebase-live-teddy-proof/spec.md`
+- `specs/012-homebase-dan-trust-gauntlet/spec.md`
 
 Homebase proof command:
 
@@ -79,6 +80,12 @@ To validate opt-in live Teddy bridge proof when captured:
 
 ```bash
 npm run homebase:live-teddy-proof
+```
+
+To run the combined Dan trust gauntlet:
+
+```bash
+npm run homebase:dan-trust-gauntlet
 ```
 
 ![LobsterBoard](lobsterboard-logo-final.png)

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { gauntletStatus } from './homebase-dan-trust-gauntlet.mjs';
 import { liveTeddyProofStatus } from './homebase-live-teddy-proof.mjs';
 import { mobileProofStatus } from './homebase-mobile-proof.mjs';
 
@@ -33,6 +34,7 @@ const report = readReport();
 const askSource = report?.local?.ask?.source || 'unknown';
 const askAgentMode = report?.local?.ask?.agentMode || 'unknown';
 const screenshots = report?.local?.screenshots?.outputs || [];
+const gauntlet = gauntletStatus(reportPath);
 const liveTeddyProof = liveTeddyProofStatus();
 const mobileProof = mobileProofStatus();
 
@@ -109,8 +111,10 @@ const want = [
 const dream = [
   {
     name: 'Dan trust gauntlet',
-    status: proof(report, 'replay-contracts') ? 'partial' : 'gap',
-    detail: 'Twenty-plus messy house stories replay today; the dream is real-device replay plus structural visual baselines for every story.'
+    status: gauntlet.status === 'ok' ? 'ok' : gauntlet.status === 'partial' ? 'partial' : 'gap',
+    detail: gauntlet.status === 'ok'
+      ? 'QA, live Teddy bridge, and real-device saved-login proof all passed.'
+      : `Twenty-plus messy house stories replay today; full trust remains partial until live Teddy and real-device proofs pass. ${gauntlet.detail}`
   }
 ];
 
