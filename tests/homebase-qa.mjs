@@ -2101,6 +2101,37 @@ function mobileLoginSmokeChecklistCoverage() {
   };
 }
 
+function sourceContractChecklistCoverage() {
+  const checklistPath = join(process.cwd(), 'specs', '004-homebase-next-level-qa', 'checklists', 'source-contract.md');
+  const text = readFileSync(checklistPath, 'utf8');
+  const qaText = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+  const unitText = readFileSync(join(process.cwd(), 'tests', 'teddy-house.test.js'), 'utf8');
+  const scriptText = readFileSync(join(process.cwd(), 'pages', 'teddy-house', 'script.js'), 'utf8');
+  const uncheckedItems = (text.match(/- \[ \]/g) || []).length;
+  const required = [
+    ['checklist-complete', uncheckedItems === 0],
+    ['required-fields', /contract\.id/.test(qaText) && /contract\.label/.test(qaText) && /contract\.source/.test(qaText) && /contract\.confidence/.test(qaText) && /contract\.freshness/.test(qaText) && /contract\.firstScreenEligible/.test(qaText) && /contract\.usedBy/.test(qaText)],
+    ['trust-levels', /EXPECTED_SOURCE_TRUST/.test(qaText) && /trusted.+degraded.+ignored.+needs-login/s.test(qaText)],
+    ['trusted-only-first-screen', /non-trusted source is first-screen eligible/.test(qaText) && /non-trusted source is allowed into house-state evidence/.test(qaText)],
+    ['degraded-ignored-needs-login-evidence-only', /degraded, ignored, and needs-login sources stay out of first-screen truth/i.test(qaText)],
+    ['door-lock-eufy-ignored', /door-lock source contract must stay ignored and ineligible/.test(qaText) && /Eufy plugin parser evidence ignored/i.test(unitText)],
+    ['adguard-needs-login', /AdGuard source contract has invalid trust/.test(qaText) && /needs-login/.test(text)],
+    ['persisted-history-sources', /visual evidence summaries must include source\/window\/sampleCount/.test(qaText)],
+    ['no-fake-charts', /sparkline|fake trend/i.test(qaText) && !/sparkline|SPARKS|trend/i.test(scriptText)],
+    ['sample-count-window', /summary\.sampleCount/.test(qaText) && /summary\.window/.test(qaText)],
+    ['reboot-scoped-vitals', /CPU peak copy must use the persisted 6h history format/.test(qaText) && /Mac boot summary must use the 7d window/.test(qaText)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    file: checklistPath,
+    items: required
+  };
+}
+
 function homebridgeGuardSpecCoverage(fixtureContracts) {
   const specDir = join(process.cwd(), 'specs', '001-homebridge-guard-card');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
@@ -2526,6 +2557,7 @@ async function main() {
   const incidentStateCoverage = incidentStateFixtureCoverage(incidentStateFixtures);
   const parserGoldenCoverage = parserGoldenFixtureCoverage();
   const mobileChecklistCoverage = mobileLoginSmokeChecklistCoverage();
+  const sourceChecklistCoverage = sourceContractChecklistCoverage();
   const homebridgeGuardCoverage = homebridgeGuardSpecCoverage(fixtureContracts);
   const dailyDecisionStripCoverage = dailyDecisionStripSpecCoverage(fixtureContracts, local);
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
@@ -2595,6 +2627,16 @@ async function main() {
     name: 'mobile-login-manual-smoke',
     status: mobileChecklistCoverage.status,
     detail: 'Android Chrome and iPhone/iPad PWA login persistence smokes are documented with reload, relaunch, first action, Ask Teddy, and overflow checks.'
+  });
+  gates.push({
+    name: 'source-contract-checklist',
+    status: sourceChecklistCoverage.status,
+    detail: sourceChecklistCoverage.detail
+  });
+  checks.push({
+    name: 'source-contract-checklist',
+    status: sourceChecklistCoverage.status,
+    detail: 'Source contracts prove field completeness, trust eligibility, ignored lock evidence, and persisted chart backing.'
   });
   gates.push({
     name: 'homebridge-guard-spec',
@@ -2712,6 +2754,7 @@ async function main() {
     incidentStateFixtureCoverage: incidentStateCoverage.items,
     parserGoldenFixtureCoverage: parserGoldenCoverage.items,
     mobileLoginSmokeChecklist: mobileChecklistCoverage,
+    sourceContractChecklist: sourceChecklistCoverage,
     homebridgeGuardSpec: homebridgeGuardCoverage,
     dailyDecisionStripSpec: dailyDecisionStripCoverage,
     nightlyTruthSuiteSpec: nightlyTruthSuiteCoverage,
