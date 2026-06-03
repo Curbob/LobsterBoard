@@ -2296,6 +2296,9 @@ function levelUpRoadmapSpecCoverage() {
   const specDir = join(process.cwd(), 'specs', '007-homebase-level-up-roadmap');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
   const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const trustChecklist = readFileSync(join(specDir, 'checklists', 'trust.md'), 'utf8');
+  const qaText = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+  const teddyHouseTest = readFileSync(join(process.cwd(), 'tests', 'teddy-house.test.js'), 'utf8');
   const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
   const architecture = readFileSync(join(process.cwd(), 'docs', 'TEDDY-HOMEBASE-ARCHITECTURE.md'), 'utf8');
   const required = [
@@ -2312,7 +2315,19 @@ function levelUpRoadmapSpecCoverage() {
     ['daily-owner-mode', /Personal Daily Mode/.test(text) && /Dan's house is steady/i.test(text)],
     ['trust-checklist', /Every incident has source, freshness, confidence, and lifecycle state/i.test(text)],
     ['frozen-qa', /Phone, iPad, and desktop QA use one frozen health payload/i.test(text)],
-    ['first-slice', /Start with the incident ledger/i.test(text)]
+    ['first-slice', /Start with the incident ledger/i.test(text)],
+    ['trust-checklist-complete', !/- \[ \]/.test(trustChecklist)],
+    ['warning-provenance-gate', /visible-warning-provenance/.test(qaText) && /reviewEvidenceItems/.test(qaText)],
+    ['incident-metadata-gate', /source, timestamp, freshness, and confidence/.test(qaText) && /lifecycle/.test(architecture)],
+    ['non-trusted-sources-not-primary', /non-trusted source is first-screen eligible/.test(qaText) && /degraded, ignored, and needs-login sources stay out of first-screen truth/i.test(qaText)],
+    ['recurring-resolved-lifecycle', /REQUIRED_INCIDENT_STATE_FIXTURES/.test(qaText) && /new-govee.+recurring-govee.+resolved-govee.+stale-prior-govee/s.test(qaText)],
+    ['healthy-raw-copy-blacklist', /FIRST_SCREEN_COPY_BLACKLIST/.test(qaText) && /raw ports, IPs, versions, package counts, log counts, and ignored sources/i.test(text)],
+    ['warning-zone-before-evidence', /affectedZoneMarked/.test(qaText) && /evidenceBelowDecision/.test(qaText)],
+    ['ask-source-honesty', /local-fallback/.test(qaText) && /Teddy bridge did not answer cleanly/.test(qaText) && /routes Ask Teddy through a fresh OpenClaw Teddy session by default/.test(teddyHouseTest)],
+    ['action-safety-gate', /prepareFixGuarded/.test(qaText) && /Mark known/.test(teddyHouseTest) && /Capture incident/.test(qaText)],
+    ['frozen-responsive-qa', /__HOMEBASE_FROZEN_HEALTH/.test(qaText) && /SCREENSHOT_VIEWPORTS/.test(qaText)],
+    ['public-auth-gate', /remote-password-gate/.test(qaText) && /publicAuth === 'enforced'/.test(qaText)],
+    ['loopback-boundary-gate', /loopback-probe-boundary/.test(qaText) && /remoteHostHealth === 401/.test(qaText) && /remoteHostScript === 302/.test(qaText)]
   ].map(([name, ok]) => ({
     name,
     ok: Boolean(ok)
