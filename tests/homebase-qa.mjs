@@ -2222,6 +2222,7 @@ function nightlyTruthSuiteSpecCoverage() {
   const specDir = join(process.cwd(), 'specs', '005-homebase-nightly-truth-suite');
   const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
   const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const trustChecklist = readFileSync(join(specDir, 'checklists', 'trust.md'), 'utf8');
   const packageText = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
   const verdictScript = readFileSync(join(process.cwd(), 'scripts', 'homebase-verdict.mjs'), 'utf8');
   const archiveScript = readFileSync(join(process.cwd(), 'scripts', 'homebase-archive-nightly.mjs'), 'utf8');
@@ -2233,7 +2234,10 @@ function nightlyTruthSuiteSpecCoverage() {
     ['bounded-history', /homebase-nightly-history\.json/.test(text) && /HOMEBASE_NIGHTLY_HISTORY_LIMIT/.test(archiveScript) && /\.slice\(-limit\)/.test(archiveScript)],
     ['active-automation', /morning-homebase-health-check/.test(text) && /Morning Homebase Truth Suite/.test(text) && /7:15 AM/.test(text)],
     ['report-artifact', /artifacts\/qa\/homebase-latest\.json/],
+    ['trust-checklist-complete', !/- \[ \]/.test(trustChecklist)],
     ['read-only', /read-only/i],
+    ['no-service-restart', /does not restart services/i.test(text)],
+    ['real-browser-session-safe', /does not clear Dan's real browser sessions/i.test(text)],
     ['public-auth', /public (?:Funnel )?auth|Public page redirects/i],
     ['story-agreement', /API, rendered page, and Ask Teddy agree|story agreement/i],
     ['fallback-honesty', /fallback/i],
