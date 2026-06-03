@@ -761,6 +761,10 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('Explain');
     expect(script).toContain('Prepare fix');
     expect(script).toContain('Open logs');
+    expect(script).toContain('Capture');
+    expect(script).toContain('async function captureIncident');
+    expect(script).toContain('/api/pages/teddy-house/incidents/capture');
+    expect(script).toContain('Saving a redacted incident draft');
     expect(script).toContain('logFocusForReview');
     expect(script).toContain('/pages/teddy-house/logs/?focus=');
     expect(script).toContain('markIncidentKnown');
@@ -1071,6 +1075,79 @@ describe('Teddy Homebase health API', () => {
     expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.');
     expect(data.promptPreview).toContain('exact approval needed');
     expect(data.promptPreview).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
+  });
+
+  it('captures redacted incident drafts from the dashboard action path', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'homebase-api-capture-'));
+    const writeJson = (filename, value) => writeFileSync(join(dataDir, filename), `${JSON.stringify(value, null, 2)}\n`);
+    const ctx = {
+      dataDir,
+      readData: (filename) => JSON.parse(readFileSync(join(dataDir, filename), 'utf8')),
+      writeData: (filename, obj) => writeJson(filename, obj)
+    };
+
+    writeJson('snapshot.json', {
+      score: 70,
+      homebridgeLogState: 'warn',
+      serviceLogValue: 'Govee connection degraded',
+      systemLogMetric: '0',
+      funnelMetric: '8443, 10000'
+    });
+    writeJson('service-logs.json', {
+      value: 'Govee connection degraded',
+      detail: 'Govee loop from 192.168.7.10 for dan@example.com on openclaw-mac-mini.tail02a3b6.ts.net',
+      items: [
+        {
+          name: 'Homebridge',
+          examples: ['Govee loop from 192.168.7.10 for dan@example.com on openclaw-mac-mini.tail02a3b6.ts.net']
+        }
+      ]
+    });
+    writeJson('system-logs.json', {
+      metric: '0',
+      detail: 'No recent panic diagnostics.'
+    });
+    writeJson('timeline.json', {
+      events: [{ title: 'Service logs', detail: 'Govee connection degraded.' }]
+    });
+    writeJson('visual-evidence.json', {
+      entries: [{ visuals: { houseState: {}, dailyDecision: {} } }]
+    });
+
+    const result = await teddyHouseInternals.captureIncidentDraft(ctx, {
+      title: 'Automation logs: dan@example.com 192.168.7.10',
+      clicked: { type: 'review', label: 'Automation logs: Govee connection degraded' },
+      checkedAt: '2026-06-03T14:48:19.275Z',
+      context: {
+        needsDan: ['Automation logs: Govee connection degraded'],
+        houseState: {
+          headline: 'Homebase found an issue.',
+          primaryZone: 'smart-home',
+          primaryAction: 'Check automations first.'
+        }
+      }
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.source).toBe('data/teddy-house/qa/incident-drafts');
+    expect(result.redacted).toBe(true);
+    expect(result.snapshots).toBe(5);
+    expect(result.logExcerpts).toBeGreaterThan(0);
+    const bundle = JSON.parse(readFileSync(result.outputFile, 'utf8'));
+    const bundleText = JSON.stringify(bundle);
+    expect(bundle.status).toBe('draft');
+    expect(bundle.expected).toEqual({
+      headline: 'Homebase found an issue.',
+      firstZone: 'smart-home',
+      firstReview: 'Automation logs: Govee connection degraded',
+      firstAction: 'Check automations first.'
+    });
+    expect(bundle.sourceSnapshots.every(item => item.redacted === true)).toBe(true);
+    expect(bundle.logExcerpts.every(item => item.redacted === true)).toBe(true);
+    expect(bundleText).not.toContain('dan@example.com');
+    expect(bundleText).not.toContain('192.168.7.10');
+    expect(bundleText).not.toContain('8443, 10000');
+    expect(bundleText).not.toContain('openclaw-mac-mini.tail02a3b6.ts.net');
   });
 
   it('can answer Ask Teddy locally for offline tests', async () => {

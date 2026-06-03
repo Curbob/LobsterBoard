@@ -1721,6 +1721,137 @@ function redactLogLine(line) {
     .slice(0, 220);
 }
 
+function redactIncidentText(value) {
+  return String(value || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[redacted-ip]')
+    .replace(/\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[redacted-tailscale-ip]')
+    .replace(/\b(?:8443,\s*10000|10000,\s*8443)\b/g, '[redacted-public-routes]')
+    .replace(/\/Users\/[^/\s"]+/g, '/Users/[redacted-user]')
+    .replace(/tail[a-z0-9-]*\.ts\.net/gi, '[redacted-tailnet-host]')
+    .replace(/openclaw-mac-mini[^\s"]*/gi, '[redacted-homebase-host]')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function incidentSlug(value) {
+  return redactIncidentText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'homebase-incident';
+}
+
+function incidentSnapshotSummary(name, data) {
+  if (!data || typeof data !== 'object') return 'No structured summary available.';
+  if (name === 'snapshot.json') {
+    return redactIncidentText([
+      `score=${data.score}`,
+      `homebridgeLog=${data.homebridgeLogState}`,
+      `serviceLog=${data.serviceLogValue || data.serviceLogState}`,
+      `systemLog=${data.systemLogMetric || data.systemLogState}`,
+      `publicRoutes=${data.funnelMetric ? '[redacted-public-routes]' : 'none'}`
+    ].filter(Boolean).join('; '));
+  }
+  if (name === 'service-logs.json') return redactIncidentText(`${data.value || data.metric || data.state || 'service logs'}; ${data.detail || ''}`);
+  if (name === 'system-logs.json') return redactIncidentText(`${data.metric || data.state || 'system logs'}; ${data.detail || ''}`);
+  if (name === 'timeline.json') {
+    const events = Array.isArray(data.events) ? data.events : [];
+    return redactIncidentText(`${events.length} timeline events; latest=${events[0]?.title || 'none'} ${events[0]?.detail || ''}`);
+  }
+  if (name === 'visual-evidence.json') {
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    return redactIncidentText(`${entries.length} visual evidence entries; latest keys=${Object.keys(entries[0]?.visuals || {}).join(', ')}`);
+  }
+  return redactIncidentText(JSON.stringify(data).slice(0, 240));
+}
+
+function incidentLogExcerpts(name, data) {
+  if (name === 'service-logs.json') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items.flatMap(item => {
+      const examples = Array.isArray(item.examples) ? item.examples : [];
+      const text = examples[0] || item.detail;
+      if (!text) return [];
+      return [{
+        source: redactIncidentText(item.name || 'service log'),
+        redacted: true,
+        text: redactIncidentText(text).slice(0, 240)
+      }];
+    });
+  }
+  if (name === 'system-logs.json' && data?.detail) {
+    return [{
+      source: 'system diagnostics',
+      redacted: true,
+      text: redactIncidentText(data.detail).slice(0, 240)
+    }];
+  }
+  return [];
+}
+
+async function captureIncidentDraft(ctx, body = {}) {
+  if (!ctx || !ctx.dataDir) return { status: 'error', code: 500, message: 'Incident capture needs a Homebase data directory.' };
+  const at = nowIso();
+  const title = redactIncidentText(body.title || body.prompt || body.clicked?.label || 'Homebase incident');
+  const id = incidentSlug(body.id || `${at.slice(0, 10)}-${title}`);
+  const fixture = incidentSlug(body.fixture || body.clicked?.fixture || 'needs-fixture');
+  const checkedAt = body.checkedAt || at;
+  const sourceFiles = ['snapshot.json', 'service-logs.json', 'system-logs.json', 'timeline.json', 'visual-evidence.json'];
+  const sourceSnapshots = [];
+  const logExcerpts = [];
+
+  for (const sourceFile of sourceFiles) {
+    const data = readDataSafe(ctx, sourceFile, null);
+    if (!data) continue;
+    sourceSnapshots.push({
+      path: `data/teddy-house/${sourceFile}`,
+      checkedAt,
+      redacted: true,
+      summary: incidentSnapshotSummary(sourceFile, data)
+    });
+    logExcerpts.push(...incidentLogExcerpts(sourceFile, data));
+  }
+
+  const context = body.context && typeof body.context === 'object' ? body.context : {};
+  const houseState = context.houseState && typeof context.houseState === 'object' ? context.houseState : {};
+  const expected = {
+    headline: houseState.headline || context.headline || 'Homebase incident',
+    firstZone: houseState.primaryZone || houseState.firstZone || context.firstZone || 'unknown',
+    firstReview: body.clicked?.label || (Array.isArray(context.needsDan) ? context.needsDan[0] : undefined),
+    firstAction: houseState.primaryAction || context.firstDecision || 'Review Homebase.'
+  };
+
+  const bundle = {
+    id,
+    title,
+    recordedAt: checkedAt,
+    fixture,
+    status: 'draft',
+    note: 'Draft captured from persisted Homebase evidence. Review, choose/create a replay fixture, then promote into permanent replay fixtures only when it should become a regression.',
+    sourceSnapshots,
+    logExcerpts: logExcerpts.slice(0, 8),
+    expected
+  };
+
+  const draftDir = path.join(ctx.dataDir, 'qa', 'incident-drafts');
+  await fs.mkdir(draftDir, { recursive: true });
+  const outputFile = path.join(draftDir, `${id}.json`);
+  await fs.writeFile(outputFile, `${JSON.stringify(bundle, null, 2)}\n`);
+  return {
+    status: 'ok',
+    id,
+    title,
+    fixture,
+    outputFile,
+    source: 'data/teddy-house/qa/incident-drafts',
+    snapshots: sourceSnapshots.length,
+    logExcerpts: bundle.logExcerpts.length,
+    redacted: true,
+    message: `Captured redacted incident draft ${id}.`
+  };
+}
+
 function unifiedLoggingFramework() {
   return {
     checkedAt: nowIso(),
@@ -3820,6 +3951,11 @@ function teddyHouseApi(ctx = {}) {
   return {
     routes: {
       'POST /ask': async (req, res, { body }) => askTeddy(ctx, body || {}),
+      'POST /incidents/capture': async (req, res, { body }) => {
+        const result = await captureIncidentDraft(ctx, body || {});
+        if (result.status === 'error') res.statusCode = result.code || 400;
+        return result;
+      },
       'POST /incidents/:key/known': async (req, res, { body, params }) => {
         const result = markIncidentKnown(ctx, params.key, body && body.known !== false, body && body.note || '');
         if (result.status === 'error') res.statusCode = result.code || 400;
@@ -3883,6 +4019,7 @@ teddyHouseApi._internals = {
   deriveHomebaseStory,
   updateIncidentLedger,
   markIncidentKnown,
+  captureIncidentDraft,
   incidentCandidates,
   domainServiceLogs,
   buildHistoricalSummaries,

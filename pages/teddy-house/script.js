@@ -183,7 +183,16 @@ function renderNeeds(needs, reviewEvidence) {
     logs.href = `/pages/teddy-house/logs/?focus=${encodeURIComponent(logFocusForReview(item, evidence))}`;
     logs.textContent = "Open logs";
     logs.title = "Open source evidence for this review item.";
-    chip.append(explain, prepare, logs);
+    const capture = document.createElement("button");
+    capture.className = "ask-mini";
+    capture.type = "button";
+    capture.textContent = "Capture";
+    capture.title = "Save a redacted incident draft for QA.";
+    capture.addEventListener("click", () => captureIncident({
+      title: formatNeedLabel(item),
+      clicked: { type: "review", label: item, source: evidence && evidence.source || "" }
+    }));
+    chip.append(explain, prepare, logs, capture);
     list.append(chip);
   });
 }
@@ -694,6 +703,32 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     clearTimeout(timer);
     submit.disabled = false;
     statusButton.disabled = false;
+  }
+}
+
+async function captureIncident({ title = "Homebase incident", clicked = null } = {}) {
+  if (!currentHealth) {
+    setAskState("Refreshing", "Checking the house first...");
+    await loadHealth();
+  }
+  setAskState("Capturing", "Saving a redacted incident draft...");
+  try {
+    const res = await fetch("/api/pages/teddy-house/incidents/capture", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        clicked,
+        context: currentHealth,
+        checkedAt: currentHealth && currentHealth.checkedAt
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.status !== "ok") throw new Error(data.message || data.error || `Capture returned ${res.status}`);
+    setAskState("Captured", `Saved redacted incident draft ${data.id}.`);
+  } catch (err) {
+    setAskState("Failed", err.message || "Incident capture failed.");
   }
 }
 

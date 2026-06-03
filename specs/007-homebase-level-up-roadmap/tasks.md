@@ -26,7 +26,7 @@
 - [x] Add `Explain` incident action.
 - [x] Add `Prepare fix` dry-run action.
 - [x] Add `Open logs` action for relevant local evidence.
-- [ ] Add `Capture incident` action that writes a redacted draft bundle.
+- [x] Add `Capture incident` action that writes a redacted draft bundle.
 - [x] Add `Mark known` action only if it is persisted, reversible, and source-backed.
 - [x] Add tests proving no action mutates services without approval.
 
@@ -41,9 +41,9 @@
 
 ## Phase 5: Daily Owner Mode
 
-- [ ] Tighten top-screen copy around Dan's house language.
+- [x] Tighten top-screen copy around Dan's house language.
 - [x] Add text-length budgets for phone first viewport.
 - [x] Make source labels visible only when they affect trust.
 - [x] Update README and architecture docs with the incident-led model.
-- [ ] Run `npm run check:homebase`.
-- [ ] Smoke the public Tailscale URL and verify auth still gates remote access.
+- [x] Run `npm run check:homebase`.
+- [x] Smoke the public Tailscale URL and verify auth still gates remote access.

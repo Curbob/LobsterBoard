@@ -106,6 +106,7 @@ function isLocalHomebaseProbe(req, pathname) {
   if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/health') return true;
   if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/logs') return true;
   if (req.method === 'POST' && pathname === '/api/pages/teddy-house/ask') return true;
+  if (req.method === 'POST' && pathname === '/api/pages/teddy-house/incidents/capture') return true;
   if (req.method === 'POST' && /^\/api\/pages\/teddy-house\/incidents\/[^/]+\/known$/.test(pathname)) return true;
   return false;
 }

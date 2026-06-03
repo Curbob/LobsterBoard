@@ -804,7 +804,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const activeZone = document.querySelector("#house-zone-grid .house-zone-card.active-zone .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
       const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
-      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs/g, '')?.trim() || "";
+      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs\\s*Capture/g, '')?.trim() || "";
       const incidentMeta = document.querySelector('#incident-meta')?.textContent?.trim() || "";
       const incidentVisible = Boolean(document.querySelector('#incident-ribbon') && !document.querySelector('#incident-ribbon').hidden);
       const evidenceOpen = document.querySelector('#evidence-details')?.open ?? null;
