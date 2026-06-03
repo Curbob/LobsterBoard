@@ -29,15 +29,18 @@ function line(item) {
 
 const report = readReport();
 const askSource = report?.local?.ask?.source || 'unknown';
+const askAgentMode = report?.local?.ask?.agentMode || 'unknown';
 const screenshots = report?.local?.screenshots?.outputs || [];
 
 const need = [
   {
     name: 'Live Teddy bridge contract',
-    status: askSource === 'teddy' ? 'ok' : 'gap',
+    status: askSource === 'teddy' ? 'ok' : askAgentMode === 'enabled' ? 'gap' : 'partial',
     detail: askSource === 'teddy'
       ? 'Ask Teddy proved the live bridge path.'
-      : `Latest Ask source is ${askSource}; fallback honesty is covered, but live bridge proof is still the next hard gate.`
+      : askAgentMode === 'enabled'
+        ? `Live bridge was enabled, but latest Ask source is ${askSource}; fallback honesty is covered and the bridge needs debugging.`
+        : `Latest Ask source is ${askSource} with ${askAgentMode} mode; fast local answers are expected, and live bridge proof remains an opt-in gate.`
   },
   {
     name: 'Real-device saved login',

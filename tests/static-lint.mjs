@@ -109,6 +109,7 @@ expect(testLadderScript.includes('Live Teddy bridge contract'), 'test ladder mus
 expect(testLadderScript.includes('Real-device saved login'), 'test ladder must keep real-device login proof visible');
 expect(testLadderScript.includes('Dan trust gauntlet'), 'test ladder must keep the long-form trust gauntlet visible');
 expect(testLadderScript.includes("askSource === 'teddy'"), 'test ladder must not mark live bridge proof complete from fallback/local answers');
+expect(testLadderScript.includes("askAgentMode === 'enabled'"), 'test ladder must distinguish expected default-local Ask from enabled bridge failure');
 expect(incidentCaptureScript.includes("join(DATA_DIR, 'qa', 'incident-drafts')"), 'incident capture must write drafts outside committed fixture directory');
 expect(incidentCaptureScript.includes("status: 'draft'"), 'incident capture output must be marked draft');
 expect(incidentCaptureScript.includes('function redactText'), 'incident capture must redact persisted evidence');

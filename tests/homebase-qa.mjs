@@ -505,6 +505,7 @@ async function smokeCachedLogin(baseUrl) {
 async function smokeAskFallback() {
   const srv = await startServer({
     env: {
+      TEDDY_HOMEBASE_ASK_AGENT: '1',
       TEDDY_HOMEBASE_OPENCLAW_BIN: '/private/tmp/homebase-missing-openclaw-bin',
       TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '1000'
     }
@@ -1259,6 +1260,7 @@ async function smokeLocalRoutes() {
       ask: {
         status: askData.status,
         source: askData.source,
+        agentMode: process.env.TEDDY_HOMEBASE_ASK_AGENT === '1' ? 'enabled' : 'default-local',
         answerLength: String(askData.answer || '').length,
         fallbackStatus: askFallback.status,
         fallbackSource: askFallback.source,
@@ -2323,7 +2325,7 @@ function levelUpRoadmapSpecCoverage() {
     ['recurring-resolved-lifecycle', /REQUIRED_INCIDENT_STATE_FIXTURES/.test(qaText) && /new-govee.+recurring-govee.+resolved-govee.+stale-prior-govee/s.test(qaText)],
     ['healthy-raw-copy-blacklist', /FIRST_SCREEN_COPY_BLACKLIST/.test(qaText) && /raw ports, IPs, versions, package counts, log counts, and ignored sources/i.test(text)],
     ['warning-zone-before-evidence', /affectedZoneMarked/.test(qaText) && /evidenceBelowDecision/.test(qaText)],
-    ['ask-source-honesty', /local-fallback/.test(qaText) && /Teddy bridge did not answer cleanly/.test(qaText) && /routes Ask Teddy through a fresh OpenClaw Teddy session by default/.test(teddyHouseTest)],
+    ['ask-source-honesty', /local-fallback/.test(qaText) && /Teddy bridge did not answer cleanly/.test(qaText) && /routes Ask Teddy through a fresh OpenClaw Teddy session when explicitly enabled/.test(teddyHouseTest)],
     ['action-safety-gate', /prepareFixGuarded/.test(qaText) && /Mark known/.test(teddyHouseTest) && /Capture incident/.test(qaText)],
     ['frozen-responsive-qa', /__HOMEBASE_FROZEN_HEALTH/.test(qaText) && /SCREENSHOT_VIEWPORTS/.test(qaText)],
     ['public-auth-gate', /remote-password-gate/.test(qaText) && /publicAuth === 'enforced'/.test(qaText)],
@@ -2353,7 +2355,7 @@ function testLadderSpecCoverage() {
     ['script-registered', packageConfig.scripts?.['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs'],
     ['latest-report-source', /artifacts.+qa.+homebase-latest\.json/s.test(script)],
     ['need-want-dream', /Need/.test(script) && /Want/.test(script) && /Dream/.test(script)],
-    ['live-teddy-gap-honesty', /Live Teddy bridge contract/.test(script) && /askSource === 'teddy'/.test(script) && /Latest Ask source is/.test(script)],
+    ['live-teddy-mode-honesty', /Live Teddy bridge contract/.test(script) && /askSource === 'teddy'/.test(script) && /askAgentMode === 'enabled'/.test(script) && /default-local Ask mode/i.test(text)],
     ['real-device-partial-honesty', /Real-device saved login/.test(script) && /partial/.test(script) && /Android\/iPhone\/iPad relaunch proof remains manual/.test(script)],
     ['incident-ranking', /Incident ranking golden pack/.test(script) && /zone-ranking-coverage/.test(script)],
     ['first-screen-copy', /First-screen slop blacklist/.test(script) && /copy-quality-coverage/.test(script) && /visual-contracts/.test(script)],

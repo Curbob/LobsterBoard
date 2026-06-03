@@ -8,6 +8,7 @@ Use the latest Homebase QA report:
 - `acceptanceGates`
 - `trustChecks`
 - `local.ask.source`
+- `local.ask.agentMode`
 - `local.screenshots.outputs`
 - `truthVerdict`
 - `publicAuth`
@@ -15,7 +16,7 @@ Use the latest Homebase QA report:
 ## Ladder Rules
 
 - `ok`: the latest QA report has a direct passing gate.
-- `partial`: the automated harness proves part of the behavior, but real-device, live-bridge, or visual-baseline proof is still missing.
+- `partial`: the automated harness proves part of the behavior, but real-device, opt-in live-bridge, or visual-baseline proof is still missing.
 - `gap`: the latest QA report does not prove the behavior.
 
 ## Output

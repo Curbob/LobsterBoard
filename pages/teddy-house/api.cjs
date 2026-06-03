@@ -347,7 +347,7 @@ async function askTeddy(ctx, body) {
     };
   }
 
-  if (process.env.TEDDY_HOMEBASE_ASK_LOCAL_ONLY === '1' || process.env.TEDDY_HOMEBASE_ASK_AGENT === '0') {
+  if (process.env.TEDDY_HOMEBASE_ASK_LOCAL_ONLY === '1' || process.env.TEDDY_HOMEBASE_ASK_AGENT !== '1') {
     return recordAsk(ctx, {
       action,
       prompt: prompt || 'Summarize current status and review items.',

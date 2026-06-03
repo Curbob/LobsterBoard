@@ -1246,7 +1246,7 @@ describe('Teddy Homebase health API', () => {
     }
   });
 
-  it('routes Ask Teddy through a fresh OpenClaw Teddy session by default', async () => {
+  it('routes Ask Teddy through a fresh OpenClaw Teddy session when explicitly enabled', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'ask-openclaw-stub-'));
     const stubPath = join(tmp, 'openclaw-stub.js');
     const argsPath = join(tmp, 'args.json');
@@ -1259,6 +1259,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy b
 
     const bridgeAsk = await startServer({
       env: {
+        TEDDY_HOMEBASE_ASK_AGENT: '1',
         TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
         TEDDY_STUB_ARGS_PATH: argsPath,
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '2000'
@@ -1323,6 +1324,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
 
     const bridgeAsk = await startServer({
       env: {
+        TEDDY_HOMEBASE_ASK_AGENT: '1',
         TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '2000'
       }
