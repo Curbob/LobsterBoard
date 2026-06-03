@@ -41,10 +41,10 @@ function okStatus(status) {
   return status === 'ok';
 }
 
-function gauntletStatus(path = reportPath) {
+function gauntletStatus(path = reportPath, proof = {}) {
   const report = readReport(path);
-  const liveTeddy = liveTeddyProofStatus();
-  const mobile = mobileProofStatus();
+  const liveTeddy = proof.liveTeddy || liveTeddyProofStatus();
+  const mobile = proof.mobile || mobileProofStatus();
   const failures = [];
   const partials = [];
 

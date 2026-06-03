@@ -7,3 +7,4 @@
 - [x] Fail strict mode unless all proof is `ok`.
 - [x] Wire the test ladder dream row to the gauntlet.
 - [x] Add QA/static checks for command registration and proof coverage.
+- [x] Add behavior tests for missing QA, partial proof, all-ok proof, and failed gates.

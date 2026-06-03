@@ -2480,6 +2480,7 @@ function danTrustGauntletSpecCoverage() {
   const packageConfig = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
   const script = readFileSync(join(process.cwd(), 'scripts', 'homebase-dan-trust-gauntlet.mjs'), 'utf8');
   const ladder = readFileSync(join(process.cwd(), 'scripts', 'homebase-test-ladder.mjs'), 'utf8');
+  const test = readFileSync(join(process.cwd(), 'tests', 'homebase-dan-trust-gauntlet.test.js'), 'utf8');
   const required = [
     ['spec-directory', /Homebase Dan Trust Gauntlet Spec/.test(text)],
     ['readme-linked', /specs\/012-homebase-dan-trust-gauntlet\/spec\.md/.test(readme)],
@@ -2490,6 +2491,7 @@ function danTrustGauntletSpecCoverage() {
     ['partial-honesty', /partial/.test(script) && /Missing live Teddy proof is partial/i.test(text) && /Missing real-device proof is partial/i.test(text)],
     ['strict-mode', /HOMEBASE_REQUIRE_DAN_TRUST_GAUNTLET/.test(script)],
     ['ladder-uses-gauntlet', /gauntletStatus/.test(ladder) && /full trust remains partial/.test(ladder)],
+    ['behavior-tests', /fails when the latest QA report is missing/.test(test) && /passes only when QA, live Teddy proof, and real-device proof are ok/.test(test)],
     ['read-only', /read-only/i.test(text)]
   ].map(([name, ok]) => ({
     name,
