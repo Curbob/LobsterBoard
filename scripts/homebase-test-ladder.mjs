@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { liveTeddyProofStatus } from './homebase-live-teddy-proof.mjs';
 import { mobileProofStatus } from './homebase-mobile-proof.mjs';
 
 const reportPath = join(process.cwd(), 'artifacts', 'qa', 'homebase-latest.json');
@@ -32,17 +33,20 @@ const report = readReport();
 const askSource = report?.local?.ask?.source || 'unknown';
 const askAgentMode = report?.local?.ask?.agentMode || 'unknown';
 const screenshots = report?.local?.screenshots?.outputs || [];
+const liveTeddyProof = liveTeddyProofStatus();
 const mobileProof = mobileProofStatus();
 
 const need = [
   {
     name: 'Live Teddy bridge contract',
-    status: askSource === 'teddy' ? 'ok' : askAgentMode === 'enabled' ? 'gap' : 'partial',
-    detail: askSource === 'teddy'
-      ? 'Ask Teddy proved the live bridge path.'
+    status: liveTeddyProof.status === 'ok' || askSource === 'teddy' ? 'ok' : askAgentMode === 'enabled' ? 'gap' : 'partial',
+    detail: liveTeddyProof.status === 'ok'
+      ? `Live Teddy proof passed: ${liveTeddyProof.detail}`
+      : askSource === 'teddy'
+      ? `Latest QA proved the live bridge path. ${liveTeddyProof.detail}`
       : askAgentMode === 'enabled'
-        ? `Live bridge was enabled, but latest Ask source is ${askSource}; fallback honesty is covered and the bridge needs debugging.`
-        : `Latest Ask source is ${askSource} with ${askAgentMode} mode; fast local answers are expected, and live bridge proof remains an opt-in gate.`
+        ? `Live bridge was enabled, but latest Ask source is ${askSource}; fallback honesty is covered and the bridge needs debugging. ${liveTeddyProof.detail}`
+        : `Latest Ask source is ${askSource} with ${askAgentMode} mode; fast local answers are expected, and live bridge proof remains an opt-in gate. ${liveTeddyProof.detail}`
   },
   {
     name: 'Real-device saved login',

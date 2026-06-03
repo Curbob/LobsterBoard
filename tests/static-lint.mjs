@@ -15,6 +15,7 @@ const files = [
   'scripts/homebase-test-ladder.mjs',
   'scripts/homebase-visual-baseline.mjs',
   'scripts/homebase-mobile-proof.mjs',
+  'scripts/homebase-live-teddy-proof.mjs',
   'scripts/homebase-capture-incident.mjs'
 ];
 
@@ -48,6 +49,7 @@ const packageConfig = JSON.parse(read('package.json'));
 const testLadderScript = read('scripts/homebase-test-ladder.mjs');
 const visualBaselineScript = read('scripts/homebase-visual-baseline.mjs');
 const mobileProofScript = read('scripts/homebase-mobile-proof.mjs');
+const liveTeddyProofScript = read('scripts/homebase-live-teddy-proof.mjs');
 const incidentCaptureScript = read('scripts/homebase-capture-incident.mjs');
 
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
@@ -111,6 +113,7 @@ expect(packageConfig.scripts['homebase:capture-incident'] === 'node scripts/home
 expect(packageConfig.scripts['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs', 'missing Homebase test ladder npm script');
 expect(packageConfig.scripts['homebase:visual-baseline'] === 'node scripts/homebase-visual-baseline.mjs', 'missing Homebase visual baseline npm script');
 expect(packageConfig.scripts['homebase:mobile-proof'] === 'node scripts/homebase-mobile-proof.mjs', 'missing Homebase mobile proof npm script');
+expect(packageConfig.scripts['homebase:live-teddy-proof'] === 'node scripts/homebase-live-teddy-proof.mjs', 'missing Homebase live Teddy proof npm script');
 expect(testLadderScript.includes('Live Teddy bridge contract'), 'test ladder must keep live Teddy bridge proof visible');
 expect(testLadderScript.includes('Real-device saved login'), 'test ladder must keep real-device login proof visible');
 expect(testLadderScript.includes('Dan trust gauntlet'), 'test ladder must keep the long-form trust gauntlet visible');
@@ -118,6 +121,7 @@ expect(testLadderScript.includes("askSource === 'teddy'"), 'test ladder must not
 expect(testLadderScript.includes("askAgentMode === 'enabled'"), 'test ladder must distinguish expected default-local Ask from enabled bridge failure');
 expect(testLadderScript.includes('visual-baseline'), 'test ladder must read the visual baseline gate');
 expect(testLadderScript.includes('mobileProofStatus'), 'test ladder must read durable real-device proof status');
+expect(testLadderScript.includes('liveTeddyProofStatus'), 'test ladder must read durable live Teddy proof status');
 expect(visualBaselineScript.includes('tests\', \'fixtures\', \'teddy-house\', \'visual-baseline.json'), 'visual baseline must read the committed structural baseline');
 expect(visualBaselineScript.includes('maxFirstScreenTextLength'), 'visual baseline must enforce first-screen copy budget');
 expect(visualBaselineScript.includes('requiredVisualContracts'), 'visual baseline must enforce visual contract booleans');
@@ -125,6 +129,10 @@ expect(mobileProofScript.includes('homebase-mobile-proof-latest.json'), 'mobile 
 expect(mobileProofScript.includes('android-chrome') && mobileProofScript.includes('iphone-pwa') && mobileProofScript.includes('ipad-pwa'), 'mobile proof must require Android, iPhone, and iPad entries');
 expect(mobileProofScript.includes('HOMEBASE_REQUIRE_MOBILE_PROOF'), 'mobile proof must support a required mode');
 expect(mobileProofScript.includes('No real-device proof artifact'), 'mobile proof must report missing proof honestly');
+expect(liveTeddyProofScript.includes('homebase-live-teddy-proof-latest.json'), 'live Teddy proof must read the latest durable proof artifact');
+expect(liveTeddyProofScript.includes('HOMEBASE_RUN_LIVE_TEDDY_PROOF'), 'live Teddy proof must be opt-in');
+expect(liveTeddyProofScript.includes('HOMEBASE_REQUIRE_LIVE_TEDDY_PROOF'), 'live Teddy proof must support a required mode');
+expect(liveTeddyProofScript.includes("source must be teddy"), 'live Teddy proof must require a live Teddy source');
 expect(incidentCaptureScript.includes("join(DATA_DIR, 'qa', 'incident-drafts')"), 'incident capture must write drafts outside committed fixture directory');
 expect(incidentCaptureScript.includes("status: 'draft'"), 'incident capture output must be marked draft');
 expect(incidentCaptureScript.includes('function redactText'), 'incident capture must redact persisted evidence');

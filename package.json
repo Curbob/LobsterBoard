@@ -73,6 +73,7 @@
     "homebase:test-ladder": "node scripts/homebase-test-ladder.mjs",
     "homebase:visual-baseline": "node scripts/homebase-visual-baseline.mjs",
     "homebase:mobile-proof": "node scripts/homebase-mobile-proof.mjs",
+    "homebase:live-teddy-proof": "node scripts/homebase-live-teddy-proof.mjs",
     "homebase:capture-incident": "node scripts/homebase-capture-incident.mjs",
     "homebase:nightly": "npm run check:homebase && npm run homebase:archive && npm run homebase:verdict",
     "homebase:archive": "node scripts/homebase-archive-nightly.mjs",

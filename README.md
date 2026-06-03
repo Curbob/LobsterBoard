@@ -47,6 +47,7 @@ Before changing Homebase behavior, read:
 - `specs/008-homebase-test-ladder/spec.md`
 - `specs/009-homebase-visual-baseline/spec.md`
 - `specs/010-homebase-mobile-proof/spec.md`
+- `specs/011-homebase-live-teddy-proof/spec.md`
 
 Homebase proof command:
 
@@ -72,6 +73,12 @@ To validate real-device Android/iPhone/iPad proof when captured:
 
 ```bash
 npm run homebase:mobile-proof
+```
+
+To validate opt-in live Teddy bridge proof when captured:
+
+```bash
+npm run homebase:live-teddy-proof
 ```
 
 ![LobsterBoard](lobsterboard-logo-final.png)

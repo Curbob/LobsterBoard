@@ -2355,7 +2355,7 @@ function testLadderSpecCoverage() {
     ['script-registered', packageConfig.scripts?.['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs'],
     ['latest-report-source', /artifacts.+qa.+homebase-latest\.json/s.test(script)],
     ['need-want-dream', /Need/.test(script) && /Want/.test(script) && /Dream/.test(script)],
-    ['live-teddy-mode-honesty', /Live Teddy bridge contract/.test(script) && /askSource === 'teddy'/.test(script) && /askAgentMode === 'enabled'/.test(script) && /default-local Ask mode/i.test(text)],
+    ['live-teddy-mode-honesty', /Live Teddy bridge contract/.test(script) && /liveTeddyProofStatus/.test(script) && /askSource === 'teddy'/.test(script) && /askAgentMode === 'enabled'/.test(script) && /default-local Ask mode/i.test(text)],
     ['real-device-proof-honesty', /Real-device saved login/.test(script) && /mobileProofStatus/.test(script) && /real-device proof is still partial/.test(script)],
     ['incident-ranking', /Incident ranking golden pack/.test(script) && /zone-ranking-coverage/.test(script)],
     ['first-screen-copy', /First-screen slop blacklist/.test(script) && /copy-quality-coverage/.test(script) && /visual-contracts/.test(script)],
@@ -2426,6 +2426,39 @@ function mobileProofSpecCoverage() {
     ['require-mode', /HOMEBASE_REQUIRE_MOBILE_PROOF/.test(script)],
     ['device-fields', /loginPersisted/.test(script) && /firstAction/.test(script) && /noOverflow/.test(script) && /rawTelemetryHidden/.test(script)],
     ['ladder-uses-proof', /mobileProofStatus/.test(ladder) && /Real-device proof passed/.test(ladder)],
+    ['read-only', /read-only/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
+function liveTeddyProofSpecCoverage() {
+  const specDir = join(process.cwd(), 'specs', '011-homebase-live-teddy-proof');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+  const packageConfig = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+  const script = readFileSync(join(process.cwd(), 'scripts', 'homebase-live-teddy-proof.mjs'), 'utf8');
+  const ladder = readFileSync(join(process.cwd(), 'scripts', 'homebase-test-ladder.mjs'), 'utf8');
+  const required = [
+    ['spec-directory', /Homebase Live Teddy Proof Spec/.test(text)],
+    ['readme-linked', /specs\/011-homebase-live-teddy-proof\/spec\.md/.test(readme)],
+    ['script-registered', packageConfig.scripts?.['homebase:live-teddy-proof'] === 'node scripts/homebase-live-teddy-proof.mjs'],
+    ['latest-artifact', /homebase-live-teddy-proof-latest\.json/.test(script)],
+    ['approved-route', /openclaw-mac-mini\.tail02a3b6\.ts\.net:10000\/pages\/teddy-house/.test(script)],
+    ['missing-is-partial', /No live Teddy proof artifact/.test(script) && /status: 'partial'/.test(script)],
+    ['opt-in-run', /HOMEBASE_RUN_LIVE_TEDDY_PROOF/.test(script) && /TEDDY_HOMEBASE_ASK_AGENT/.test(script)],
+    ['require-mode', /HOMEBASE_REQUIRE_LIVE_TEDDY_PROOF/.test(script)],
+    ['source-teddy-required', /source must be teddy/.test(script) && /proof\?\.source !== 'teddy'/.test(script)],
+    ['homebase-scope', /answer escaped Homebase scope/i.test(script) && /Axon\|pipeline\|quota/.test(script)],
+    ['ladder-uses-proof', /liveTeddyProofStatus/.test(ladder) && /Live Teddy proof passed/.test(ladder)],
     ['read-only', /read-only/i.test(text)]
   ].map(([name, ok]) => ({
     name,
@@ -2739,6 +2772,7 @@ async function main() {
   const testLadderCoverage = testLadderSpecCoverage();
   const visualBaselineSpec = visualBaselineSpecCoverage();
   const mobileProofSpec = mobileProofSpecCoverage();
+  const liveTeddyProofSpec = liveTeddyProofSpecCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -2906,6 +2940,16 @@ async function main() {
     detail: 'Mobile proof spec keeps real-device login persistence as an explicit durable artifact, not desktop inference.'
   });
   gates.push({
+    name: 'live-teddy-proof-spec',
+    status: liveTeddyProofSpec.status,
+    detail: liveTeddyProofSpec.detail
+  });
+  checks.push({
+    name: 'live-teddy-proof-spec',
+    status: liveTeddyProofSpec.status,
+    detail: 'Live Teddy proof spec keeps OpenClaw bridge proof explicit, opt-in, and distinct from local fallback.'
+  });
+  gates.push({
     name: 'visual-contracts',
     status: visualCoverage.status,
     detail: visualCoverage.detail
@@ -2978,6 +3022,7 @@ async function main() {
     scenarioReplayPackSpec: scenarioReplayPackCoverage,
     visualBaselineSpec,
     mobileProofSpec,
+    liveTeddyProofSpec,
     visualContractCoverage: visualCoverage,
     visualBaselineCoverage: visualBaseline,
     renderedReplay,
