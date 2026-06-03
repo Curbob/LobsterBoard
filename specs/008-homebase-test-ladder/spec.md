@@ -1,0 +1,29 @@
+# Homebase Test Ladder Spec
+
+## Decision
+
+Track Homebase quality by the tests that most protect Dan's trust.
+
+The ladder separates:
+
+- `Need`: tests that catch daily trust failures.
+- `Want`: tests that catch polish, routing, parser, and visual regressions.
+- `Dream`: the larger gauntlet that proves Homebase across many messy house states and real devices.
+
+## User Outcome
+
+Dan can ask what tests Homebase still needs and get a current answer backed by the latest QA report, not a stale chat opinion.
+
+## Acceptance Criteria
+
+- `npm run homebase:test-ladder` reads `artifacts/qa/homebase-latest.json` when present.
+- The output names the latest QA status and public-auth state.
+- The ladder includes live Teddy bridge proof, real-device saved login, incident ranking, first-screen copy, source trust, visual baselines, timeline grouping, action safety, public auth, log parser fixtures, and the Dan trust gauntlet.
+- Partial coverage is labeled as partial, not passed.
+- Missing live Teddy bridge or real-device proof does not fail the release gate by itself, but stays visible.
+
+## Non-Goals
+
+- No fake device proof.
+- No mutation of Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or credentials.
+- No replacement for `npm run check:homebase`.

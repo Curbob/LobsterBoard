@@ -2340,6 +2340,40 @@ function levelUpRoadmapSpecCoverage() {
   };
 }
 
+function testLadderSpecCoverage() {
+  const specDir = join(process.cwd(), 'specs', '008-homebase-test-ladder');
+  const files = ['spec.md', 'plan.md', 'tasks.md', 'checklists/trust.md', 'quickstart.md'];
+  const text = files.map(file => readFileSync(join(specDir, file), 'utf8')).join('\n\n');
+  const readme = readFileSync(join(process.cwd(), 'README.md'), 'utf8');
+  const packageConfig = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+  const script = readFileSync(join(process.cwd(), 'scripts', 'homebase-test-ladder.mjs'), 'utf8');
+  const required = [
+    ['spec-directory', /Homebase Test Ladder Spec/.test(text)],
+    ['readme-linked', /specs\/008-homebase-test-ladder\/spec\.md/.test(readme)],
+    ['script-registered', packageConfig.scripts?.['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs'],
+    ['latest-report-source', /artifacts.+qa.+homebase-latest\.json/s.test(script)],
+    ['need-want-dream', /Need/.test(script) && /Want/.test(script) && /Dream/.test(script)],
+    ['live-teddy-gap-honesty', /Live Teddy bridge contract/.test(script) && /askSource === 'teddy'/.test(script) && /Latest Ask source is/.test(script)],
+    ['real-device-partial-honesty', /Real-device saved login/.test(script) && /partial/.test(script) && /Android\/iPhone\/iPad relaunch proof remains manual/.test(script)],
+    ['incident-ranking', /Incident ranking golden pack/.test(script) && /zone-ranking-coverage/.test(script)],
+    ['first-screen-copy', /First-screen slop blacklist/.test(script) && /copy-quality-coverage/.test(script) && /visual-contracts/.test(script)],
+    ['source-trust', /Source freshness and trust/.test(script) && /source-contracts/.test(script)],
+    ['visual-baselines', /Visual baseline regression/.test(script) && /image-diff baselines/.test(script)],
+    ['timeline-action-auth-log', /Timeline intelligence/.test(script) && /Action safety matrix/.test(script) && /Public auth route matrix/.test(script) && /Log parser fixture pack/.test(script)],
+    ['dan-trust-gauntlet', /Dan trust gauntlet/.test(script) && /Twenty-plus messy house stories/.test(script)],
+    ['read-only-trust', /The command is read-only/i.test(text)]
+  ].map(([name, ok]) => ({
+    name,
+    ok: Boolean(ok)
+  }));
+  return {
+    status: required.every(item => item.ok) ? 'ok' : 'fail',
+    detail: required.map(item => `${item.name}:${item.ok ? 'ok' : 'missing'}`).join(', '),
+    directory: specDir,
+    items: required
+  };
+}
+
 function copyQualityCoverage(fixtureContracts) {
   const contracts = Array.isArray(fixtureContracts) ? fixtureContracts : [];
   const byName = new Map(contracts.map(contract => [contract.name, contract]));
@@ -2582,6 +2616,7 @@ async function main() {
   const nightlyTruthSuiteCoverage = nightlyTruthSuiteSpecCoverage();
   const scenarioReplayPackCoverage = scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, recordedIncidents);
   const levelUpRoadmapCoverage = levelUpRoadmapSpecCoverage();
+  const testLadderCoverage = testLadderSpecCoverage();
   const copyCoverage = copyQualityCoverage(fixtureContracts);
   const healthyFreshness = healthyFreshnessCoverage();
   const visualCoverage = visualContractCoverage(local, healthyFreshness);
@@ -2706,6 +2741,16 @@ async function main() {
     name: 'level-up-roadmap-spec',
     status: levelUpRoadmapCoverage.status,
     detail: 'Level-up roadmap locks incident ledger, story engine, safe actions, evidence viz, and daily owner mode as the next build path.'
+  });
+  gates.push({
+    name: 'test-ladder-spec',
+    status: testLadderCoverage.status,
+    detail: testLadderCoverage.detail
+  });
+  checks.push({
+    name: 'test-ladder-spec',
+    status: testLadderCoverage.status,
+    detail: 'Test ladder keeps needed, wanted, partial, and dream proof visible from the latest QA report.'
   });
   gates.push({
     name: 'visual-contracts',

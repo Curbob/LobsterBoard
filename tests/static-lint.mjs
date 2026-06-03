@@ -12,6 +12,7 @@ const files = [
   'pages.json',
   'server/config.cjs',
   'server.cjs',
+  'scripts/homebase-test-ladder.mjs',
   'scripts/homebase-capture-incident.mjs'
 ];
 
@@ -42,6 +43,7 @@ const manifest = JSON.parse(read('pages/teddy-house/manifest.webmanifest'));
 const pagesConfig = JSON.parse(read('pages.json'));
 const focusPageConfig = JSON.parse(read('pages/focus-room/page.json'));
 const packageConfig = JSON.parse(read('package.json'));
+const testLadderScript = read('scripts/homebase-test-ladder.mjs');
 const incidentCaptureScript = read('scripts/homebase-capture-incident.mjs');
 
 expect(html.includes('name="apple-mobile-web-app-title" content="Teddy Homebase"'), 'missing iPad/iPhone app title');
@@ -102,6 +104,11 @@ expect(server.includes("'/pages/teddy-house/apple-touch-icon.png'"), 'touch icon
 expect(/['"]\.mp4['"]:\s*['"]video\/mp4['"]/.test(serverConfig), 'server must serve MP4 previews with the correct MIME type');
 expect(!/process\.env\.DASHBOARD_PASSWORD\s*=/.test(server), 'server must not assign dashboard passwords in code');
 expect(packageConfig.scripts['homebase:capture-incident'] === 'node scripts/homebase-capture-incident.mjs', 'missing incident capture npm script');
+expect(packageConfig.scripts['homebase:test-ladder'] === 'node scripts/homebase-test-ladder.mjs', 'missing Homebase test ladder npm script');
+expect(testLadderScript.includes('Live Teddy bridge contract'), 'test ladder must keep live Teddy bridge proof visible');
+expect(testLadderScript.includes('Real-device saved login'), 'test ladder must keep real-device login proof visible');
+expect(testLadderScript.includes('Dan trust gauntlet'), 'test ladder must keep the long-form trust gauntlet visible');
+expect(testLadderScript.includes("askSource === 'teddy'"), 'test ladder must not mark live bridge proof complete from fallback/local answers');
 expect(incidentCaptureScript.includes("join(DATA_DIR, 'qa', 'incident-drafts')"), 'incident capture must write drafts outside committed fixture directory');
 expect(incidentCaptureScript.includes("status: 'draft'"), 'incident capture output must be marked draft');
 expect(incidentCaptureScript.includes('function redactText'), 'incident capture must redact persisted evidence');
