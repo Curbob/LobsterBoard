@@ -812,7 +812,7 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
       trust: houseState && houseState.incident ? 'trusted' : 'degraded',
       confidence: houseState && houseState.incident ? houseState.incident.confidence || 'derived' : 'derived',
       source: 'data/teddy-house/incidents.json',
-      usedBy: ['house-state', 'incident-ribbon'],
+      usedBy: houseState && houseState.incident ? ['house-state', 'incident-ribbon'] : ['incident-ribbon'],
       firstScreenEligible: Boolean(houseState && houseState.incident)
     })
   ];
@@ -3606,7 +3606,6 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     services.homebridge,
     homebridge.accessories,
     actionSignal(homebridge.logHealth),
-    actionSignal(homebridge.version),
     actionSignal(intelligence.automationLogs)
   ]);
   const macMiniState = worstState([
@@ -3619,7 +3618,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     actionSignal(intelligence.macMiniLogs)
   ]);
   const networkSignals = [services.internet, intelligence.wanQuality, services.adguard, services.tailscale, intelligence.networkLogs];
-  const smartHomeSignals = [services.homebridge, intelligence.automationLogs, homebridge.logHealth, homebridge.version, homebridge.accessories];
+  const smartHomeSignals = [services.homebridge, intelligence.automationLogs, homebridge.logHealth, homebridge.accessories];
   const macMiniSignals = [
     services.openclaw,
     health.cpu,

@@ -150,7 +150,11 @@ function renderNeeds(needs, reviewEvidence) {
   }
   if (lane) lane.hidden = false;
   title.textContent = `${needs.length} item${needs.length === 1 ? "" : "s"} to review.`;
-  needs.forEach(item => {
+  const compactReview = typeof window !== "undefined"
+    && window.matchMedia
+    && window.matchMedia("(max-width: 430px)").matches;
+  const visibleNeeds = compactReview ? needs.slice(0, 1) : needs;
+  visibleNeeds.forEach(item => {
     const evidence = evidenceByLabel.get(item) || null;
     const chip = span("need-chip");
     if (evidence) {
@@ -163,7 +167,9 @@ function renderNeeds(needs, reviewEvidence) {
     const explain = document.createElement("button");
     explain.className = "ask-mini";
     explain.type = "button";
-    explain.textContent = "Explain";
+    explain.textContent = "Ask";
+    explain.title = "Explain this review item.";
+    explain.setAttribute("aria-label", "Explain this review item");
     explain.addEventListener("click", () => askTeddy({
       action: "explain",
       prompt: `Explain this Homebase review item: ${item}`,
@@ -172,7 +178,9 @@ function renderNeeds(needs, reviewEvidence) {
     const prepare = document.createElement("button");
     prepare.className = "ask-mini";
     prepare.type = "button";
-    prepare.textContent = "Prepare fix";
+    prepare.textContent = "Plan";
+    prepare.title = "Prepare fix plan.";
+    prepare.setAttribute("aria-label", "Prepare fix plan");
     prepare.addEventListener("click", () => askTeddy({
       action: "prepare-fix",
       prompt: `Prepare a dry-run fix plan for this Homebase review item. Do not run commands or change settings: ${item}`,
@@ -181,13 +189,15 @@ function renderNeeds(needs, reviewEvidence) {
     const logs = document.createElement("a");
     logs.className = "ask-mini need-log-link";
     logs.href = `/pages/teddy-house/logs/?focus=${encodeURIComponent(logFocusForReview(item, evidence))}`;
-    logs.textContent = "Open logs";
+    logs.textContent = "Logs";
     logs.title = "Open source evidence for this review item.";
+    logs.setAttribute("aria-label", "Open logs");
     const capture = document.createElement("button");
     capture.className = "ask-mini";
     capture.type = "button";
-    capture.textContent = "Capture";
+    capture.textContent = "Save";
     capture.title = "Save a redacted incident draft for QA.";
+    capture.setAttribute("aria-label", "Capture incident");
     capture.addEventListener("click", () => captureIncident({
       title: formatNeedLabel(item),
       clicked: { type: "review", label: item, source: evidence && evidence.source || "" }
@@ -195,6 +205,9 @@ function renderNeeds(needs, reviewEvidence) {
     chip.append(explain, prepare, logs, capture);
     list.append(chip);
   });
+  if (compactReview && needs.length > visibleNeeds.length) {
+    list.append(span("need-chip need-chip-more", `${needs.length - visibleNeeds.length} more below`));
+  }
 }
 
 function logFocusForReview(item, evidence) {

@@ -527,7 +527,8 @@ describe('Teddy Homebase page', () => {
     expect(chip.dataset.checkedAt).toBe('2026-05-16T23:00:00.000Z');
     expect(chip.title).toContain('Homebridge Port | live | Checked');
     const logsLink = chip.querySelector('.need-log-link');
-    expect(logsLink.textContent).toBe('Open logs');
+    expect(logsLink.textContent).toBe('Logs');
+    expect(logsLink.getAttribute('aria-label')).toBe('Open logs');
     expect(logsLink.getAttribute('href')).toBe('/pages/teddy-house/logs/?focus=homebridge');
 
     const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);

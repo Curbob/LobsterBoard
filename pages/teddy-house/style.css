@@ -1404,6 +1404,12 @@ h3 {
   }
 }
 
+@media (max-width: 430px) {
+  .need-chip .ask-mini {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   .window-shell {
     margin: 0;

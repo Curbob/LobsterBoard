@@ -805,7 +805,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const activeZone = document.querySelector("#house-zone-grid .house-zone-card.active-zone .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
       const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
-      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/Explain\\s*Prepare fix\\s*Open logs\\s*Capture/g, '')?.trim() || "";
+      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/(?:Explain\\s*Prepare fix\\s*Open logs\\s*Capture|Ask\\s*Plan\\s*Logs\\s*Save)/g, '')?.trim() || "";
       const incidentMeta = document.querySelector('#incident-meta')?.textContent?.trim() || "";
       const incidentVisible = Boolean(document.querySelector('#incident-ribbon') && !document.querySelector('#incident-ribbon').hidden);
       const evidenceOpen = document.querySelector('#evidence-details')?.open ?? null;
@@ -876,7 +876,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   const phoneCopyBudgetOk = width > 430 || firstScreenTextLength <= PHONE_FIRST_SCREEN_COPY_BUDGET;
   assert(storySpecific, `rendered first viewport lacks a specific house story at ${width}px: ${JSON.stringify(value)}`);
   assert(actionVisible, `rendered first viewport lacks a useful first action at ${width}px: ${JSON.stringify(value)}`);
-  assert(phoneCopyBudgetOk, `phone first viewport copy is too long at ${width}px: ${firstScreenTextLength}/${PHONE_FIRST_SCREEN_COPY_BUDGET}`);
+  assert(phoneCopyBudgetOk, `phone first viewport copy is too long at ${width}px: ${firstScreenTextLength}/${PHONE_FIRST_SCREEN_COPY_BUDGET}: ${value.firstScreenText}`);
   if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
   }
