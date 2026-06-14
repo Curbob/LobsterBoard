@@ -11,10 +11,10 @@
   "intelligence": {
     "adguard": {
       "state": "info",
-      "metric": "locked",
-      "value": "locked",
-      "label": "locked",
-      "detail": "Blocked-query stats need the local AdGuard login.",
+      "metric": "needs login",
+      "value": "needs login",
+      "label": "Needs login",
+      "detail": "AdGuard blocked-query stats need the Teddy service login.",
       "confidence": "needs-login",
       "source": "AdGuard stats API"
     },

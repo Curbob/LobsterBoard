@@ -40,11 +40,18 @@ function validateMobileProof(proof, path = proofPath) {
     if (device.noOverflow !== true) deviceFailures.push('overflow not cleared');
     if (!(device.askUsable === true || device.fallbackVisible === true)) deviceFailures.push('Ask Teddy/fallback not proved');
     if (device.rawTelemetryHidden !== true) deviceFailures.push('raw telemetry not proved hidden');
+    if (typeof device.screenshot !== 'string' || !existsSync(join(process.cwd(), device.screenshot))) deviceFailures.push('screenshot artifact missing');
+    if (id === 'android-chrome') {
+      if (!device.viewport || Number(device.viewport.width) <= 0 || Number(device.viewport.height) <= 0) deviceFailures.push('Android viewport missing');
+      if (Number(device.viewport?.densityDpi || 0) <= 0) deviceFailures.push('Android density missing');
+    }
     if (deviceFailures.length > 0) failures.push(`${id}: ${deviceFailures.join(', ')}`);
     return {
       id,
       status: deviceFailures.length === 0 ? 'ok' : 'fail',
-      firstAction: device.firstAction || null
+      firstAction: device.firstAction || null,
+      screenshot: device.screenshot || null,
+      viewport: device.viewport || null
     };
   });
   return {
@@ -85,6 +92,9 @@ function printTemplate() {
       noOverflow: true,
       rawTelemetryHidden: true,
       screenshot: 'artifacts/qa/mobile/device-proof.png',
+      viewport: id === 'android-chrome'
+        ? { width: 1080, height: 2340, cssWidth: 384, cssHeight: 832, densityDpi: 450, dpr: 2.8125 }
+        : undefined,
       notes: 'Replace with real device observation.'
     }))
   }, null, 2));

@@ -13,6 +13,7 @@ This repo is LobsterBoard with Dan's private Teddy Homebase work layered on top.
 - Use real probes, real logs, and real evidence. No fake charts, fake trends, or decorative metrics.
 - Eufy lock data is currently unreliable and ignored on the daily dashboard unless a better live source replaces it.
 - CPU peaks and other trend-like signals must be backed by persisted local history, not generated display noise.
+- Home Stats should use trusted indoor climate in this order: Ecobee MCP, fresh Homebridge climate sensors, then weather fallback for outside context only.
 
 ## Logging Contract
 
@@ -23,6 +24,7 @@ This repo is LobsterBoard with Dan's private Teddy Homebase work layered on top.
 - Redact emails, tokens, passwords, pairing codes, QR payloads, and setup-code patterns before browser display.
 - Promote only current counted `warn` or `bad` sources into the Review lane.
 - Store the latest normalized snapshot at `data/teddy-house/service-logs.json`.
+- AdGuard blocked-query stats are evidence only. Homebase should use the Teddy Keychain credential and label stats as live, needs login, login failed, or rate limited without committing credentials.
 
 See `docs/UNIFIED-LOGGING-PLAN.md` for the saved Teddy/Codex architecture plan.
 
@@ -54,6 +56,8 @@ Everything else should stay tailnet-only or local unless Dan approves a change.
 npm run lint
 npm test
 npm run check -- --runInBand
+npm run check:homebase
+npm run homebase:test-ladder
 ```
 
 For live local proof:

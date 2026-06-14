@@ -11,7 +11,7 @@ This is not pixel-perfect museum testing. The baseline protects the parts that m
 - the affected house zone is marked
 - healthy evidence stays quiet
 - warning evidence stays below the decision surface
-- no horizontal overflow on phone, iPad, or desktop
+- no horizontal overflow on phone portrait, phone landscape, iPad, or desktop
 - first-viewport copy stays within a budget
 - raw telemetry stays out of the daily surface
 
@@ -23,7 +23,8 @@ Dan can keep iterating fast without the dashboard quietly getting ugly or noisy 
 
 - `npm run homebase:visual-baseline` reads `artifacts/qa/homebase-latest.json`.
 - The baseline uses `tests/fixtures/teddy-house/visual-baseline.json`.
-- Phone, iPad, and desktop viewports must all be present.
+- Phone portrait, phone landscape, iPad portrait, desktop, 4K, and Retina viewports must all be present.
+- Each screenshot output must include orientation and real PNG dimensions read from the captured file.
 - The command fails on overflow, missing first story, missing first action, failed visual contracts, or first-screen copy over budget.
 - The baseline is structural and tolerant of changing live house state.
 

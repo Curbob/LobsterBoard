@@ -60,6 +60,7 @@ expect(html.includes('http://127.0.0.1:8080/pages/teddy-house/'), 'file-open gua
 expect(html.includes('rel="apple-touch-icon" href="/pages/teddy-house/apple-touch-icon.png"'), 'missing Apple touch icon');
 expect(html.includes('rel="manifest" href="/pages/teddy-house/manifest.webmanifest"'), 'missing web app manifest');
 expect(html.includes('id="ask-teddy"'), 'missing Ask Teddy command bar');
+expect(html.includes('id="primary-fix-button"'), 'missing primary Ask Teddy to Fix button');
 expect(html.includes('id="house-state"'), 'missing house-state daily surface');
 expect(html.includes('id="incident-meta"'), 'missing active incident metadata surface');
 expect(html.includes('id="evidence-details"'), 'missing collapsible service evidence surface');
@@ -95,6 +96,10 @@ expect(!html.includes('teddy-focus-room-preview.mp4'), 'Homebase must not embed 
 
 expect(script.includes('const REFRESH_MS = 420000'), 'manual/auto refresh interval must stay at 420 seconds');
 expect(script.includes('async function askTeddy'), 'Ask Teddy client handler must stay wired');
+expect(script.includes('async function askTeddyToFix'), 'primary fix button handler must stay wired');
+expect(script.includes('type: "primary-fix"'), 'primary fix button must send primary-fix clicked metadata');
+expect(script.includes('Preparing a safe fix plan'), 'primary fix button must show safe planning state');
+expect(script.includes('Do not run commands or change settings'), 'primary fix button must keep no-mutation copy');
 expect(script.includes('/api/pages/teddy-house/ask'), 'Ask Teddy client must call page-local ask route');
 expect(script.includes('function renderHouseState'), 'Homebase must render the house-state layer');
 expect(script.includes('function renderIncidentMeta'), 'Homebase must render incident source, confidence, time, and next action');
@@ -129,10 +134,15 @@ expect(testLadderScript.includes('gauntletStatus'), 'test ladder must read the D
 expect(visualBaselineScript.includes('tests\', \'fixtures\', \'teddy-house\', \'visual-baseline.json'), 'visual baseline must read the committed structural baseline');
 expect(visualBaselineScript.includes('maxFirstScreenTextLength'), 'visual baseline must enforce first-screen copy budget');
 expect(visualBaselineScript.includes('requiredVisualContracts'), 'visual baseline must enforce visual contract booleans');
+expect(visualBaselineScript.includes('deviceScaleFactor'), 'visual baseline must enforce Retina DPR');
+expect(visualBaselineScript.includes('orientation drifted'), 'visual baseline must enforce portrait and landscape orientation');
+expect(visualBaselineScript.includes('PNG dimensions drifted'), 'visual baseline must read captured PNG dimensions');
 expect(mobileProofScript.includes('homebase-mobile-proof-latest.json'), 'mobile proof must read the latest durable proof artifact');
 expect(mobileProofScript.includes('android-chrome') && mobileProofScript.includes('iphone-pwa') && mobileProofScript.includes('ipad-pwa'), 'mobile proof must require Android, iPhone, and iPad entries');
 expect(mobileProofScript.includes('HOMEBASE_REQUIRE_MOBILE_PROOF'), 'mobile proof must support a required mode');
 expect(mobileProofScript.includes('No real-device proof artifact'), 'mobile proof must report missing proof honestly');
+expect(mobileProofScript.includes('screenshot artifact missing'), 'mobile proof must require screenshot artifacts');
+expect(mobileProofScript.includes('Android viewport missing') && mobileProofScript.includes('Android density missing'), 'mobile proof must require Android viewport and density metadata');
 expect(liveTeddyProofScript.includes('homebase-live-teddy-proof-latest.json'), 'live Teddy proof must read the latest durable proof artifact');
 expect(liveTeddyProofScript.includes('HOMEBASE_RUN_LIVE_TEDDY_PROOF'), 'live Teddy proof must be opt-in');
 expect(liveTeddyProofScript.includes('HOMEBASE_REQUIRE_LIVE_TEDDY_PROOF'), 'live Teddy proof must support a required mode');

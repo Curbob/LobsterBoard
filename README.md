@@ -56,7 +56,7 @@ Homebase proof command:
 npm run check:homebase
 ```
 
-That runs lint/tests, 24 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists and phone copy budget checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, structural visual baseline checks, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, scenario replay pack, level-up roadmap, test ladder, and visual baseline.
+That runs lint/tests, 24 replayed house-state stories, local Homebase route smokes, grouped log evidence checks, first-screen copy blacklists and phone copy budget checks, rendered first-screen assertions, phone portrait/landscape, iPad, desktop, 4K, and Retina screenshot capture, structural visual baseline checks, persisted evidence retention checks, public Funnel auth smoke when reachable, and spec-backed QA gates for the Homebridge Guard card, Daily Decision Strip, nightly truth suite, scenario replay pack, level-up roadmap, test ladder, and visual baseline.
 
 To see which tests are proven, partial, or still missing:
 

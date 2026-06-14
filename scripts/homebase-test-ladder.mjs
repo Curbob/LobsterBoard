@@ -79,11 +79,11 @@ const need = [
 const want = [
   {
     name: 'Visual baseline regression',
-    status: proof(report, 'visual-baseline') ? 'ok' : screenshots.length >= 3 ? 'partial' : 'gap',
+    status: proof(report, 'visual-baseline') ? 'ok' : screenshots.length >= 6 ? 'partial' : 'gap',
     detail: proof(report, 'visual-baseline')
-      ? 'Phone, iPad, and desktop screenshots passed the structural visual baseline.'
-      : screenshots.length >= 3
-      ? 'Phone, iPad, and desktop screenshots are captured; structural baseline proof is still missing.'
+      ? 'Phone portrait, phone landscape, iPad, desktop, 4K, and Retina screenshots passed the structural visual baseline.'
+      : screenshots.length >= 6
+      ? 'Phone portrait, phone landscape, iPad, desktop, 4K, and Retina screenshots are captured; structural baseline proof is still missing.'
       : 'Responsive screenshots were not captured in the latest QA report.'
   },
   {

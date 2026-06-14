@@ -21,13 +21,23 @@ function homebaseDom() {
       <button id="ask-status-button"></button>
       <div id="ask-state"></div>
       <div id="ask-response"></div>
+      <div id="ask-progress" hidden>
+        <div data-ask-step="context"></div>
+        <div data-ask-step="teddy"></div>
+        <div data-ask-step="approval"></div>
+      </div>
       <div id="summary-title"></div>
       <div id="summary-copy"></div>
       <div id="health-score"></div>
       <div id="score-ring"></div>
       <div id="next-action"></div>
+      <button id="primary-fix-button"></button>
       <div id="last-check"></div>
       <div id="teddy-line"></div>
+      <section id="server" class="vitals-panel hidden-until-loaded">
+        <span id="vitals-pill"></span>
+        <div id="vitals-grid"></div>
+      </section>
       <section id="daily-decision" class="decision-strip hidden-until-loaded">
         <article class="decision-slot" data-decision-slot="now">
           <p class="eyebrow"></p>
@@ -46,13 +56,13 @@ function homebaseDom() {
         <div id="needs-title"></div>
         <div id="needs-list"></div>
       </section>
+      <section id="home-stats" class="home-stats-panel hidden-until-loaded">
+        <span id="home-stats-pill"></span>
+        <div id="home-stats-grid"></div>
+      </section>
       <section id="house-state" class="house-state-panel hidden-until-loaded">
         <span id="house-state-pill"></span>
         <div id="house-zone-grid"></div>
-      </section>
-      <section id="server" class="vitals-panel hidden-until-loaded">
-        <span id="vitals-pill"></span>
-        <div id="vitals-grid"></div>
       </section>
       <section id="ask-teddy"></section>
       <section id="service-grid" class="service-grid hidden-until-loaded"></section>
@@ -120,8 +130,21 @@ function healthyWithOneWarning() {
         disk: { state: 'ok', detail: 'Disk normal.' }
       }
     },
+    homeStats: {
+      localTime: '9:44 PM',
+      localDate: 'Sun, Jun 14',
+      insideTemperature: '74°F',
+      humidity: '48%',
+      outsideTemperature: '68°F',
+      weatherSummary: 'Clear',
+      source: 'Homebridge: AIr Quality Monitor',
+      freshness: 'Fresh 4m ago',
+      indoorSource: 'Homebridge: AIr Quality Monitor',
+      indoorFreshness: 'Fresh 4m ago',
+      weatherSource: 'Local weather fallback'
+    },
     intelligence: {
-      adguard: { state: 'info', value: 'locked', label: 'locked', detail: 'Blocked-query stats need the local AdGuard login.' },
+      adguard: { state: 'info', value: 'needs login', label: 'Needs login', detail: 'AdGuard blocked-query stats need the Teddy service login.', confidence: 'needs-login' },
       homebridge: {
         doorLocks: { state: 'ok', value: 'locked', label: '2 locks', detail: 'Front Door: locked. Side Door: locked.', items: [] },
         accessories: { state: 'ok', count: 102, detail: 'Accessories loaded.' },
@@ -185,8 +208,10 @@ describe('Teddy Homebase design guardrails', () => {
   it('keeps launcher shortcuts below the ranked health story', () => {
     const html = readFileSync(join(process.cwd(), 'pages/teddy-house/index.html'), 'utf8');
 
-    const houseStateIndex = html.indexOf('id="house-state"');
     const vitalsIndex = html.indexOf('id="server"');
+    const dailyIndex = html.indexOf('id="daily-decision"');
+    const houseStateIndex = html.indexOf('id="house-state"');
+    const homeStatsIndex = html.indexOf('id="home-stats"');
     const askIndex = html.indexOf('id="ask-teddy"');
     const evidenceIndex = html.indexOf('id="evidence"');
     const historyIndex = html.indexOf('id="history"');
@@ -194,15 +219,18 @@ describe('Teddy Homebase design guardrails', () => {
     const localLinksIndex = html.indexOf('id="local-links"');
 
     expect(houseStateIndex).toBeGreaterThan(-1);
-    expect(vitalsIndex).toBeGreaterThan(houseStateIndex);
-    expect(askIndex).toBeGreaterThan(vitalsIndex);
+    expect(vitalsIndex).toBeGreaterThan(-1);
+    expect(vitalsIndex).toBeLessThan(dailyIndex);
+    expect(homeStatsIndex).toBeGreaterThan(dailyIndex);
+    expect(houseStateIndex).toBeGreaterThan(homeStatsIndex);
+    expect(askIndex).toBeGreaterThan(houseStateIndex);
     expect(evidenceIndex).toBeGreaterThan(askIndex);
     expect(historyIndex).toBeGreaterThan(evidenceIndex);
     expect(timelineIndex).toBeGreaterThan(historyIndex);
     expect(localLinksIndex).toBeGreaterThan(timelineIndex);
   });
 
-  it('renders house state first and keeps service evidence subordinate', async () => {
+  it('renders Mac vitals first and keeps service evidence subordinate', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = homebaseDom();
     const health = healthyWithOneWarning();
@@ -220,13 +248,16 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.getElementById('summary-title').textContent).toBe("Dan's house is steady.");
     expect(document.getElementById('review-lane').hidden).toBe(true);
     expect(document.getElementById('needs-list').textContent).toBe('');
+    expect(document.getElementById('primary-fix-button').disabled).toBe(true);
+    expect(document.getElementById('primary-fix-button').textContent).toBe('Nothing to fix');
     expect(document.querySelectorAll('#daily-decision .decision-slot')).toHaveLength(3);
     expect([...document.querySelectorAll('#daily-decision h3')].map(el => el.textContent)).toEqual([
       'Nothing needs Dan.',
       'Public access is known and passworded.',
       'Homebridge UI has a patch update when convenient.'
     ]);
-    expect(document.getElementById('daily-decision').previousElementSibling.id).toBe('teddy-line');
+    expect(document.getElementById('server').nextElementSibling.id).toBe('daily-decision');
+    expect(document.getElementById('daily-decision').previousElementSibling.id).toBe('server');
     expect(document.getElementById('daily-decision').nextElementSibling.id).toBe('review-lane');
     expect(document.getElementById('daily-decision').textContent).not.toMatch(/Front Door|Side Door|Door locks|100\.64|8443, 10000|5\.22\.0/i);
     expect(document.querySelectorAll('.house-zone-card')).toHaveLength(4);
@@ -237,8 +268,16 @@ describe('Teddy Homebase design guardrails', () => {
       'Mac mini'
     ]);
     expect(document.getElementById('house-zone-grid').textContent).not.toMatch(/Front Door|Side Door|Door locks/i);
-    expect(document.getElementById('server').previousElementSibling.id).toBe('house-state');
-    expect(document.getElementById('server').nextElementSibling.id).toBe('ask-teddy');
+    expect(document.getElementById('review-lane').nextElementSibling.id).toBe('home-stats');
+    expect(document.getElementById('home-stats').nextElementSibling.id).toBe('house-state');
+    expect(document.getElementById('house-state').nextElementSibling.id).toBe('ask-teddy');
+    expect([...document.querySelectorAll('#home-stats-grid .tiny-label')].map(el => el.textContent)).toEqual([
+      'Home time',
+      'Inside',
+      'Humidity',
+      'Outside',
+      'Weather'
+    ]);
     expect([...document.querySelectorAll('#vitals-grid .tiny-label')].map(el => el.textContent).slice(0, 3)).toEqual([
       'CPU load',
       'Memory pressure',
@@ -251,7 +290,7 @@ describe('Teddy Homebase design guardrails', () => {
 
     const signalDetails = [...document.querySelectorAll('.signal-card p')].map(el => el.textContent);
     expect(signalDetails).toEqual([
-      'Blocked-query stats need the local AdGuard login.',
+      'AdGuard blocked-query stats need the Teddy service login.',
       'Homebridge is current at 2.0.2. Homebridge UI has a patch update available when convenient: 5.22.0 to 5.23.0.',
       'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.'
     ]);
@@ -270,5 +309,171 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.querySelectorAll('#history-grid .history-sample')).toHaveLength(3);
     expect(document.querySelector('#history-grid .history-samples').getAttribute('aria-label')).toContain('data/teddy-house/vitals-history.json');
     expect(document.getElementById('next-action').textContent).toBe('No review items.');
+  });
+
+  it('enables the primary fix button only when a review item exists', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = homebaseDom();
+    const health = healthyWithOneWarning();
+    health.score = 45;
+    health.needsDan = ['DNS: failed'];
+    health.reviewEvidence = [{
+      label: 'DNS: failed',
+      source: 'AdGuard DNS probe',
+      confidence: 'live',
+      checkedAt: health.checkedAt
+    }];
+    health.houseState = {
+      ...health.houseState,
+      headline: 'Homebase found an issue.',
+      summary: 'Recurring internet issue. Check DNS first.',
+      tone: 'issue',
+      primaryAction: 'Check DNS first.'
+    };
+
+    dom.window.fetch = vi.fn(async url => {
+      if (url === '/api/pages/teddy-house/health') return { ok: true, json: async () => health };
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const button = dom.window.document.getElementById('primary-fix-button');
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe('Ask Teddy to Fix');
+    expect(button.title).toContain('DNS: failed');
+  });
+
+  it('targets the ranked incident when the evidence list has lower-level noise first', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = homebaseDom();
+    const health = healthyWithOneWarning();
+    let askBody = null;
+    health.score = 63;
+    health.needsDan = ['Tailscale: unknown', 'Network service logs: AdGuard'];
+    health.reviewEvidence = [
+      {
+        label: 'Tailscale: unknown',
+        source: 'tailscale status --json',
+        confidence: 'live',
+        checkedAt: health.checkedAt,
+        detail: 'Tailscale state was unavailable.'
+      },
+      {
+        label: 'Network service logs: AdGuard',
+        source: 'local service logs',
+        confidence: 'live',
+        checkedAt: health.checkedAt,
+        detail: 'AdGuard login errors appeared in recent logs.'
+      }
+    ];
+    health.houseState = {
+      ...health.houseState,
+      headline: 'Something needs a look.',
+      summary: 'Recurring public access issue. Check public access first.',
+      tone: 'review',
+      primaryAction: 'Check public access first.',
+      incident: {
+        title: 'Public route drift',
+        source: 'Tailscale Funnel',
+        detail: 'A public route changed and needs confirmation.',
+        nextAction: 'Check public access first.'
+      }
+    };
+    health.intelligence.networkLogs = {
+      state: 'bad',
+      value: 'AdGuard',
+      detail: 'AdGuard login errors appeared in recent logs.',
+      source: 'local service logs',
+      items: Array.from({ length: 20 }, (_, index) => ({ line: `verbose log line ${index}` }))
+    };
+
+    dom.window.fetch = vi.fn(async (url, options = {}) => {
+      if (url === '/api/pages/teddy-house/health') return { ok: true, json: async () => health };
+      if (url === '/api/pages/teddy-house/ask') {
+        askBody = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ status: 'complete', source: 'teddy', answer: 'Dry-run plan ready.' }) };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const button = dom.window.document.getElementById('primary-fix-button');
+    expect(button.disabled).toBe(false);
+    expect(button.title).toContain('Public route drift');
+    button.click();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    expect(askBody.action).toBe('prepare-fix');
+    expect(askBody.clicked).toEqual({ type: 'primary-fix', label: 'Public route drift', source: 'Tailscale Funnel' });
+    expect(askBody.prompt).toContain('Do not run commands or change settings');
+    expect(askBody.prompt).toContain('Check public access first');
+    expect(askBody.prompt).toContain('A public route changed and needs confirmation.');
+    expect(JSON.stringify(askBody.context).length).toBeLessThan(8000);
+    expect(askBody.context.houseState.incident.title).toBe('Public route drift');
+    expect(askBody.context.intelligence.networkLogs.items).toBeUndefined();
+  });
+
+  it('shows progress while Teddy is preparing a fix plan', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = homebaseDom();
+    const health = healthyWithOneWarning();
+    let resolveAsk;
+    health.score = 78;
+    health.needsDan = ['Public access: 443, 8443, 10000'];
+    health.reviewEvidence = [{
+      label: 'Public access: 443, 8443, 10000',
+      source: 'Tailscale Funnel',
+      confidence: 'live',
+      checkedAt: health.checkedAt,
+      detail: 'Unexpected public route detected.'
+    }];
+    health.houseState = {
+      ...health.houseState,
+      headline: 'Something needs a look.',
+      summary: 'Recurring public access issue. Check public access first.',
+      tone: 'review',
+      primaryAction: 'Check public access first.',
+      incident: {
+        title: 'Public route drift',
+        source: 'Tailscale Funnel',
+        detail: 'Unexpected public route detected.',
+        nextAction: 'Check public access first.'
+      }
+    };
+
+    dom.window.fetch = vi.fn(async (url) => {
+      if (url === '/api/pages/teddy-house/health') return { ok: true, json: async () => health };
+      if (url === '/api/pages/teddy-house/ask') {
+        return new Promise(resolve => {
+          resolveAsk = () => resolve({ ok: true, json: async () => ({ status: 'complete', source: 'teddy', answer: 'Plan ready.' }) });
+        });
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const button = dom.window.document.getElementById('primary-fix-button');
+    button.click();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const progress = dom.window.document.getElementById('ask-progress');
+    expect(progress.hidden).toBe(false);
+    expect(progress.dataset.phase).toBe('teddy');
+    expect(button.textContent).toBe('Teddy is planning');
+    expect(dom.window.document.querySelector('[data-ask-step="context"]').classList.contains('is-done')).toBe(true);
+    expect(dom.window.document.querySelector('[data-ask-step="teddy"]').classList.contains('is-active')).toBe(true);
+
+    resolveAsk();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+    expect(progress.dataset.phase).toBe('done');
+    expect(progress.dataset.source).toBe('teddy');
+    expect(dom.window.document.querySelector('[data-ask-step="approval"]').classList.contains('is-done')).toBe(true);
+    expect(button.textContent).toBe('Ask Teddy to Fix');
   });
 });

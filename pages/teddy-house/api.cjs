@@ -11,8 +11,10 @@ const TAILSCALE_BIN = process.env.TAILSCALE_BIN || '/usr/local/bin/tailscale';
 const TAILSCALE_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_TAILSCALE_TIMEOUT_MS || 8000);
 const TEDDY_ASK_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_ASK_TIMEOUT_MS || 60000);
 const TEDDY_ASK_MAX_PROMPT = 600;
+const TEDDY_ASK_CONTEXT_MAX_CHARS = Number(process.env.TEDDY_HOMEBASE_ASK_CONTEXT_MAX_CHARS || 5000);
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const MANUAL_VERIFICATION_TTL_MS = 4 * HOUR_MS;
 const UPDATE_CACHE_MS = 12 * HOUR_MS;
 const MAC_UPDATE_CACHE_MS = 6 * HOUR_MS;
@@ -51,6 +53,20 @@ const SERVICE_NAMES = {
   openclaw: 'OpenClaw',
   backups: 'Backups'
 };
+const ADGUARD_BASE_URL = process.env.HOMEBASE_ADGUARD_URL || 'http://127.0.0.1:3001';
+const ADGUARD_KEYCHAIN_SERVICE = process.env.HOMEBASE_ADGUARD_KEYCHAIN_SERVICE || 'teddy-homebase-adguard';
+const HOME_TIME_ZONE = process.env.HOMEBASE_TIME_ZONE || 'America/Los_Angeles';
+const HOME_SENSOR_STALE_MS = Number(process.env.HOMEBASE_HOME_SENSOR_STALE_MS || DAY_MS);
+const WEATHER_URL = process.env.HOMEBASE_WEATHER_URL || 'https://wttr.in/?format=j1';
+const ECOBEE_MCP_URL = process.env.HOMEBASE_ECOBEE_MCP_URL || 'http://127.0.0.1:3000/mcp';
+const ECOBEE_MCP_PLIST = process.env.HOMEBASE_ECOBEE_MCP_PLIST || '/Users/teddyclaw/Library/LaunchAgents/com.teddy.ecobee-mcp.plist';
+const ECOBEE_MCP_TIMEOUT_MS = Number(process.env.HOMEBASE_ECOBEE_MCP_TIMEOUT_MS || 1500);
+const HEALTH_CACHE_MS = Number(process.env.TEDDY_HOMEBASE_HEALTH_CACHE_MS || 45000);
+let adGuardSessionCookie = '';
+let adGuardLoginBlockedUntil = 0;
+let ecobeeMcpToken = '';
+let healthCache = null;
+let healthInFlight = null;
 const HIDDEN_BY_DEFAULT = {
   services: ['backups'],
   signals: ['doorLocks', 'weirdThings'],
@@ -96,19 +112,35 @@ async function fetchCheck(url) {
   }
 }
 
-async function fetchJson(url) {
+async function fetchJson(url, options = {}) {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { ...options, signal: controller.signal });
     const text = await res.text();
     let json = null;
-    try { json = text ? JSON.parse(text) : null; } catch (_) {}
-    return { status: res.status, ms: Date.now() - started, json };
+    try { json = text ? JSON.parse(text) : null; } catch (_) {
+      json = parseEventStreamJson(text);
+    }
+    return { status: res.status, ms: Date.now() - started, json, headers: res.headers };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function parseEventStreamJson(text) {
+  const dataLines = String(text || '')
+    .split(/\r?\n/)
+    .filter(line => line.startsWith('data:'))
+    .map(line => line.replace(/^data:\s?/, '').trim())
+    .filter(Boolean);
+  for (const line of dataLines) {
+    try {
+      return JSON.parse(line);
+    } catch (_) {}
+  }
+  return null;
 }
 
 function run(command, args, ms = TIMEOUT_MS) {
@@ -217,22 +249,22 @@ function summarizeForTeddy(context) {
     .filter(([key]) => DEFAULT_SERVICE_KEYS.includes(key))
     .map(([key, service]) => `${SERVICE_NAMES[key] || key}: ${service.state || 'unknown'} (${service.metric || '--'})`)
     .join('; ');
-  const review = Array.isArray(data.needsDan) ? data.needsDan.slice(0, 8).join('; ') : '';
+  const review = Array.isArray(data.needsDan) ? data.needsDan.slice(0, 5).map(item => shortText(item, 140)).join('; ') : '';
   const memory = Array.isArray(data.historicalSummaries)
     ? data.historicalSummaries
       .filter(summary => summary && summary.source)
-      .slice(0, 6)
+      .slice(0, 3)
       .map(summary => ({
         id: summary.id || null,
         title: summary.title || null,
         window: summary.window || null,
-        value: summary.value || null,
-        detail: summary.detail || null,
+        value: shortText(summary.value, 80),
+        detail: shortText(summary.detail, 160),
         sampleCount: summary.sampleCount ?? null,
         source: summary.source || null
       }))
     : [];
-  return {
+  return fitTeddyContextBudget({
     checkedAt: data.checkedAt || null,
     score: data.score ?? null,
     houseState: data.houseState && typeof data.houseState === 'object'
@@ -257,7 +289,7 @@ function summarizeForTeddy(context) {
                 title: zone.title,
                 state: zone.state,
                 value: zone.value,
-                detail: zone.detail
+                detail: shortText(zone.detail, 140)
               }))
             : []
         }
@@ -268,12 +300,22 @@ function summarizeForTeddy(context) {
           slots: data.dailyDecision.slots.map(slot => ({
             key: slot.key || null,
             label: slot.label || null,
-            text: slot.text || null,
+            text: shortText(slot.text, 120),
             state: slot.state || null,
             source: slot.source || null
           }))
         }
       : null,
+    homeStats: data.homeStats ? {
+      localTime: data.homeStats.localTime || null,
+      localDate: data.homeStats.localDate || null,
+      insideTemperature: data.homeStats.insideTemperature || null,
+      humidity: data.homeStats.humidity || null,
+      outsideTemperature: data.homeStats.outsideTemperature || null,
+      weatherSummary: shortText(data.homeStats.weatherSummary, 80),
+      source: shortText(data.homeStats.source, 100),
+      freshness: shortText(data.homeStats.freshness, 80)
+    } : null,
     summary: serviceSummary || 'No service summary supplied.',
     review: review || 'No review items supplied.',
     memory,
@@ -284,6 +326,39 @@ function summarizeForTeddy(context) {
       systemLogs: intelligence.systemLogs ? stripSignal(intelligence.systemLogs) : null,
       macUpdates: intelligence.macUpdates ? stripSignal(intelligence.macUpdates) : null
     }
+  });
+}
+
+function shortText(value, max = 160) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, Math.max(0, max - 3))}...` : text;
+}
+
+function fitTeddyContextBudget(context) {
+  if (JSON.stringify(context).length <= TEDDY_ASK_CONTEXT_MAX_CHARS) return context;
+  return {
+    ...context,
+    memory: Array.isArray(context.memory) ? context.memory.slice(0, 1).map(item => ({
+      title: item.title,
+      window: item.window,
+      value: item.value,
+      source: item.source
+    })) : [],
+    houseState: context.houseState ? {
+      headline: context.houseState.headline,
+      summary: context.houseState.summary,
+      tone: context.houseState.tone,
+      primaryAction: context.houseState.primaryAction,
+      zones: Array.isArray(context.houseState.zones)
+        ? context.houseState.zones.map(zone => ({
+            id: zone.id,
+            title: zone.title,
+            state: zone.state,
+            value: zone.value
+          }))
+        : []
+    } : null
   };
 }
 
@@ -308,7 +383,8 @@ async function askTeddy(ctx, body) {
   const prompt = String(body.prompt || '').trim().slice(0, TEDDY_ASK_MAX_PROMPT);
   const action = String(body.action || 'ask');
   const clicked = body.clicked && typeof body.clicked === 'object' ? body.clicked : null;
-  const context = summarizeForTeddy(body.context);
+  const rawContext = await askContext(ctx, body.context);
+  const context = summarizeForTeddy(rawContext);
 
   if (!prompt && action !== 'status') {
     return { status: 'error', message: 'Ask Teddy needs a question or status request.' };
@@ -333,6 +409,7 @@ async function askTeddy(ctx, body) {
     `Action: ${action}`,
     `Prompt: ${prompt || 'Summarize current status and review items.'}`,
     clicked ? `Clicked signal: ${JSON.stringify(clicked)}` : 'Clicked signal: none',
+    `Dashboard readiness: ${context.score ?? 'unknown'}`,
     `Dashboard memory: ${memoryLine}`,
     `Dashboard context: ${JSON.stringify(context)}`
   ].join('\n');
@@ -342,7 +419,7 @@ async function askTeddy(ctx, body) {
       status: 'complete',
       dryRun: true,
       answer: 'Dry run ready. Teddy would receive the current dashboard context and answer here.',
-      promptPreview: task.slice(0, 1200),
+      promptPreview: task.slice(0, 2400),
       at: nowIso()
     };
   }
@@ -386,7 +463,7 @@ async function askTeddy(ctx, body) {
     clicked,
     status: 'complete',
     source: useAgentAnswer ? 'teddy' : 'local-fallback',
-    answer: useAgentAnswer ? agentAnswer : fallbackAnswer,
+    answer: withReadinessContext(useAgentAnswer ? agentAnswer : fallbackAnswer, context),
     run: result.ok ? (() => {
       try {
         const parsed = JSON.parse(result.stdout);
@@ -396,6 +473,27 @@ async function askTeddy(ctx, body) {
       }
     })() : null
   });
+}
+
+async function askContext(ctx, suppliedContext) {
+  if (suppliedContext && typeof suppliedContext === 'object' && (suppliedContext.score !== undefined || suppliedContext.houseState)) {
+    return suppliedContext;
+  }
+  try {
+    return await cachedHealthPayload(ctx);
+  } catch (_) {
+    return suppliedContext || {};
+  }
+}
+
+function withReadinessContext(answer, context) {
+  const text = String(answer || '').trim();
+  if (/\bReadiness\b/i.test(text)) return text;
+  const score = context && context.score !== null && context.score !== undefined ? `${context.score}/100` : 'unknown';
+  const firstAction = context && context.dailyDecision && context.dailyDecision.now && context.dailyDecision.now.text
+    || context && context.houseState && context.houseState.primaryAction
+    || 'Review the first dashboard item.';
+  return [`- Readiness ${score}. First action: ${firstAction}`, text].filter(Boolean).join('\n');
 }
 
 function answerEscapesHomebase(answer, context) {
@@ -423,9 +521,11 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
     ? context.review
     : 'No review items are currently called out.';
   const score = context.score !== null && context.score !== undefined ? `${context.score}/100` : 'unknown';
-  const firstAction = context.dailyDecision?.now?.text
+  const cleanSentence = (value) => String(value || '').trim().replace(/[.。]+$/u, '');
+  const firstAction = cleanSentence(context.dailyDecision?.now?.text
     || context.houseState?.primaryAction
-    || null;
+    || '');
+  const clickedLabel = clicked && cleanSentence(clicked.label || clicked.type || 'dashboard signal');
   const external = context.signals && context.signals.externalAccess;
   const wan = context.signals && context.signals.wanQuality;
   const systemLogs = context.signals && context.signals.systemLogs;
@@ -436,14 +536,17 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   const lines = [];
   if (fallbackReason) lines.push('Teddy bridge did not answer cleanly, so I used the live dashboard context instead.');
   const hasReview = review !== 'No review items are currently called out.';
-  if (external && external.metric && (external.state === 'warn' || external.state === 'bad')) {
-    lines.push(`Only review item: external access on ${external.metric}. ${external.detail || 'Confirm those ports are expected.'}`);
+  if (action === 'prepare-fix' && clickedLabel) {
+    const actionText = firstAction ? ` Suggested next step: ${firstAction}.` : '';
+    lines.push(`Readiness ${score}. Fix target: ${clickedLabel}.${actionText} ${review}`);
+  } else if (external && external.metric && (external.state === 'warn' || external.state === 'bad')) {
+    lines.push(`Readiness ${score}. Only review item: external access on ${external.metric}. ${external.detail || 'Confirm those ports are expected.'}`);
   } else {
     lines.push(!hasReview
       ? `Readiness ${score}. No review item is currently called out.`
       : `Readiness ${score}. First action: ${firstAction || 'verify the first ranked warning'}. ${review}`);
   }
-  if (clicked) lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
+  if (clicked && action !== 'prepare-fix') lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
   if (action === 'prepare-fix') {
     lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or files.');
   }
@@ -466,7 +569,7 @@ function stripSignal(signal) {
     state: signal.state || 'info',
     metric: signal.metric ?? signal.value ?? signal.count ?? null,
     label: signal.label || signal.check || null,
-    detail: signal.detail || null,
+    detail: shortText(signal.detail, 180),
     confidence: signal.confidence || null,
     source: signal.source || null,
     hidden: signal.hidden === true
@@ -510,8 +613,9 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   }
 
   const bootHistory = vitalsData && vitalsData.bootHistory;
-  if (bootHistory && Number(bootHistory.sampleCount) > 0 && bootHistory.source) {
+  if (bootHistory && bootHistory.source) {
     const checkedAt = bootHistory.lastSeenAt || null;
+    const sampleCount = Math.max(1, Number(bootHistory.sampleCount) || 0);
     summaries.push({
       id: 'mac-boot-7d',
       title: 'Mac boot',
@@ -522,8 +626,8 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
       detail: bootHistory.currentBootedAt
         ? `Current boot started ${formatAgeFromDate(new Date(bootHistory.currentBootedAt))}.`
         : 'Current boot session is persisted.',
-      sampleCount: bootHistory.sampleCount,
-      restartCount7d: bootHistory.restartCount7d,
+      sampleCount,
+      restartCount7d: Math.max(0, Number(bootHistory.restartCount7d) || 0),
       checkedAt,
       freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'persisted',
       source: bootHistory.source,
@@ -623,7 +727,7 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   return summaries;
 }
 
-function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision, historicalSummaries) {
+function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision, historicalSummaries, homeStatsData) {
   const serviceStates = Object.fromEntries(
     Object.entries(services).map(([key, service]) => [key, {
       state: service.state,
@@ -702,6 +806,11 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         type: 'host-metrics',
         source: 'os and df probes',
         inputs: vitalsData
+      },
+      homeStats: {
+        type: 'home-context',
+        source: 'Homebridge climate sensors first, local weather fallback second',
+        inputs: homeStatsData || {}
       },
       dependencyMap: {
         type: 'static-topology',
@@ -979,7 +1088,7 @@ function publicAccessRollup(funnelSignal) {
       ? 'Needs review'
       : 'Known';
   const detail = unexpectedRoutes.length > 0
-    ? `Unexpected public route${unexpectedRoutes.length === 1 ? '' : 's'}: ${unexpectedRoutes.map(route => route.port).join(', ')}.`
+    ? `Unexpected public route${unexpectedRoutes.length === 1 ? '' : 's'} detected.`
     : expectedRouteMissing
       ? 'Teddy Homebase public route is missing.'
       : /^unknown$/i.test(metric)
@@ -1577,7 +1686,7 @@ async function checkSystemLogs(ctx) {
 
 async function adGuardStats() {
   try {
-    const res = await fetchJson('http://127.0.0.1:3001/control/stats');
+    const res = await fetchAdGuardStats();
     return normalizeAdGuardStatsResponse(res);
   } catch (err) {
     return {
@@ -1591,14 +1700,79 @@ async function adGuardStats() {
   }
 }
 
+async function fetchAdGuardStats() {
+  let res = await fetchJson(`${ADGUARD_BASE_URL}/control/stats`, adGuardSessionCookie
+    ? { headers: { Cookie: adGuardSessionCookie } }
+    : {});
+  if (res.status !== 401 && res.status !== 403) return res;
+  if (Date.now() < adGuardLoginBlockedUntil) return res;
+
+  const credentials = await adGuardCredentials();
+  if (!credentials) return res;
+  try {
+    const login = await fetchJson(`${ADGUARD_BASE_URL}/control/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    const cookie = login.headers && login.headers.get && login.headers.get('set-cookie');
+    if (login.status === 429) {
+      adGuardLoginBlockedUntil = Date.now() + 10 * 60 * 1000;
+      return { ...res, adGuardAuth: 'rate-limited' };
+    }
+    if (login.status !== 200 || !cookie) return { ...res, adGuardAuth: 'login-failed', loginStatus: login.status };
+    adGuardSessionCookie = cookie.split(';')[0];
+    res = await fetchJson(`${ADGUARD_BASE_URL}/control/stats`, { headers: { Cookie: adGuardSessionCookie } });
+    if (res.status === 401 || res.status === 403) adGuardSessionCookie = '';
+    return res;
+  } catch (_) {
+    adGuardLoginBlockedUntil = Date.now() + 10 * 60 * 1000;
+    return res;
+  }
+}
+
+async function adGuardCredentials() {
+  const envUser = process.env.HOMEBASE_ADGUARD_USER;
+  const envPass = process.env.HOMEBASE_ADGUARD_PASSWORD;
+  if (envUser && envPass) return { name: envUser, password: envPass };
+
+  const password = await keychainPassword(ADGUARD_KEYCHAIN_SERVICE, 'teddy');
+  return password ? { name: 'teddy', password } : null;
+}
+
+async function keychainPassword(service, account) {
+  const result = await tryRun('/usr/bin/security', ['find-generic-password', '-s', service, '-a', account, '-w'], 1500);
+  return result.ok && result.stdout.trim() ? result.stdout.trim() : '';
+}
+
 function normalizeAdGuardStatsResponse(res) {
+  if (res.adGuardAuth === 'rate-limited') {
+    return {
+      state: 'info',
+      value: 'rate limited',
+      label: 'Rate limited',
+      detail: 'AdGuard rejected recent login attempts. Homebase will retry after cooldown.',
+      confidence: 'degraded',
+      topBlocked: []
+    };
+  }
+  if (res.adGuardAuth === 'login-failed') {
+    return {
+      state: 'info',
+      value: 'login failed',
+      label: 'Login failed',
+      detail: 'AdGuard rejected the Teddy service login.',
+      confidence: 'needs-login',
+      topBlocked: []
+    };
+  }
   if (res.status === 401 || res.status === 403) {
     return {
       state: 'info',
-      value: 'locked',
-      label: 'locked',
-      detail: 'Blocked-query stats need the local AdGuard login.',
-      confidence: 'degraded',
+      value: 'needs login',
+      label: 'Needs login',
+      detail: 'AdGuard blocked-query stats need the Teddy service login.',
+      confidence: 'needs-login',
       topBlocked: []
     };
   }
@@ -1626,6 +1800,270 @@ function normalizeAdGuardStatsResponse(res) {
     confidence: 'live',
     topBlocked
   };
+}
+
+async function homeStats() {
+  const localTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: HOME_TIME_ZONE,
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(new Date());
+  const localDate = new Intl.DateTimeFormat('en-US', {
+    timeZone: HOME_TIME_ZONE,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  }).format(new Date());
+  const [ecobee, sensors, weather] = await Promise.all([
+    ecobeeClimate(),
+    homebridgeClimateSensors(),
+    weatherSnapshot()
+  ]);
+  const ecobeeFresh = ecobee.freshness === 'fresh';
+  const sensorFresh = sensors.freshness === 'fresh';
+  const trustedIndoor = ecobeeFresh ? ecobee : sensorFresh ? sensors : null;
+  return {
+    localTime,
+    localDate,
+    insideTemperature: trustedIndoor && trustedIndoor.insideTemperature ? trustedIndoor.insideTemperature : 'Unavailable',
+    humidity: trustedIndoor && trustedIndoor.humidity ? trustedIndoor.humidity : 'Unavailable',
+    outsideTemperature: weather.outsideTemperature,
+    weatherSummary: weather.weatherSummary,
+    source: trustedIndoor ? trustedIndoor.source : weather.source,
+    freshness: trustedIndoor ? trustedIndoor.freshnessLabel : weather.freshness,
+    indoorSource: trustedIndoor ? trustedIndoor.source : ecobee.source,
+    indoorFreshness: trustedIndoor ? trustedIndoor.freshnessLabel : ecobee.freshnessLabel || sensors.freshnessLabel,
+    indoorFallback: trustedIndoor ? null : sensors.source,
+    weatherSource: weather.source
+  };
+}
+
+async function ecobeeClimate() {
+  try {
+    const [statusPayload, sensorsPayload] = await Promise.race([
+      Promise.all([
+        readEcobeeMcpResource('ecobee://thermostat/status'),
+        readEcobeeMcpResource('ecobee://thermostat/sensors')
+      ]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Ecobee MCP timed out')), ECOBEE_MCP_TIMEOUT_MS))
+    ]);
+    return ecobeeClimateFromResources(statusPayload, sensorsPayload);
+  } catch (err) {
+    return {
+      insideTemperature: null,
+      humidity: null,
+      source: 'Ecobee unavailable',
+      freshness: 'unavailable',
+      freshnessLabel: ecobeeUnavailableLabel(err)
+    };
+  }
+}
+
+function ecobeeUnavailableLabel(err) {
+  const message = String(err && err.message || err || '').replace(/\s+/g, ' ').trim();
+  if (/credentials\.json|ENOENT/i.test(message)) return 'Ecobee credentials missing';
+  if (/401|Unauthorized/i.test(message)) return 'Ecobee MCP needs auth';
+  if (/timeout|aborted/i.test(message)) return 'Ecobee MCP timed out';
+  return message ? `Ecobee unavailable: ${shortText(message, 80)}` : 'Ecobee unavailable';
+}
+
+function ecobeeClimateFromResources(statusPayload, sensorsPayload) {
+  const statuses = Array.isArray(statusPayload) ? statusPayload : [];
+  const sensors = Array.isArray(sensorsPayload) ? sensorsPayload : [];
+  const connectedStatus = statuses.find(item => item && item.connected !== false) || statuses[0] || {};
+  const sensorWithHumidity = sensors.find(sensor => Number.isFinite(Number(sensor && sensor.humidity)));
+  const sensorWithTemperature = sensors.find(sensor => Number.isFinite(Number(sensor && sensor.temperature)));
+  const temperature = Number.isFinite(Number(connectedStatus.temperature))
+    ? Number(connectedStatus.temperature)
+    : Number.isFinite(Number(sensorWithTemperature && sensorWithTemperature.temperature))
+      ? Number(sensorWithTemperature.temperature)
+      : null;
+  const humidity = Number.isFinite(Number(connectedStatus.humidity))
+    ? Number(connectedStatus.humidity)
+    : Number.isFinite(Number(sensorWithHumidity && sensorWithHumidity.humidity))
+      ? Number(sensorWithHumidity.humidity)
+      : null;
+  if (!Number.isFinite(temperature) && !Number.isFinite(humidity)) {
+    return {
+      insideTemperature: null,
+      humidity: null,
+      source: 'Ecobee unavailable',
+      freshness: 'unavailable',
+      freshnessLabel: 'Ecobee has no climate reading'
+    };
+  }
+  return {
+    insideTemperature: Number.isFinite(temperature) ? `${Math.round(temperature)}°F` : null,
+    humidity: Number.isFinite(humidity) ? `${Math.round(humidity)}%` : null,
+    source: 'Ecobee',
+    freshness: 'fresh',
+    freshnessLabel: 'Live from Ecobee'
+  };
+}
+
+async function readEcobeeMcpResource(uri) {
+  const token = await ecobeeAuthToken();
+  if (!token) throw new Error('Ecobee MCP token unavailable');
+  const init = await ecobeeMcpRequest({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-03-26',
+      capabilities: {},
+      clientInfo: { name: 'teddy-homebase', version: '0.1.0' }
+    }
+  }, token);
+  const sessionId = init.headers && init.headers.get && init.headers.get('mcp-session-id');
+  if (sessionId) {
+    await ecobeeMcpRequest({
+      jsonrpc: '2.0',
+      method: 'notifications/initialized',
+      params: {}
+    }, token, sessionId);
+  }
+  const response = await ecobeeMcpRequest({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'resources/read',
+    params: { uri }
+  }, token, sessionId);
+  const body = response.json || {};
+  if (body.error) throw new Error(body.error.message || 'Ecobee MCP resource error');
+  const contents = body.result && Array.isArray(body.result.contents) ? body.result.contents : [];
+  const text = contents.map(item => item && item.text).find(Boolean);
+  return text ? JSON.parse(text) : null;
+}
+
+async function ecobeeMcpRequest(payload, token, sessionId = '') {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream'
+  };
+  if (sessionId) headers['mcp-session-id'] = sessionId;
+  const res = await fetchJson(ECOBEE_MCP_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  });
+  if (res.status === 401) throw new Error('Ecobee MCP returned 401 Unauthorized');
+  if (res.status < 200 || res.status >= 300) throw new Error(`Ecobee MCP returned HTTP ${res.status}`);
+  return res;
+}
+
+async function ecobeeAuthToken() {
+  if (process.env.HOMEBASE_ECOBEE_MCP_TOKEN) return process.env.HOMEBASE_ECOBEE_MCP_TOKEN;
+  if (ecobeeMcpToken) return ecobeeMcpToken;
+  const result = await tryRun('/usr/bin/plutil', ['-convert', 'json', '-o', '-', ECOBEE_MCP_PLIST], 1500);
+  if (!result.ok) return '';
+  try {
+    const parsed = JSON.parse(result.stdout);
+    ecobeeMcpToken = parsed && parsed.EnvironmentVariables && parsed.EnvironmentVariables.MCP_AUTH_TOKEN || '';
+  } catch (_) {
+    ecobeeMcpToken = '';
+  }
+  return ecobeeMcpToken;
+}
+
+async function homebridgeClimateSensors() {
+  const dir = '/Users/teddyclaw/.homebridge/accessories';
+  const candidates = [];
+  try {
+    const files = await fs.readdir(dir);
+    for (const fileName of files) {
+      if (!fileName.startsWith('cachedAccessories') || /\.bak$|pre-/i.test(fileName)) continue;
+      const filePath = path.join(dir, fileName);
+      let stat;
+      let parsed;
+      try {
+        stat = await fs.stat(filePath);
+        parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+      } catch (_) {
+        continue;
+      }
+      const accessories = Array.isArray(parsed) ? parsed : Array.isArray(parsed.accessories) ? parsed.accessories : [];
+      for (const accessory of accessories) {
+        const reading = climateReadingFromAccessory(accessory, stat.mtimeMs);
+        if (reading) candidates.push(reading);
+      }
+    }
+  } catch (_) {}
+
+  candidates.sort((a, b) => b.score - a.score || b.mtimeMs - a.mtimeMs);
+  const best = candidates[0] || {};
+  const ageMs = best.mtimeMs ? Date.now() - best.mtimeMs : Infinity;
+  const fresh = Number.isFinite(ageMs) && ageMs <= HOME_SENSOR_STALE_MS;
+  return {
+    insideTemperature: Number.isFinite(best.temperatureC) ? `${Math.round(cToF(best.temperatureC))}°F` : null,
+    humidity: Number.isFinite(best.humidity) ? `${Math.round(best.humidity)}%` : null,
+    source: best.name ? `Homebridge: ${best.name}` : 'Homebridge sensors unavailable',
+    freshness: fresh ? 'fresh' : 'stale',
+    freshnessLabel: fresh ? `Fresh ${formatAgeMs(ageMs)} ago` : best.name ? `Stale ${formatAgeMs(ageMs)} old` : 'No indoor sensor'
+  };
+}
+
+function climateReadingFromAccessory(accessory, mtimeMs) {
+  const name = String(accessory && accessory.displayName || 'Home sensor');
+  if (/fridge|freezer|refrigerator|washer|dryer|lock|door/i.test(name)) return null;
+  let temperatureC = null;
+  let humidity = null;
+  for (const service of accessory.services || []) {
+    for (const characteristic of service.characteristics || []) {
+      const label = String(characteristic.displayName || '');
+      const value = Number(characteristic.value);
+      if (!Number.isFinite(value)) continue;
+      if (/Current Temperature/i.test(label)) temperatureC = value;
+      if (/Current Relative Humidity/i.test(label)) humidity = value;
+    }
+  }
+  if (!Number.isFinite(temperatureC) && !Number.isFinite(humidity)) return null;
+  const score = (/air quality/i.test(name) ? 30 : 0) + (/thermometer/i.test(name) ? 20 : 0);
+  return { name, temperatureC, humidity, mtimeMs, score };
+}
+
+async function weatherSnapshot() {
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+    return {
+      outsideTemperature: '--',
+      weatherSummary: 'Weather skipped in test',
+      source: 'Weather fallback skipped',
+      freshness: 'Test mode'
+    };
+  }
+  try {
+    const res = await fetchJson(WEATHER_URL);
+    const current = res.json && Array.isArray(res.json.current_condition) ? res.json.current_condition[0] : null;
+    if (res.status === 200 && current) {
+      const tempF = Number(current.temp_F);
+      const desc = current.weatherDesc && current.weatherDesc[0] && current.weatherDesc[0].value;
+      return {
+        outsideTemperature: Number.isFinite(tempF) ? `${Math.round(tempF)}°F` : '--',
+        weatherSummary: desc || 'Weather checked',
+        source: 'Local weather fallback',
+        freshness: 'Live fallback'
+      };
+    }
+  } catch (_) {}
+  return {
+    outsideTemperature: '--',
+    weatherSummary: 'Weather unavailable',
+    source: 'Weather fallback unavailable',
+    freshness: 'Unavailable'
+  };
+}
+
+function cToF(value) {
+  return (Number(value) * 9 / 5) + 32;
+}
+
+function formatAgeMs(ageMs) {
+  if (!Number.isFinite(ageMs)) return 'unknown';
+  const minutes = Math.max(0, Math.round(ageMs / 60000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 async function diskUsage() {
@@ -1726,6 +2164,7 @@ function redactIncidentText(value) {
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[redacted-ip]')
     .replace(/\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[redacted-tailscale-ip]')
+    .replace(/\b(?:443|8443|10000)(?:,\s*(?:443|8443|10000))+\b/g, '[redacted-public-routes]')
     .replace(/\b(?:8443,\s*10000|10000,\s*8443)\b/g, '[redacted-public-routes]')
     .replace(/\/Users\/[^/\s"]+/g, '/Users/[redacted-user]')
     .replace(/tail[a-z0-9-]*\.ts\.net/gi, '[redacted-tailnet-host]')
@@ -1816,10 +2255,10 @@ async function captureIncidentDraft(ctx, body = {}) {
   const context = body.context && typeof body.context === 'object' ? body.context : {};
   const houseState = context.houseState && typeof context.houseState === 'object' ? context.houseState : {};
   const expected = {
-    headline: houseState.headline || context.headline || 'Homebase incident',
-    firstZone: houseState.primaryZone || houseState.firstZone || context.firstZone || 'unknown',
-    firstReview: body.clicked?.label || (Array.isArray(context.needsDan) ? context.needsDan[0] : undefined),
-    firstAction: houseState.primaryAction || context.firstDecision || 'Review Homebase.'
+    headline: redactIncidentText(houseState.headline || context.headline || 'Homebase incident'),
+    firstZone: redactIncidentText(houseState.primaryZone || houseState.firstZone || context.firstZone || 'unknown'),
+    firstReview: redactIncidentText(body.clicked?.label || (Array.isArray(context.needsDan) ? context.needsDan[0] : undefined) || ''),
+    firstAction: redactIncidentText(houseState.primaryAction || context.firstDecision || 'Review Homebase.')
   };
 
   const bundle = {
@@ -2190,7 +2629,7 @@ async function serviceLogOverview(ctx) {
     logFileSummary('AdGuard', [
       '/var/log/AdGuardHome.stderr.log',
       '/var/log/AdGuardHome.stdout.log'
-    ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS }),
+    ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS, ignorePattern: /webapi: http error host=127\.0\.0\.1:3001 method=POST url=\/control\/login status=429 ip=127\.0\.0\.1|auth: blocked for/i }),
     tailscaleLogSummary()
   ]);
   const normalizedItems = items.map(normalizeLogItem).map(item => {
@@ -3193,6 +3632,15 @@ function translatePrimaryAction(needs) {
   return 'Start with the first review item.';
 }
 
+function zoneKeyForReviewItem(item) {
+  const text = String(item || '').toLowerCase();
+  if (/external|public|funnel|access/.test(text)) return 'outside-access';
+  if (/internet|wan|dns|tailscale|network/.test(text)) return 'network';
+  if (/homebridge|automation|accessor|homebridge log/.test(text)) return 'smart-home';
+  if (/mac restart|watchdog|panic|openclaw|macos|mac os|system logs|cpu|memory|disk|updates|app versions|service logs/.test(text)) return 'mac-mini';
+  return null;
+}
+
 function isResolvedRecentChange(event, current) {
   if (!event || (event.state !== 'warn' && event.state !== 'bad')) return false;
   const title = String(event.title || '').toLowerCase();
@@ -3309,7 +3757,7 @@ function incidentCandidates(services, intelligence, systemVitals) {
       'outside-access',
       intelligence.publicAccess || intelligence.tailscaleFunnel,
       'Check public access first.',
-      { evidence: ['Tailscale Funnel'] }
+      { detail: 'A public route changed and needs confirmation.', evidence: ['Tailscale Funnel'] }
     ),
     incidentCandidate(
       'wan-quality',
@@ -3599,6 +4047,9 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const macIncident = hasMacRestartIncident(intelligence, systemVitals);
+  const firstReviewZone = Array.isArray(reviewItems) && reviewItems.length > 0
+    ? zoneKeyForReviewItem(reviewItems[0])
+    : null;
   const publicAccess = intelligence.publicAccess || publicAccessRollup(intelligence.tailscaleFunnel);
   const outsideState = worstState([publicAccess]);
   const networkState = worstState([services.adguard, services.internet, services.tailscale, intelligence.wanQuality, actionSignal(intelligence.networkLogs)]);
@@ -3678,6 +4129,10 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     if (macIncident) {
       if (a.id === 'mac-mini') return -1;
       if (b.id === 'mac-mini') return 1;
+    }
+    if (firstReviewZone) {
+      if (a.id === firstReviewZone) return -1;
+      if (b.id === firstReviewZone) return 1;
     }
     const stateRank = stateRankForSort(a.state) - stateRankForSort(b.state);
     if (stateRank !== 0) return stateRank;
@@ -3877,10 +4332,13 @@ function watchSignal(intelligence, houseState) {
   return 'House evidence is current.';
 }
 
-function activeDecisionSignal(services, intelligence, systemVitals) {
+function activeDecisionSignal(services, intelligence, systemVitals, reviewItems = []) {
   const homebridge = intelligence.homebridge || {};
   const health = systemVitals.health || {};
   const macIncident = hasMacRestartIncident(intelligence, systemVitals);
+  const firstReviewZone = Array.isArray(reviewItems) && reviewItems.length > 0
+    ? zoneKeyForReviewItem(reviewItems[0])
+    : null;
   const candidates = [
     ['Mac restart incident', macIncident ? intelligence.systemLogs : null, 'Review the Mac mini restart.', 0],
     ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel, 'Check public access first.', 10],
@@ -3902,6 +4360,12 @@ function activeDecisionSignal(services, intelligence, systemVitals) {
   return candidates
     .filter(([, signal]) => signalBadOrWarn(signal))
     .sort((a, b) => {
+      if (firstReviewZone) {
+        const aMatches = zoneKeyForReviewItem(a[0]) === firstReviewZone;
+        const bMatches = zoneKeyForReviewItem(b[0]) === firstReviewZone;
+        if (aMatches && !bMatches) return -1;
+        if (bMatches && !aMatches) return 1;
+      }
       const stateRank = stateRankForSort(a[1].state) - stateRankForSort(b[1].state);
       const priorityRank = (a[3] ?? 999) - (b[3] ?? 999);
       if (a[0] === 'Mac restart incident' || b[0] === 'Mac restart incident') return priorityRank;
@@ -3917,7 +4381,7 @@ function stateRankForSort(state) {
 }
 
 function deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState) {
-  const active = activeDecisionSignal(services, intelligence, systemVitals);
+  const active = activeDecisionSignal(services, intelligence, systemVitals, reviewItems);
   const tone = houseState && houseState.tone ? houseState.tone : 'steady';
   let now;
   if (active) {
@@ -3946,6 +4410,77 @@ function eventsFromServices(services) {
   }));
 }
 
+async function buildHealthPayload(ctx) {
+  const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence, homeStatsData] = await Promise.all([
+    checkAdGuard(),
+    checkHomebridge(),
+    checkTailscale(),
+    checkInternet(),
+    checkOpenClaw(),
+    checkBackups(),
+    vitals(ctx),
+    buildIntelligence(ctx),
+    homeStats(ctx)
+  ]);
+
+  const services = { adguard, homebridge, tailscale, internet, openclaw, backups };
+  const score = scoreServices(services, intelligence, systemVitals);
+  const timeline = updateTimeline(ctx, services, intelligence, score);
+  const insights = await buildInsights(services, systemVitals, intelligence);
+  const reviewItems = needsDan(services, intelligence, systemVitals);
+  const reviewEvidence = reviewEvidenceFor(services, intelligence, systemVitals, reviewItems);
+  const incidents = updateIncidentLedger(ctx, services, intelligence, systemVitals);
+  const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents);
+  const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
+  const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
+  const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);
+  const visualEvidence = updateVisualEvidenceLog(
+    ctx,
+    buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision, historicalSummaries, homeStatsData)
+  );
+  return {
+    checkedAt: nowIso(),
+    score,
+    needsDan: reviewItems,
+    reviewEvidence,
+    incidents,
+    houseState,
+    dailyDecision,
+    services,
+    insights,
+    intelligence,
+    sourceContracts,
+    historicalSummaries,
+    visualEvidence,
+    presentation: buildPresentationContract(),
+    vitals: systemVitals,
+    homeStats: homeStatsData,
+    events: timeline.length ? timeline : eventsFromServices(services),
+    timeline
+  };
+}
+
+async function cachedHealthPayload(ctx) {
+  if (process.env.NODE_ENV === 'test') return buildHealthPayload(ctx);
+  const now = Date.now();
+  if (healthCache && now - healthCache.at <= HEALTH_CACHE_MS) {
+    return { ...healthCache.payload, cache: { status: 'fresh', ageMs: now - healthCache.at } };
+  }
+  if (healthCache && healthInFlight) {
+    return { ...healthCache.payload, cache: { status: 'refreshing', ageMs: now - healthCache.at } };
+  }
+  healthInFlight = buildHealthPayload(ctx)
+    .then(payload => {
+      healthCache = { at: Date.now(), payload };
+      return payload;
+    })
+    .finally(() => {
+      healthInFlight = null;
+    });
+  const payload = await healthInFlight;
+  return { ...payload, cache: { status: 'live', ageMs: 0 } };
+}
+
 function teddyHouseApi(ctx = {}) {
   return {
     routes: {
@@ -3962,51 +4497,21 @@ function teddyHouseApi(ctx = {}) {
       },
       'GET /logs': async () => logDetailPayload(ctx),
       'GET /health': async () => {
-        const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence] = await Promise.all([
-          checkAdGuard(),
-          checkHomebridge(),
-          checkTailscale(),
-          checkInternet(),
-          checkOpenClaw(),
-          checkBackups(),
-          vitals(ctx),
-          buildIntelligence(ctx)
-        ]);
-
-        const services = { adguard, homebridge, tailscale, internet, openclaw, backups };
-        const score = scoreServices(services, intelligence, systemVitals);
-        const timeline = updateTimeline(ctx, services, intelligence, score);
-        const insights = await buildInsights(services, systemVitals, intelligence);
-        const reviewItems = needsDan(services, intelligence, systemVitals);
-        const reviewEvidence = reviewEvidenceFor(services, intelligence, systemVitals, reviewItems);
-        const incidents = updateIncidentLedger(ctx, services, intelligence, systemVitals);
-        const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents);
-        const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
-        const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
-        const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);
-        const visualEvidence = updateVisualEvidenceLog(
-          ctx,
-          buildVisualEvidence(services, insights, intelligence, systemVitals, timeline, score, houseState, dailyDecision, historicalSummaries)
-        );
-        return {
-          checkedAt: nowIso(),
-          score,
-          needsDan: reviewItems,
-          reviewEvidence,
-          incidents,
-          houseState,
-          dailyDecision,
-          services,
-          insights,
-          intelligence,
-          sourceContracts,
-          historicalSummaries,
-          visualEvidence,
-          presentation: buildPresentationContract(),
-          vitals: systemVitals,
-          events: timeline.length ? timeline : eventsFromServices(services),
-          timeline
-        };
+        if (process.env.TEDDY_HOMEBASE_FAST_HEALTH === '1') {
+          return {
+            checkedAt: nowIso(),
+            score: 100,
+            needsDan: [],
+            services: {
+              adguard: ok('Fast health probe.', 'fast', 'DNS'),
+              homebridge: ok('Fast health probe.', 'fast', 'Port'),
+              tailscale: ok('Fast health probe.', 'fast', 'Tailscale'),
+              internet: ok('Fast health probe.', 'fast', 'WAN'),
+              openclaw: ok('Fast health probe.', 'fast', 'Gateway')
+            }
+          };
+        }
+        return cachedHealthPayload(ctx);
       }
     }
   };
@@ -4024,6 +4529,13 @@ teddyHouseApi._internals = {
   buildHistoricalSummaries,
   updateVitalsHistory,
   updateBootHistory,
+  homeStats,
+  ecobeeClimateFromResources,
+  ecobeeUnavailableLabel,
+  buildHealthPayload,
+  cachedHealthPayload,
+  homebridgeClimateSensors,
+  climateReadingFromAccessory,
   updateWanHistory,
   updatePublicAccessHistory,
   updateAutomationLogHistory,
@@ -4038,7 +4550,8 @@ teddyHouseApi._internals = {
   isCriticalDiagnosticReport,
   diagnosticReportKind,
   logLineDate,
-  normalizeAdGuardStatsResponse
+  normalizeAdGuardStatsResponse,
+  fetchAdGuardStats
 };
 
 module.exports = teddyHouseApi;

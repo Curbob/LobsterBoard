@@ -42,7 +42,9 @@
       <nav id="page-nav" class="lobster-page-nav" aria-label="Pages"></nav>
       <nav class="side-nav" aria-label="Sections">
         <a class="active" href="#overview">Home</a>
+        <a href="#server">Mac mini</a>
         <a href="#house-state">House state</a>
+        <a href="#home-stats">Home stats</a>
         <a href="#ask-teddy">Ask</a>
         <a href="#evidence">Evidence</a>
         <a href="#history">Memory</a>
@@ -90,9 +92,21 @@
           <div>
             <div class="tiny-label">Readiness</div>
             <div id="next-action" class="next-action">Running checks</div>
+            <button class="primary-fix-button" id="primary-fix-button" type="button" disabled>Ask Teddy to Fix</button>
           </div>
         </div>
       </section>
+
+      <article class="panel vitals-panel hidden-until-loaded" id="server">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Mac mini</p>
+            <h3>Vitals</h3>
+          </div>
+          <span class="state-pill" id="vitals-pill">Mac vitals</span>
+        </div>
+        <div class="vitals-grid" id="vitals-grid"></div>
+      </article>
 
       <section class="decision-strip hidden-until-loaded" id="daily-decision" aria-label="Daily decision">
         <article class="decision-slot state-ok" data-decision-slot="now">
@@ -115,6 +129,17 @@
           <h3 id="needs-title">Checking for review items.</h3>
         </div>
         <div class="needs-list" id="needs-list"></div>
+      </section>
+
+      <section class="panel home-stats-panel hidden-until-loaded" id="home-stats" aria-labelledby="home-stats-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Home Stats</p>
+            <h3 id="home-stats-title">Local context</h3>
+          </div>
+          <span class="state-pill" id="home-stats-pill">Sensor first</span>
+        </div>
+        <div class="home-stats-grid" id="home-stats-grid"></div>
       </section>
 
       <section class="incident-ribbon hidden-until-loaded" id="incident-ribbon" hidden aria-live="polite">
@@ -140,17 +165,6 @@
         <div class="house-zone-grid" id="house-zone-grid"></div>
       </section>
 
-      <article class="panel vitals-panel hidden-until-loaded" id="server">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Mac mini</p>
-            <h3>Vitals</h3>
-          </div>
-          <span class="state-pill" id="vitals-pill">Mac vitals</span>
-        </div>
-        <div class="vitals-grid" id="vitals-grid"></div>
-      </article>
-
       <section class="panel ask-panel" id="ask-teddy" aria-labelledby="ask-title">
         <div class="panel-head">
           <div>
@@ -167,7 +181,21 @@
             <button id="ask-submit" type="submit">Ask Teddy</button>
           </div>
         </form>
-        <div class="ask-response" id="ask-response" aria-live="polite">Ask what changed, what matters, or what to check first.</div>
+        <div class="ask-progress" id="ask-progress" aria-live="polite" hidden>
+          <div class="ask-progress-step" data-ask-step="context">
+            <span class="ask-progress-dot"></span>
+            <span>Context gathered</span>
+          </div>
+          <div class="ask-progress-step" data-ask-step="teddy">
+            <span class="ask-progress-dot"></span>
+            <span>Teddy planning</span>
+          </div>
+          <div class="ask-progress-step" data-ask-step="approval">
+            <span class="ask-progress-dot"></span>
+            <span>Approval gate</span>
+          </div>
+        </div>
+        <div class="ask-response" id="ask-response" aria-live="polite" tabindex="-1">Ask what changed, what matters, or what to check first.</div>
       </section>
 
       <section class="panel evidence-panel hidden-until-loaded" id="evidence" aria-labelledby="evidence-title">

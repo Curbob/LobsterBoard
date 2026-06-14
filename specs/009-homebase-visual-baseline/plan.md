@@ -8,6 +8,8 @@
 ## Checks
 
 - viewport dimensions
+- portrait or landscape orientation
+- captured PNG dimensions
 - horizontal overflow
 - first-screen copy budget
 - required rendered fields

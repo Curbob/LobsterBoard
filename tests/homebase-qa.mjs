@@ -19,9 +19,12 @@ const CHROME_BIN = process.env.HOMEBASE_CHROME_BIN || '/Applications/Google Chro
 const SCREENSHOT_DIR = join(process.cwd(), 'artifacts', 'qa');
 const QA_REPORT_FILE = join(SCREENSHOT_DIR, 'homebase-latest.json');
 const SCREENSHOT_VIEWPORTS = [
-  ['phone', 390, 844],
-  ['ipad', 820, 1180],
-  ['desktop', 1440, 1000]
+  { name: 'phone', width: 390, height: 844, deviceScaleFactor: 1, orientation: 'portrait' },
+  { name: 'phone-landscape', width: 844, height: 390, deviceScaleFactor: 1, orientation: 'landscape' },
+  { name: 'ipad', width: 820, height: 1180, deviceScaleFactor: 1, orientation: 'portrait' },
+  { name: 'desktop', width: 1440, height: 1000, deviceScaleFactor: 1, orientation: 'landscape' },
+  { name: 'desktop-4k', width: 3840, height: 2160, deviceScaleFactor: 1, orientation: 'landscape' },
+  { name: 'retina', width: 1440, height: 1000, deviceScaleFactor: 2, orientation: 'landscape' }
 ];
 const DATA_DIR = join('data', 'teddy-house');
 const INCIDENT_FIXTURE_DIR = join(process.cwd(), 'tests', 'fixtures', 'teddy-house', 'incidents');
@@ -102,6 +105,17 @@ function readIncidentStateFixture(name) {
 
 function readJsonFile(cwd, file) {
   return JSON.parse(readFileSync(join(cwd, DATA_DIR, file), 'utf8'));
+}
+
+function readPngInfo(file) {
+  const buffer = readFileSync(file);
+  const signature = buffer.subarray(0, 8).toString('hex');
+  assert(signature === '89504e470d0a1a0a', `${file} is not a PNG screenshot`);
+  assert(buffer.subarray(12, 16).toString('ascii') === 'IHDR', `${file} PNG is missing an IHDR chunk`);
+  return {
+    imageWidth: buffer.readUInt32BE(16),
+    imageHeight: buffer.readUInt32BE(20)
+  };
 }
 
 function firstScreenCopy(data) {
@@ -272,15 +286,28 @@ async function captureScreenshots(baseUrl) {
   const chrome = await startChrome(userDataDir);
   const outputs = [];
   try {
-    for (const [name, width, height] of SCREENSHOT_VIEWPORTS) {
+    for (const viewport of SCREENSHOT_VIEWPORTS) {
+      const { name, width, height, deviceScaleFactor, orientation } = viewport;
       const file = join(SCREENSHOT_DIR, `homebase-latest-${name}.png`);
-      const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height, { frozenHealth });
+      const layout = await captureViewport(chrome, `${baseUrl}/pages/teddy-house/`, file, width, height, {
+        frozenHealth,
+        deviceScaleFactor,
+        orientation
+      });
       const fileStat = await stat(file);
+      const png = readPngInfo(file);
+      const expectedImageWidth = Math.round(width * (deviceScaleFactor || 1));
+      const expectedImageHeight = Math.round(height * (deviceScaleFactor || 1));
       assert(fileStat.size > 5000, `${name} screenshot is too small to be useful`);
+      assert(png.imageWidth === expectedImageWidth && png.imageHeight === expectedImageHeight, `${name} screenshot pixels ${png.imageWidth}x${png.imageHeight} drifted from ${expectedImageWidth}x${expectedImageHeight}`);
       outputs.push({
         name,
         width,
         height,
+        deviceScaleFactor,
+        orientation,
+        imageWidth: png.imageWidth,
+        imageHeight: png.imageHeight,
         file,
         bytes: fileStat.size,
         scrollWidth: layout.rootScrollWidth,
@@ -713,15 +740,22 @@ async function captureViewport(chrome, url, file, width, height, options = {}) {
   await chromeCommand(chrome, 'Emulation.setDeviceMetricsOverride', {
     width,
     height,
-    deviceScaleFactor: 1,
-    mobile: width <= 430
+    deviceScaleFactor: options.deviceScaleFactor || 1,
+    mobile: options.mobile ?? (width <= 430 || height <= 430),
+    screenOrientation: {
+      type: options.orientation === 'landscape' ? 'landscapePrimary' : 'portraitPrimary',
+      angle: options.orientation === 'landscape' ? 90 : 0
+    }
   }, sessionId);
   const loadPromise = waitForChromeEvent(chrome, 'Page.loadEventFired', sessionId).catch(() => null);
   await chromeCommand(chrome, 'Page.navigate', { url }, sessionId);
   await loadPromise;
   await waitForHomebaseReady(chrome, sessionId);
   const layout = await assertNoHorizontalOverflow(chrome, sessionId, width);
-  const rendered = await assertRenderedFirstScreen(chrome, sessionId, width);
+  const rendered = await assertRenderedFirstScreen(chrome, sessionId, width, {
+    orientation: options.orientation,
+    requireReviewVisible: options.orientation !== 'landscape'
+  });
   const screenshot = await chromeCommand(chrome, 'Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId);
   await writeFile(file, Buffer.from(screenshot.data, 'base64'));
   await chromeCommand(chrome, 'Target.closeTarget', { targetId }).catch(() => null);
@@ -801,6 +835,12 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         .map(el => el.innerText.trim())
         .filter(Boolean)
         .join("\\n");
+      const storySurfaceText = ["#overview", "#server", "#daily-decision", "#review-lane", "#home-stats", "#incident-ribbon", "#house-state", "#ask-teddy"]
+        .map(selector => document.querySelector(selector))
+        .filter(el => el && !el.hidden)
+        .map(el => el.innerText.trim())
+        .filter(Boolean)
+        .join("\\n");
       const firstZone = document.querySelector("#house-zone-grid .house-zone-card .tiny-label")?.textContent?.trim() || "";
       const activeZone = document.querySelector("#house-zone-grid .house-zone-card.active-zone .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
@@ -833,12 +873,14 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         historyCount,
         recentChangeRows,
         firstScreenText: visibleSectionText,
+        storySurfaceText,
         positions: {
           overview: topOf("#overview"),
           dailyDecision: topOf("#daily-decision"),
           review: topOf("#review-lane"),
           houseState: topOf("#house-state"),
           vitals: topOf("#server"),
+          homeStats: topOf("#home-stats"),
           ask: topOf("#ask-teddy"),
           evidence: topOf("#evidence"),
           signals: topOf("#signals"),
@@ -852,6 +894,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
           review: rectOf("#review-lane"),
           houseState: rectOf("#house-state"),
           vitals: rectOf("#server"),
+          homeStats: rectOf("#home-stats"),
           ask: rectOf("#ask-teddy"),
           evidence: rectOf("#evidence"),
           timeline: rectOf("#timeline")
@@ -873,7 +916,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
     ? value.evidenceOpen === false && value.signalsOpen === false
     : value.positions.evidence === null || value.positions.ask < value.positions.evidence;
   const firstScreenTextLength = (value.firstScreenText || '').length;
-  const phoneCopyBudgetOk = width > 430 || firstScreenTextLength <= PHONE_FIRST_SCREEN_COPY_BUDGET;
+  const compactViewport = width <= 430 || Number(value.viewportHeight || 0) <= 430;
+  const phoneCopyBudgetOk = !compactViewport || firstScreenTextLength <= PHONE_FIRST_SCREEN_COPY_BUDGET;
   assert(storySpecific, `rendered first viewport lacks a specific house story at ${width}px: ${JSON.stringify(value)}`);
   assert(actionVisible, `rendered first viewport lacks a useful first action at ${width}px: ${JSON.stringify(value)}`);
   assert(phoneCopyBudgetOk, `phone first viewport copy is too long at ${width}px: ${firstScreenTextLength}/${PHONE_FIRST_SCREEN_COPY_BUDGET}: ${value.firstScreenText}`);
@@ -907,20 +951,24 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   }
   assert(value.positions.houseState !== null, `house-state section missing at ${width}px`);
   assert(value.positions.vitals !== null, `Mac vitals section missing at ${width}px`);
+  assert(value.positions.homeStats !== null, `Home Stats section missing at ${width}px`);
   assert(value.positions.ask !== null, `Ask Teddy section missing at ${width}px`);
   if (value.positions.review !== null) {
+    assert(value.positions.vitals < value.positions.dailyDecision, `daily decision appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
     assert(value.positions.dailyDecision < value.positions.review, `review appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
-    assert(value.positions.review < value.positions.houseState, `house state appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
+    assert(value.positions.review < value.positions.homeStats, `Home Stats appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
+    assert(value.positions.homeStats < value.positions.houseState, `House State appears before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
   }
-  assert(value.positions.houseState < value.positions.vitals, `Mac vitals appear before house state at ${width}px: ${JSON.stringify(value.positions)}`);
-  assert(value.positions.vitals < value.positions.ask, `Ask Teddy appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.vitals < value.positions.houseState, `House state appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.homeStats < value.positions.houseState, `House State appears before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.houseState < value.positions.ask, `Ask Teddy appears before House State at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.evidence === null || value.positions.ask < value.positions.evidence, `evidence appears before Ask Teddy at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.signals === null || value.positions.evidence === null || value.positions.evidence < value.positions.signals, `signals appear before service evidence at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.history === null || value.positions.signals === null || value.positions.signals < value.positions.history, `history appears before evidence signals at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.localLinks !== null, `local links section missing at ${width}px`);
   assert(value.positions.timeline === null || value.positions.timeline < value.positions.localLinks, `local links appear before recent changes at ${width}px: ${JSON.stringify(value.positions)}`);
   for (const pattern of RENDERED_FIRST_SCREEN_COPY_BLACKLIST) {
-    assert(!pattern.test(value.firstScreenText || ''), `rendered first-screen copy matched blacklist ${pattern} at ${width}px: ${value.firstScreenText}`);
+    assert(!pattern.test(value.storySurfaceText || ''), `rendered story-surface copy matched blacklist ${pattern} at ${width}px: ${value.storySurfaceText}`);
   }
   return {
     firstZone: value.firstZone,
@@ -934,6 +982,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       storySpecific,
       actionVisible,
       phoneCopyBudgetOk,
+      compactViewport,
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       affectedZoneMarked: value.activeZone === value.firstZone,
       healthyEvidenceCollapsed: healthyState ? value.evidenceOpen === false && value.signalsOpen === false : true,
@@ -944,7 +993,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         && value.recentChangeRows.length > 0
         && value.recentChangeRows.length <= 3
         && new Set(value.recentChangeRows).size === value.recentChangeRows.length,
-      firstViewportFreeOfRawTelemetry: RENDERED_FIRST_SCREEN_COPY_BLACKLIST.every(pattern => !pattern.test(value.firstScreenText || ''))
+      firstViewportFreeOfRawTelemetry: RENDERED_FIRST_SCREEN_COPY_BLACKLIST.every(pattern => !pattern.test(value.storySurfaceText || ''))
     },
     firstScreenTextLength
   };
@@ -2063,7 +2112,7 @@ function parserGoldenFixtureCoverage() {
     ['macos-diagnostics', 'classifies diagnostic report filenames by critical Mac incident shape'],
     ['tailscale-route-drift', 'parses public route drift without treating known BlueBubbles exposure as unknown'],
     ['log-timestamps', 'parses common log timestamp formats for freshness gates'],
-    ['adguard-stats', 'labels AdGuard blocked-query stats as locked, degraded, or live']
+    ['adguard-stats', 'labels AdGuard blocked-query stats as needs-login, degraded, or live']
   ].map(([name, needle]) => ({
     name,
     ok: testFile.includes(needle)
@@ -2195,7 +2244,7 @@ function dailyDecisionStripSpecCoverage(fixtureContracts, local) {
     ['api-field', /dailyDecision/.test(apiText) && /deriveDailyDecision/.test(apiText)],
     ['three-slots', /slots:\s*\[now,\s*watch,\s*later\]/.test(apiText) && /now,watch,later/.test(qaText)],
     ['real-sources', /source: slot\.source|null/.test(apiText) && /fixture\.expected\.dailySlots/.test(qaText)],
-    ['now-current', /activeDecisionSignal\(services, intelligence, systemVitals\)/.test(apiText) && /Now` must be based on current health response data/i.test(text)],
+    ['now-current', /activeDecisionSignal\(services, intelligence, systemVitals, reviewItems\)/.test(apiText) && /Now` must be based on current health response data/i.test(text)],
     ['cached-not-now', /Cached data is allowed only for `Watch` or `Later`/.test(text) && !/source":\s*"cached"/.test(JSON.stringify([...byName.values()].map(item => item.dailySlots?.[0])) )],
     ['evidence-only-quiet', evidenceOnlyOk],
     ['warning-now', warningNowOk],
@@ -2389,7 +2438,11 @@ function visualBaselineSpecCoverage() {
     ['readme-linked', /specs\/009-homebase-visual-baseline\/spec\.md/.test(readme)],
     ['script-registered', packageConfig.scripts?.['homebase:visual-baseline'] === 'node scripts/homebase-visual-baseline.mjs'],
     ['baseline-fixture', baseline.version === 1 && Object.keys(baseline.viewports || {}).length === SCREENSHOT_VIEWPORTS.length],
-    ['phone-ipad-desktop', ['phone', 'ipad', 'desktop'].every(name => baseline.viewports?.[name])],
+    ['portrait-landscape-coverage', ['phone', 'phone-landscape', 'ipad', 'desktop', 'desktop-4k', 'retina'].every(name => baseline.viewports?.[name])],
+    ['phone-orientation', baseline.viewports?.phone?.orientation === 'portrait' && baseline.viewports?.['phone-landscape']?.orientation === 'landscape'],
+    ['png-dimension-proof', /PNG dimensions drifted/.test(script) && baseline.viewports?.retina?.imageWidth === 2880],
+    ['retina-dpr', Number(baseline.viewports?.retina?.deviceScaleFactor) === 2],
+    ['4k-viewport', baseline.viewports?.['desktop-4k']?.width === 3840 && baseline.viewports?.['desktop-4k']?.height === 2160],
     ['copy-budget', /maxFirstScreenTextLength/.test(script) && /first-screen copy budget/i.test(text)],
     ['overflow', /scrollOverrun/.test(script) && /horizontal overflow/i.test(text)],
     ['visual-contracts', /requiredVisualContracts/.test(script) && /visual contract/i.test(text + script)],
@@ -2594,8 +2647,15 @@ function visualBaselineCoverage(local) {
     const missingContracts = (baseline.requiredVisualContracts || []).filter(key => shot.visualContract?.[key] !== true);
     const scrollOverrun = Number(shot.scrollWidth) - Number(shot.width);
     const textLength = Number(shot.firstScreenTextLength || 0);
+    const expectedDpr = Number(expected.deviceScaleFactor || 1);
+    const expectedImageWidth = Math.round(Number(expected.width) * expectedDpr);
+    const expectedImageHeight = Math.round(Number(expected.height) * expectedDpr);
     const ok = shot.width === expected.width
       && shot.height === expected.height
+      && Number(shot.deviceScaleFactor || 1) === expectedDpr
+      && (!expected.orientation || shot.orientation === expected.orientation)
+      && Number(shot.imageWidth || 0) === expectedImageWidth
+      && Number(shot.imageHeight || 0) === expectedImageHeight
       && scrollOverrun <= Number(expected.maxScrollOverrun || 0)
       && textLength <= Number(expected.maxFirstScreenTextLength || 0)
       && missingFields.length === 0
@@ -2603,6 +2663,9 @@ function visualBaselineCoverage(local) {
     if (!ok) {
       failures.push(`${name}:${[
         shot.width === expected.width && shot.height === expected.height ? null : `viewport ${shot.width}x${shot.height}`,
+        Number(shot.deviceScaleFactor || 1) === expectedDpr ? null : `dpr ${shot.deviceScaleFactor || 1}`,
+        !expected.orientation || shot.orientation === expected.orientation ? null : `orientation ${shot.orientation}`,
+        Number(shot.imageWidth || 0) === expectedImageWidth && Number(shot.imageHeight || 0) === expectedImageHeight ? null : `png ${shot.imageWidth}x${shot.imageHeight}`,
         scrollOverrun <= Number(expected.maxScrollOverrun || 0) ? null : `overflow ${shot.scrollWidth}/${shot.width}`,
         textLength <= Number(expected.maxFirstScreenTextLength || 0) ? null : `copy ${textLength}/${expected.maxFirstScreenTextLength}`,
         missingFields.length ? `fields ${missingFields.join('+')}` : null,
@@ -2614,6 +2677,10 @@ function visualBaselineCoverage(local) {
       ok,
       width: shot.width,
       height: shot.height,
+      deviceScaleFactor: shot.deviceScaleFactor || 1,
+      orientation: shot.orientation || null,
+      imageWidth: shot.imageWidth || null,
+      imageHeight: shot.imageHeight || null,
       scrollWidth: shot.scrollWidth,
       firstScreenTextLength: textLength,
       maxFirstScreenTextLength: expected.maxFirstScreenTextLength
@@ -2951,7 +3018,7 @@ async function main() {
   checks.push({
     name: 'visual-baseline',
     status: visualBaseline.status,
-    detail: 'Phone, iPad, and desktop screenshots match the structural visual baseline.'
+    detail: 'Phone, iPad, desktop, 4K, and Retina screenshots match the structural visual baseline.'
   });
   gates.push({
     name: 'visual-baseline-spec',

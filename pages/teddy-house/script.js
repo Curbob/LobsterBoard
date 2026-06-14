@@ -8,6 +8,7 @@ const SERVICES = [
 
 const REFRESH_MS = 420000;
 let currentHealth = null;
+let askInFlight = false;
 
 function configureLocalLinks() {
   const hostname = window.location.hostname || "127.0.0.1";
@@ -137,6 +138,28 @@ function renderVitals(vitals) {
   });
 }
 
+function renderHomeStats(homeStats) {
+  const grid = document.getElementById("home-stats-grid");
+  const pill = document.getElementById("home-stats-pill");
+  if (!grid) return;
+  clear(grid);
+  const stats = homeStats || {};
+  const rows = [
+    ["Home time", stats.localTime || "--", stats.localDate || "America/Los_Angeles"],
+    ["Inside", stats.insideTemperature || "--", stats.indoorFreshness || stats.freshness || "Homebridge sensor"],
+    ["Humidity", stats.humidity || "--", stats.indoorSource || "Homebridge sensor"],
+    ["Outside", stats.outsideTemperature || "--", stats.weatherSummary || "Weather fallback"],
+    ["Weather", stats.weatherSummary || "--", stats.weatherSource || stats.source || "Weather fallback"]
+  ];
+  if (pill) pill.textContent = stats.freshness || "Source backed";
+  rows.forEach(([label, value, detail]) => {
+    const item = div("home-stat-card");
+    item.append(div("tiny-label", label), div("home-stat-value", value));
+    if (detail) item.append(div("home-stat-detail", detail));
+    grid.append(item);
+  });
+}
+
 function renderNeeds(needs, reviewEvidence) {
   const title = document.getElementById("needs-title");
   const list = document.getElementById("needs-list");
@@ -208,6 +231,79 @@ function renderNeeds(needs, reviewEvidence) {
   if (compactReview && needs.length > visibleNeeds.length) {
     list.append(span("need-chip need-chip-more", `${needs.length - visibleNeeds.length} more below`));
   }
+}
+
+function firstReviewEvidence(health) {
+  if (!health || !Array.isArray(health.needsDan) || health.needsDan.length === 0) return null;
+  const label = health.needsDan[0];
+  const evidence = Array.isArray(health.reviewEvidence)
+    ? health.reviewEvidence.find(item => item && item.label === label)
+    : null;
+  return { label, evidence: evidence || null };
+}
+
+function primaryFixTarget(health) {
+  if (!health || typeof health !== "object") return null;
+  const incident = health.houseState && (health.houseState.incident || (health.houseState.story && health.houseState.story.incident));
+  if (incident && (incident.title || incident.nextAction || incident.detail)) {
+    return {
+      label: incident.title || incident.nextAction || "Homebase review item",
+      source: incident.source || "",
+      detail: incident.detail || "",
+      nextAction: incident.nextAction || (health.houseState && health.houseState.primaryAction) || "",
+      evidence: incident
+    };
+  }
+  const first = firstReviewEvidence(health);
+  if (!first || !first.label) return null;
+  return {
+    label: first.label,
+    source: first.evidence && first.evidence.source || "",
+    detail: first.evidence && first.evidence.detail || "",
+    nextAction: health.houseState && health.houseState.primaryAction || "",
+    evidence: first.evidence || null
+  };
+}
+
+function updatePrimaryFixButton(health) {
+  const button = document.getElementById("primary-fix-button");
+  if (!button) return;
+  const target = primaryFixTarget(health);
+  const hasReview = Boolean(target && target.label);
+  button.disabled = askInFlight || !hasReview;
+  button.textContent = askInFlight && hasReview ? "Teddy is planning" : hasReview ? "Ask Teddy to Fix" : "Nothing to fix";
+  button.title = hasReview
+    ? `Prepare a safe fix plan for ${formatNeedLabel(target.label)}.`
+    : "Homebase has no active review item.";
+}
+
+function scrollAskIntoView() {
+  const panel = document.getElementById("ask-teddy");
+  if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+async function askTeddyToFix() {
+  if (!currentHealth) {
+    setAskState("Refreshing", "Checking the house first...");
+    await loadHealth();
+  }
+  const target = primaryFixTarget(currentHealth);
+  if (!target || !target.label) {
+    setAskState("Ready", "Nothing needs a fix plan right now.");
+    return;
+  }
+  scrollAskIntoView();
+  const actionLine = target.nextAction ? ` Next action: ${target.nextAction}` : "";
+  const detailLine = target.detail ? ` Evidence: ${target.detail}` : "";
+  await askTeddy({
+    action: "prepare-fix",
+    prompt: `Prepare a dry-run fix plan for the current first Homebase review item. Do not run commands or change settings: ${target.label}.${actionLine}${detailLine}`,
+    clicked: {
+      type: "primary-fix",
+      label: target.label,
+      source: target.source || ""
+    }
+  });
 }
 
 function logFocusForReview(item, evidence) {
@@ -560,6 +656,7 @@ function renderSummary(data) {
     copy.textContent = houseState.summary || "House state is derived from live evidence.";
     next.textContent = nextAction;
     teddyLine.textContent = houseState.tone === "steady" ? "Dan's house is steady." : nextAction;
+    updatePrimaryFixButton(data);
     return;
   }
 
@@ -586,6 +683,7 @@ function renderSummary(data) {
     next.textContent = "Start with the issue.";
     teddyLine.textContent = "Issue detected.";
   }
+  updatePrimaryFixButton(data);
 }
 
 function setLoadedState(isLoaded) {
@@ -611,6 +709,7 @@ async function loadHealth() {
   const button = document.getElementById("refresh-button");
   button.disabled = true;
   button.textContent = "Refreshing";
+  updatePrimaryFixButton(null);
   try {
     const res = await fetch("/api/pages/teddy-house/health", { cache: "no-store" });
     if (!res.ok) throw new Error(`Health API returned ${res.status}`);
@@ -621,6 +720,7 @@ async function loadHealth() {
     renderIncident(data.houseState);
     renderNeeds(data.needsDan, data.reviewEvidence);
     renderHouseState(data.houseState);
+    renderHomeStats(data.homeStats);
     renderServices(data);
     renderVitals(data.vitals || {});
     renderSignals(data.intelligence);
@@ -642,6 +742,7 @@ async function loadHealth() {
 
 document.getElementById("refresh-button").addEventListener("click", loadHealth);
 document.getElementById("incident-known-button")?.addEventListener("click", markIncidentKnown);
+document.getElementById("primary-fix-button")?.addEventListener("click", askTeddyToFix);
 
 function setAskState(state, text, source = "") {
   const pill = document.getElementById("ask-state");
@@ -659,10 +760,138 @@ function setAskState(state, text, source = "") {
   }
 }
 
+function setAskProgress(phase = "idle", source = "") {
+  const progress = document.getElementById("ask-progress");
+  if (!progress) return;
+  const steps = ["context", "teddy", "approval"];
+  const activeIndex = phase === "context" ? 0 : phase === "teddy" ? 1 : phase === "approval" ? 2 : -1;
+  const doneThrough = phase === "done" ? 2 : phase === "fallback" ? 2 : phase === "failed" ? 1 : Math.max(-1, activeIndex - 1);
+  progress.hidden = phase === "idle";
+  progress.dataset.phase = phase;
+  if (source) progress.dataset.source = source;
+  else delete progress.dataset.source;
+  steps.forEach((key, index) => {
+    const step = progress.querySelector(`[data-ask-step="${key}"]`);
+    if (!step) return;
+    step.classList.toggle("is-active", index === activeIndex);
+    step.classList.toggle("is-done", index <= doneThrough);
+    step.classList.toggle("is-warn", phase === "fallback" && key === "teddy");
+    step.classList.toggle("is-failed", phase === "failed" && key === "teddy");
+  });
+}
+
+function compactSignal(signal) {
+  if (!signal || typeof signal !== "object") return null;
+  return {
+    state: signal.state || null,
+    metric: signal.metric || signal.value || signal.count || null,
+    label: signal.label || signal.check || null,
+    detail: signal.detail || null,
+    source: signal.source || signal.check || null,
+    confidence: signal.confidence || null
+  };
+}
+
+function compactHouseState(houseState) {
+  if (!houseState || typeof houseState !== "object") return null;
+  const incident = houseState.incident || (houseState.story && houseState.story.incident) || null;
+  return {
+    headline: houseState.headline || null,
+    summary: houseState.summary || null,
+    tone: houseState.tone || null,
+    primaryAction: houseState.primaryAction || null,
+    incident: incident ? {
+      title: incident.title || null,
+      source: incident.source || null,
+      detail: incident.detail || null,
+      nextAction: incident.nextAction || null,
+      status: incident.status || null
+    } : null,
+    zones: Array.isArray(houseState.zones)
+      ? houseState.zones.slice(0, 4).map(zone => ({
+          id: zone.id || null,
+          title: zone.title || null,
+          state: zone.state || null,
+          value: zone.value || null,
+          detail: zone.detail || null
+        }))
+      : []
+  };
+}
+
+function contextForAsk(health) {
+  if (!health || typeof health !== "object") return null;
+  const intelligence = health.intelligence || {};
+  const homebridge = intelligence.homebridge || {};
+  const vitals = health.vitals || {};
+  const healthVitals = vitals.health || {};
+  return {
+    checkedAt: health.checkedAt,
+    score: health.score,
+    needsDan: Array.isArray(health.needsDan) ? health.needsDan.slice(0, 3) : [],
+    reviewEvidence: Array.isArray(health.reviewEvidence)
+      ? health.reviewEvidence.slice(0, 3).map(item => ({
+          label: item.label || null,
+          source: item.source || null,
+          confidence: item.confidence || null,
+          detail: item.detail || null
+        }))
+      : [],
+    houseState: compactHouseState(health.houseState),
+    dailyDecision: health.dailyDecision && Array.isArray(health.dailyDecision.slots)
+      ? { tone: health.dailyDecision.tone || null, slots: health.dailyDecision.slots.slice(0, 3) }
+      : null,
+    services: Object.fromEntries(Object.entries(health.services || {}).map(([key, value]) => [key, compactSignal(value)])),
+    intelligence: {
+      publicAccess: compactSignal(intelligence.publicAccess),
+      tailscaleFunnel: compactSignal(intelligence.tailscaleFunnel),
+      wanQuality: compactSignal(intelligence.wanQuality),
+      networkLogs: compactSignal(intelligence.networkLogs),
+      systemLogs: compactSignal(intelligence.systemLogs),
+      macUpdates: compactSignal(intelligence.macUpdates),
+      softwareUpdates: compactSignal(intelligence.softwareUpdates),
+      homebridge: {
+        logHealth: compactSignal(homebridge.logHealth),
+        version: compactSignal(homebridge.version),
+        accessories: compactSignal(homebridge.accessories)
+      }
+    },
+    historicalSummaries: Array.isArray(health.historicalSummaries)
+      ? health.historicalSummaries.slice(0, 2).map(summary => ({
+          title: summary.title || null,
+          window: summary.window || null,
+          value: summary.value || null,
+          source: summary.source || null
+        }))
+      : [],
+    vitals: {
+      cpu: vitals.cpu || null,
+      memoryPressure: vitals.memoryPressure || vitals.memory || null,
+      disk: vitals.disk || null,
+      uptime: vitals.uptime || null,
+      health: {
+        cpu: compactSignal(healthVitals.cpu),
+        memory: compactSignal(healthVitals.memory),
+        disk: compactSignal(healthVitals.disk)
+      }
+    },
+    homeStats: health.homeStats ? {
+      localTime: health.homeStats.localTime || null,
+      insideTemperature: health.homeStats.insideTemperature || null,
+      humidity: health.homeStats.humidity || null,
+      outsideTemperature: health.homeStats.outsideTemperature || null,
+      weatherSummary: health.homeStats.weatherSummary || null,
+      source: health.homeStats.source || null,
+      freshness: health.homeStats.freshness || null
+    } : null
+  };
+}
+
 async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
   const input = document.getElementById("ask-input");
   const submit = document.getElementById("ask-submit");
   const statusButton = document.getElementById("ask-status-button");
+  const primaryFixButton = document.getElementById("primary-fix-button");
   const finalPrompt = (prompt || input.value || "").trim();
   if (!finalPrompt && action !== "status") {
     setAskState("Ready", "Ask a question first.");
@@ -670,13 +899,23 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     return;
   }
 
+  askInFlight = true;
   submit.disabled = true;
   statusButton.disabled = true;
+  if (primaryFixButton) primaryFixButton.disabled = true;
+  updatePrimaryFixButton(currentHealth);
+  setAskProgress("context");
   if (!currentHealth) {
     setAskState("Refreshing", "Checking the house first...");
     await loadHealth();
   }
-  setAskState("Asking", "Sending the current dashboard context to Teddy...");
+  if (action === "prepare-fix") {
+    scrollAskIntoView();
+    setAskState("Planning", "Preparing a safe fix plan...");
+  } else {
+    setAskState("Asking", "Sending the current dashboard context to Teddy...");
+  }
+  setAskProgress("teddy");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 75000);
@@ -690,7 +929,7 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
         action,
         prompt: finalPrompt,
         clicked,
-        context: currentHealth
+        context: contextForAsk(currentHealth)
       })
     });
     const data = await res.json();
@@ -705,17 +944,22 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     const answerText = data.source === "local-fallback" && !/Teddy bridge/i.test(data.answer || "")
       ? `Teddy bridge needs attention. ${data.answer || "I used the dashboard context instead."}`
       : data.answer || "Teddy answered, but no text came back.";
+    setAskProgress(data.source === "local-fallback" ? "fallback" : "done", data.source || "");
     setAskState(answerState, answerText, data.source || "");
+    document.getElementById("ask-response")?.focus?.();
     if (input && action !== "status") input.value = "";
   } catch (err) {
     const message = err.name === "AbortError"
       ? "Teddy took too long. Refresh and try again; the dashboard is still live."
       : err.message;
+    setAskProgress("failed");
     setAskState("Failed", message);
   } finally {
     clearTimeout(timer);
+    askInFlight = false;
     submit.disabled = false;
     statusButton.disabled = false;
+    updatePrimaryFixButton(currentHealth);
   }
 }
 

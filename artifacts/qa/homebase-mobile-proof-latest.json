@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "capturedAt": "2026-06-14T17:45:11.513Z",
+  "publicUrl": "https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/",
+  "devices": [
+    {
+      "id": "android-chrome",
+      "label": "Android Chrome",
+      "status": "ok",
+      "loginPersisted": true,
+      "firstAction": "Check public access first.",
+      "askUsable": false,
+      "fallbackVisible": true,
+      "noOverflow": true,
+      "rawTelemetryHidden": true,
+      "screenshot": "artifacts/qa/mobile/homebase-android-chrome-latest.png",
+      "viewport": {
+        "width": 1080,
+        "height": 2340,
+        "cssWidth": 384,
+        "cssHeight": 832,
+        "densityDpi": 450,
+        "dpr": 2.8125
+      },
+      "notes": "Real Android Chrome proof captured over USB ADB. Chrome install banner visible, but Homebase dashboard is logged in and first action is visible. rawTelemetryHidden is judged from the captured first viewport; full UI dump contains lower evidence sections by design."
+    }
+  ]
+}

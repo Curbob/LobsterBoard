@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "capturedAt": "2026-06-14T14:54:14.009Z",
+  "publicUrl": "https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/",
+  "localProbeUrl": "http://127.0.0.1:18085/pages/teddy-house/",
+  "agentMode": "enabled",
+  "status": "complete",
+  "source": "teddy",
+  "firstAction": "Check public access first.",
+  "answer": "- Readiness 78/100. First action: Check public access first.\n- House state is **review**, score **78**: the main issue is recurring public route drift.\n\n- Check **public access first**: ports **443, 8443, and 10000** are exposed. The key question is whether **443 -> local 8081** and **8443 BlueBubbles Funnel** should still be public.\n\n- Network needs watching: AdGuard has **298 notable recent log lines**, even though DNS, WAN, Tailscale, Homebridge, and OpenClaw are responding.\n\n- Mac mini looks steady: CPU peak **28.15**, current boot stable for **9 days**, WAN is **19.1 ms now**, automations are quiet.\n\n- I would inspect route intent and recent AdGuard log patterns first. Closing routes or changing AdGuard would need explicit approval.",
+  "fallbackVisible": false,
+  "run": "71b30ac0-f935-4897-98fd-b3c46f454d69"
+}

@@ -5,18 +5,60 @@
     "phone": {
       "width": 390,
       "height": 844,
+      "deviceScaleFactor": 1,
+      "orientation": "portrait",
+      "imageWidth": 390,
+      "imageHeight": 844,
+      "maxFirstScreenTextLength": 700,
+      "maxScrollOverrun": 1
+    },
+    "phone-landscape": {
+      "width": 844,
+      "height": 390,
+      "deviceScaleFactor": 1,
+      "orientation": "landscape",
+      "imageWidth": 844,
+      "imageHeight": 390,
       "maxFirstScreenTextLength": 700,
       "maxScrollOverrun": 1
     },
     "ipad": {
       "width": 820,
       "height": 1180,
+      "deviceScaleFactor": 1,
+      "orientation": "portrait",
+      "imageWidth": 820,
+      "imageHeight": 1180,
       "maxFirstScreenTextLength": 1300,
       "maxScrollOverrun": 1
     },
     "desktop": {
       "width": 1440,
       "height": 1000,
+      "deviceScaleFactor": 1,
+      "orientation": "landscape",
+      "imageWidth": 1440,
+      "imageHeight": 1000,
+      "maxFirstScreenTextLength": 1300,
+      "maxScrollOverrun": 1
+    },
+    "desktop-4k": {
+      "width": 3840,
+      "height": 2160,
+      "deviceScaleFactor": 1,
+      "orientation": "landscape",
+      "imageWidth": 3840,
+      "imageHeight": 2160,
+      "maxFirstScreenTextLength": 2700,
+      "maxScrollOverrun": 1
+    },
+    "retina": {
+      "width": 1440,
+      "height": 1000,
+      "deviceScaleFactor": 2,
+      "orientation": "landscape",
+      "imageWidth": 2880,
+      "imageHeight": 2000,
       "maxFirstScreenTextLength": 1300,
       "maxScrollOverrun": 1
     }
@@ -41,6 +83,9 @@
     "firstZone",
     "firstDecision",
     "nowDecision",
+    "orientation",
+    "imageWidth",
+    "imageHeight",
     "frozenHealth"
   ]
 }

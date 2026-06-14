@@ -27,7 +27,7 @@ describe('Password auth', () => {
   let srv;
 
   beforeAll(async () => {
-    srv = await startServer({ password: 'test-secret-123', env: { TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '1' } });
+    srv = await startServer({ password: 'test-secret-123', env: { TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '1', TEDDY_HOMEBASE_FAST_HEALTH: '1' } });
   });
   afterAll(async () => { if (srv) await srv.kill(); });
 
