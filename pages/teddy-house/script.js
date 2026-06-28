@@ -3,7 +3,8 @@ const SERVICES = [
   ["homebridge", "Homebridge"],
   ["tailscale", "Tailscale"],
   ["internet", "Internet"],
-  ["openclaw", "OpenClaw"]
+  ["openclaw", "OpenClaw"],
+  ["teddycam", "TeddyCam"]
 ];
 
 const REFRESH_MS = 420000;
@@ -466,6 +467,15 @@ function primaryAction(needs) {
   return first ? `Start with ${first}.` : "Start with the first review item.";
 }
 
+function priorityDecisionAction(data) {
+  const slots = data && data.dailyDecision && Array.isArray(data.dailyDecision.slots)
+    ? data.dailyDecision.slots
+    : [];
+  const now = slots.find(slot => slot && slot.key === "now");
+  if (!now || !now.text || !["bad", "warn"].includes(now.state)) return "";
+  return now.text;
+}
+
 function signalValue(signal, fallback = "--") {
   if (!signal) return fallback;
   if (signal.value !== undefined && signal.value !== null) return String(signal.value);
@@ -538,6 +548,7 @@ function renderSignals(intelligence) {
     ["Homebridge log", homebridge.logHealth, homebridge.logHealth && homebridge.logHealth.label],
     ["Homebridge version", homebridge.version, homebridge.version && homebridge.version.label],
     ["What's exposed", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check],
+    ["TeddyCam", data.teddyCam, data.teddyCam && data.teddyCam.check],
     ["Internet", data.wanQuality, data.wanQuality && data.wanQuality.check],
     ["Service logs", data.serviceLogs, data.serviceLogs && data.serviceLogs.label],
     ["App versions", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label],
@@ -645,7 +656,7 @@ function renderSummary(data) {
   const next = document.getElementById("next-action");
   const last = document.getElementById("last-check");
   const teddyLine = document.getElementById("teddy-line");
-  const nextAction = houseState && houseState.primaryAction ? houseState.primaryAction : primaryAction(data.needsDan);
+  const nextAction = priorityDecisionAction(data) || (houseState && houseState.primaryAction ? houseState.primaryAction : primaryAction(data.needsDan));
 
   scoreText.textContent = `${score}`;
   ring.style.background = `conic-gradient(var(--green) ${score * 3.6}deg, rgba(255, 255, 255, 0.10) 0deg)`;

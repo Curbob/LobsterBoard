@@ -1,5 +1,58 @@
 # Implementation Notes
 
+## 2026-06-28 TeddyCam And Stack Update Receipt
+
+### What Changed
+
+- Added TeddyCam as a first-class Teddy Homebase service and evidence signal.
+- The health API reads the existing TeddyCam video-lane receipt plus local app/HLS ports, but only exposes privacy-light status: active state, codec/size, freshness, route names, and privacy flags.
+- Added TeddyCam and TeddyCam Lite private tailnet shortcuts to Local Links; Homebase does not embed the camera feed.
+- Added a local persisted operator-update receipt covering the OpenClaw, Homebridge, BlueBubbles, reboot inspection, update watcher, TeddyCam, and token-budget work.
+- Extended source contracts, visual evidence, change tracking, and Ask Teddy’s compact context so TeddyCam status is available without stream URLs or credentials.
+
+### Proof
+
+- `npm run test -- tests/teddy-house.test.js tests/teddy-house-design.test.js`: 108/108 passing.
+- `npm run check:homebase`: static lint passed, 179/179 tests passing, Homebase QA `status=ok`, `acceptanceStatus=ok`, 6 responsive screenshots captured.
+- Latest QA artifact: `artifacts/qa/homebase-latest.json`, generated `2026-06-28T00:20:53.194Z`.
+
+### Current Limits
+
+- Live Homebase verdict still has one source-backed review item: network service logs, first action `Check network service logs first.`
+- `data/teddy-house/operator-update.json` is local persisted Homebase evidence in the ignored data area, matching the existing evidence-file pattern.
+
+## 2026-06-28 Homebase Noise Cleanup
+
+### What Changed
+
+- AdGuard stats login failures now enter a 6-hour backoff after a rejected Teddy service login instead of retrying on every health refresh.
+- Homebase service-log parsing ignores local AdGuard `/control/login` 403/429 noise from its own stats attempts; DNS health and AdGuard stats trust still remain visible separately.
+- Optional macOS updates now stay in maintenance unless the update text looks security, critical, urgent, required, or restart-related.
+- First-screen review copy now names AdGuard logs directly instead of collapsing that warning into generic internet copy.
+- Homebase QA now requires the live TeddyCam contract: private-camera service, public stream false, stream URLs omitted, visual evidence present, and source-contract first-screen ineligible.
+- Added unit coverage for AdGuard login backoff, optional macOS update classification, and stale/broken TeddyCam receipts.
+
+### Proof
+
+- `npm run test -- tests/teddy-house.test.js tests/teddy-house-design.test.js`: 110/110 passing.
+- `npm run check:homebase`: static lint passed, 181/181 tests passing, Homebase QA `status=ok`, `acceptanceStatus=ok`, truth verdict `Homebase is useful`.
+- Restarted `com.teddy.house-lobsterboard`; live API reports score `100`, `needsDan=[]`, `Network service logs` quiet, optional macOS update in maintenance, and TeddyCam `ok`.
+
+## 2026-06-28 Fast First Load And Dan-First Priority Surface
+
+### What Changed
+
+- Removed the duplicate TeddyCam probe from the health build. Homebase now checks the private camera lane once and reuses that result for service cards, evidence, source contracts, and Teddy context.
+- Kept the first screen steady on normal days, but when the Now decision is warn/bad the top readiness action now mirrors that priority so Dan sees the most important action first.
+- Preserved the current first-screen order and TeddyCam privacy guard instead of adding more visual weight or extra fetches.
+
+### Proof
+
+- `npm run test -- tests/teddy-house.test.js tests/teddy-house-design.test.js`: 110/110 passing.
+- `npm run check:homebase`: static lint passed, 181/181 tests passing, Homebase QA `status=ok`, `acceptanceStatus=ok`, truth verdict `Homebase is useful`, first action `Nothing needs Dan.`, 6 screenshots captured.
+- Restarted `com.teddy.house-lobsterboard`; live health response times were `3.25s` cold-ish, then `0.01s` and `0.00s` cached.
+- Live API reports score `100`, `needsDan=[]`, headline `Dan's house is steady.`, and TeddyCam `ok` with public stream false and stream URLs omitted.
+
 ## 2026-06-14 Homebase Cleanup, AdGuard, Ecobee, And Optimizations
 
 ### What Changed
@@ -15,7 +68,7 @@
 
 - `npm run test -- tests/teddy-house.test.js tests/teddy-house-design.test.js`: 102/102 passing.
 - `npm run check:homebase`: lint, 171 tests, local route smoke, public auth smoke, phone/iPad/desktop screenshots, visual contracts, source contracts, and QA gates passing.
-- `npm run homebase:test-ladder`: latest QA ok; live Teddy bridge proof ok; real-device saved-login proof still partial until a fresh device artifact exists.
+- `npm run homebase:test-ladder`: latest QA ok; live Teddy bridge proof ok; real-device saved-login proof was later refreshed by the Homebase QA mobile-login smoke.
 
 ### Current Limits
 
@@ -41,7 +94,7 @@
 
 ### Current Limits
 
-- The Dan trust gauntlet remains `partial` until real iPhone and iPad saved-login/PWA proof artifacts are captured.
+- The older Dan trust gauntlet was partial until real iPhone and iPad saved-login/PWA proof artifacts were captured; the current QA mobile-login smoke now reports those lanes as ok.
 
 ## 2026-06-14 Portrait And Landscape Screenshot Proof
 

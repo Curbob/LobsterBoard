@@ -1181,6 +1181,11 @@ async function smokeLocalRoutes() {
     assert(data.houseState.zones.length === 4, `expected 4 house zones, got ${data.houseState.zones.length}`);
     assert(data.dailyDecision?.slots?.map(slot => slot.key).join(',') === 'now,watch,later', 'daily decision slots are wrong');
     assert(data.visualEvidence?.latest?.visuals?.houseState?.type === 'zone-state', 'house-state visual evidence is missing');
+    assert(data.services?.teddycam?.check === 'Private camera', 'TeddyCam service contract is missing');
+    assert(data.services?.teddycam?.privacy?.publicStream === false, 'TeddyCam public stream guard is missing');
+    assert(data.services?.teddycam?.privacy?.streamUrlsOmitted === true, 'TeddyCam stream URL omission guard is missing');
+    assert(data.visualEvidence?.latest?.visuals?.serviceGrid?.inputs?.teddycam, 'TeddyCam visual service evidence is missing');
+    assert(data.sourceContracts?.contracts?.some(contract => contract.id === 'teddycam' && contract.firstScreenEligible === false), 'TeddyCam source contract must stay evidence-only');
     assert(Array.isArray(data.needsDan), 'health payload needsDan must be an array');
     assert(Array.isArray(data.reviewEvidence), 'health payload reviewEvidence must be an array');
     assert(data.reviewEvidence.map(item => item.label).join('\n') === data.needsDan.join('\n'), 'review evidence labels must match visible review items');

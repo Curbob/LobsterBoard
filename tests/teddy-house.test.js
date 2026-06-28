@@ -265,6 +265,9 @@ describe('Teddy Homebase page', () => {
     expect(html).toContain('/pages/teddy-house/teddy-house-icon.png');
     expect(html).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net:3001/');
     expect(html).toContain('>AdGuard</a>');
+    expect(html).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net/teddycam');
+    expect(html).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net/teddycam-lite');
+    expect(html).not.toMatch(/iframe[^>]+teddycam/i);
   });
 
   it('serves the hidden logs detail page and grouped logs API', async () => {
@@ -1640,6 +1643,17 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       }
     }
     expect(data.intelligence).toHaveProperty('wanQuality');
+    expect(data.intelligence).toHaveProperty('teddyCam');
+    expect(data.intelligence.teddyCam).toEqual(expect.objectContaining({
+      state: expect.stringMatching(/^(ok|info|warn|bad)$/),
+      check: 'Private camera',
+      privacy: expect.objectContaining({
+        publicStream: false,
+        tokensOmitted: true,
+        streamUrlsOmitted: true
+      })
+    }));
+    expect(JSON.stringify(data.intelligence.teddyCam)).not.toMatch(/rtsp:\/\/|token=|account/i);
     expect(data.intelligence).toHaveProperty('serviceLogs');
     expect(data.intelligence.serviceLogs).toEqual(expect.objectContaining({
       state: expect.any(String),
@@ -1722,7 +1736,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       firstScreenEligible: false
     }));
     expect(data).toHaveProperty('presentation');
-    expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw']);
+    expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw', 'teddycam']);
     expect(data.presentation.defaultZoneKeys).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
     expect(data.presentation.hiddenByDefault.services).toContain('backups');
     expect(data.presentation.hiddenByDefault.signals).toContain('weirdThings');
@@ -2347,6 +2361,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       'homebridgeAccessories',
       'homebridgeLogs',
       'publicFunnel',
+      'teddyCam',
       'wanQuality',
       'serviceLogs',
       'softwareUpdates',
@@ -2356,6 +2371,10 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     for (const key of data.presentation.defaultSignalKeys) {
       expect(visuals.signalGrid.inputs[key]).toBeTruthy();
     }
+    expect(visuals.serviceGrid.inputs.teddycam).toEqual(expect.objectContaining({
+      state: expect.any(String),
+      check: 'Private camera'
+    }));
     expect(visuals.signalGrid.inputs.weirdThings).toEqual(expect.any(Number));
     expect(visuals.timeline.source).toBe('data/teddy-house/timeline.json');
   }, 12000);
@@ -2713,6 +2732,15 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       topBlocked: []
     });
 
+    expect(teddyHouseInternals.normalizeAdGuardStatsResponse({ status: 401, json: null, adGuardAuth: 'login-backoff' })).toEqual({
+      state: 'info',
+      value: 'login backoff',
+      label: 'Login backoff',
+      detail: 'AdGuard stats are locked; Homebase is waiting before retrying the Teddy service login.',
+      confidence: 'needs-login',
+      topBlocked: []
+    });
+
     expect(teddyHouseInternals.normalizeAdGuardStatsResponse({ status: 401, json: null, adGuardAuth: 'rate-limited' })).toEqual({
       state: 'info',
       value: 'rate limited',
@@ -2755,6 +2783,71 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
         { name: 'cdn.example', value: 4 }
       ]
     });
+  });
+
+  it('keeps optional macOS updates in maintenance instead of the action lane', () => {
+    expect(teddyHouseInternals.normalizeMacUpdateSignal({
+      checkedAt: '2026-06-28T00:00:00.000Z',
+      schema: 'mac-updates-v2',
+      state: 'warn',
+      metric: '1',
+      check: 'macOS',
+      detail: '1 macOS update available. Review before installing.'
+    })).toEqual(expect.objectContaining({
+      state: 'info',
+      metric: '1',
+      detail: '1 macOS update available; keep for maintenance.'
+    }));
+
+    expect(teddyHouseInternals.normalizeMacUpdateSignal({
+      state: 'warn',
+      metric: 'update required',
+      check: 'macOS',
+      detail: 'A critical macOS security update requires restart.'
+    })).toEqual(expect.objectContaining({
+      state: 'warn',
+      detail: 'A critical macOS security update requires restart.'
+    }));
+  });
+
+  it('keeps TeddyCam stale receipts evidence-only unless the lane is broken', () => {
+    const stale = teddyHouseInternals.teddyCamSignalFrom({
+      now: new Date('2026-06-28T05:00:00.000Z').getTime(),
+      app: true,
+      hls: true,
+      artifact: {
+        active: true,
+        captured_at: '2026-06-28T00:00:00.000Z',
+        health: { codec: 'H264', width: 1280, height: 720 },
+        browser: { verified: true },
+        privacy: { audio: false, public_stream: false, tokens_omitted: true, rtsp_urls_omitted: true },
+        safety: { audio: false, public_stream: false, no_credentials_in_artifact: true, raw_rtsp_url_omitted: true }
+      }
+    });
+    expect(stale).toEqual(expect.objectContaining({
+      state: 'info',
+      metric: 'H264 1280x720',
+      check: 'Private camera',
+      privacy: expect.objectContaining({
+        publicStream: false,
+        streamUrlsOmitted: true
+      })
+    }));
+
+    const broken = teddyHouseInternals.teddyCamSignalFrom({
+      now: new Date('2026-06-28T00:10:00.000Z').getTime(),
+      app: false,
+      hls: false,
+      artifact: {
+        active: true,
+        captured_at: '2026-06-28T00:09:00.000Z',
+        browser: { verified: true },
+        privacy: { audio: false, public_stream: false, tokens_omitted: true, rtsp_urls_omitted: true },
+        safety: { audio: false, public_stream: false, no_credentials_in_artifact: true, raw_rtsp_url_omitted: true }
+      }
+    });
+    expect(broken.state).toBe('warn');
+    expect(JSON.stringify(broken)).not.toMatch(/rtsp:\/\/|token=/i);
   });
 
   it('prefers Ecobee MCP climate readings when they are available', () => {
@@ -3059,6 +3152,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     const visuals = data.visualEvidence.latest.visuals;
 
     expect(data.services).toHaveProperty('backups');
+    expect(data.services).toHaveProperty('teddycam');
+    expect(data.historicalSummaries.find(summary => summary.id === '2026-06-28-openclaw-home-stack')).toEqual(expect.objectContaining({
+      title: 'OpenClaw and home stack update',
+      source: 'data/teddy-house/operator-update.json',
+      value: '7 complete'
+    }));
     expect(Array.isArray(data.intelligence.weirdThings)).toBe(true);
     expect(data.insights).toHaveProperty('cards');
     expect(visuals.dependencyMap.inputs.length).toBeGreaterThan(0);

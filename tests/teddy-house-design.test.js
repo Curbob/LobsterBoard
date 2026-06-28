@@ -114,7 +114,8 @@ function healthyWithOneWarning() {
       homebridge: { state: 'ok', metric: '8581', check: 'Port', detail: 'Homebridge answered.' },
       tailscale: { state: 'ok', metric: '100.64.0.1', check: 'Tailscale', detail: 'Tailscale online.' },
       internet: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'WAN is fine.' },
-      openclaw: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' }
+      openclaw: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' },
+      teddycam: { state: 'ok', metric: 'H264 1280x720', check: 'Private camera', detail: 'Private tailnet camera lane is active.' }
     },
     vitals: {
       cpu: '7.0',
@@ -152,6 +153,7 @@ function healthyWithOneWarning() {
         version: { state: 'info', value: '1', label: 'optional UI update', detail: 'Homebridge is current at 2.0.2. Homebridge UI has a patch update available when convenient: 5.22.0 to 5.23.0.' }
       },
       tailscaleFunnel: { state: 'info', metric: '8443, 10000', check: 'Accepted access', detail: 'Known public routes: Teddy Homebase on 10000 and BlueBubbles on 8443.' },
+      teddyCam: { state: 'ok', metric: 'H264 1280x720', check: 'Private camera', detail: 'Private tailnet camera lane is active.' },
       wanQuality: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'WAN is fine.' },
       serviceLogs: { state: 'ok', value: 'quiet', label: 'quiet', detail: 'Service logs are quiet.', items: [] },
       softwareUpdates: { state: 'ok', value: 'current', label: 'version check', detail: 'Apps are current.' },
@@ -284,7 +286,7 @@ describe('Teddy Homebase design guardrails', () => {
       'Disk used'
     ]);
     expect(document.querySelector('#vitals-grid .vital-detail').textContent).toBe('Peak 8.20 / 6h');
-    expect(document.querySelectorAll('.service-card')).toHaveLength(5);
+    expect(document.querySelectorAll('.service-card')).toHaveLength(6);
     expect(document.querySelectorAll('.service-detail')).toHaveLength(0);
     expect([...document.querySelectorAll('.service-card .tiny-label')].every(el => el.textContent === 'Online')).toBe(true);
 

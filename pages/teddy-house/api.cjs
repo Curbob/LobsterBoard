@@ -31,13 +31,14 @@ const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
 const AUTOMATION_LOG_HISTORY_LIMIT = 120;
 const INCIDENT_LEDGER_LIMIT = 80;
-const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw'];
+const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw', 'teddycam'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
   'adguardBlocks',
   'homebridgeAccessories',
   'homebridgeLogs',
   'publicFunnel',
+  'teddyCam',
   'wanQuality',
   'serviceLogs',
   'softwareUpdates',
@@ -51,6 +52,7 @@ const SERVICE_NAMES = {
   tailscale: 'Tailscale',
   internet: 'Internet',
   openclaw: 'OpenClaw',
+  teddycam: 'TeddyCam',
   backups: 'Backups'
 };
 const ADGUARD_BASE_URL = process.env.HOMEBASE_ADGUARD_URL || 'http://127.0.0.1:3001';
@@ -62,6 +64,12 @@ const ECOBEE_MCP_URL = process.env.HOMEBASE_ECOBEE_MCP_URL || 'http://127.0.0.1:
 const ECOBEE_MCP_PLIST = process.env.HOMEBASE_ECOBEE_MCP_PLIST || '/Users/teddyclaw/Library/LaunchAgents/com.teddy.ecobee-mcp.plist';
 const ECOBEE_MCP_TIMEOUT_MS = Number(process.env.HOMEBASE_ECOBEE_MCP_TIMEOUT_MS || 1500);
 const HEALTH_CACHE_MS = Number(process.env.TEDDY_HOMEBASE_HEALTH_CACHE_MS || 45000);
+const TEDDYCAM_ARTIFACT_PATH = process.env.HOMEBASE_TEDDYCAM_ARTIFACT
+  || '/Users/teddyclaw/Documents/Codex/2026-05-17/hey-i-added-my-android-phone/artifacts/android/video-lane/latest.json';
+const TEDDYCAM_APP_PORT = Number(process.env.HOMEBASE_TEDDYCAM_APP_PORT || 18116);
+const TEDDYCAM_HLS_PORT = Number(process.env.HOMEBASE_TEDDYCAM_HLS_PORT || 8888);
+const TEDDYCAM_FRESH_MS = Number(process.env.HOMEBASE_TEDDYCAM_FRESH_MS || 2 * HOUR_MS);
+const ADGUARD_LOGIN_FAIL_BACKOFF_MS = Number(process.env.HOMEBASE_ADGUARD_LOGIN_FAIL_BACKOFF_MS || 6 * HOUR_MS);
 let adGuardSessionCookie = '';
 let adGuardLoginBlockedUntil = 0;
 let ecobeeMcpToken = '';
@@ -241,6 +249,14 @@ function writeDataSafe(ctx, filename, obj) {
   } catch (_) {}
 }
 
+async function readJsonFileSafe(filePath, fallback = null) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch (_) {
+    return fallback;
+  }
+}
+
 function summarizeForTeddy(context) {
   const data = context && typeof context === 'object' ? context : {};
   const services = data.services && typeof data.services === 'object' ? data.services : {};
@@ -321,6 +337,7 @@ function summarizeForTeddy(context) {
     memory,
     signals: {
       externalAccess: intelligence.tailscaleFunnel ? stripSignal(intelligence.tailscaleFunnel) : null,
+      teddyCam: intelligence.teddyCam ? stripSignal(intelligence.teddyCam) : null,
       wanQuality: intelligence.wanQuality ? stripSignal(intelligence.wanQuality) : null,
       serviceLogs: intelligence.serviceLogs ? stripSignal(intelligence.serviceLogs) : null,
       systemLogs: intelligence.systemLogs ? stripSignal(intelligence.systemLogs) : null,
@@ -727,6 +744,32 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
   return summaries;
 }
 
+function operatorUpdateSummary(ctx) {
+  const data = readDataSafe(ctx, 'operator-update.json', null);
+  if (!data || typeof data !== 'object') return null;
+  const items = Array.isArray(data.items) ? data.items : [];
+  const complete = items.filter(item => item && item.state === 'complete').length;
+  const active = items.filter(item => item && item.state !== 'complete').length;
+  return {
+    id: data.id || 'operator-update',
+    title: data.title || 'Operator update',
+    window: data.window || 'latest',
+    value: active > 0 ? `${active} open` : `${complete} complete`,
+    detail: shortText(data.summary || items.map(item => item.label).filter(Boolean).join('; '), 220),
+    sampleCount: items.length,
+    points: [],
+    checkedAt: data.checkedAt || null,
+    freshness: data.checkedAt ? formatAgeFromDate(new Date(data.checkedAt)) : 'persisted',
+    source: 'data/teddy-house/operator-update.json',
+    confidence: data.confidence || 'persisted',
+    items: items.map(item => ({
+      label: item.label || 'Update',
+      state: item.state || 'info',
+      proof: shortText(item.proof, 140)
+    }))
+  };
+}
+
 function buildVisualEvidence(services, insights, intelligence, vitalsData, timeline, score, houseState, dailyDecision, historicalSummaries, homeStatsData) {
   const serviceStates = Object.fromEntries(
     Object.entries(services).map(([key, service]) => [key, {
@@ -784,6 +827,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
           homebridgeLogs: stripSignal(intelligence.homebridge.logHealth),
           publicFunnel: stripSignal(intelligence.tailscaleFunnel),
           publicAccess: stripSignal(intelligence.publicAccess),
+          teddyCam: stripSignal(intelligence.teddyCam),
           wanQuality: stripSignal(intelligence.wanQuality),
           serviceLogs: stripSignal(intelligence.serviceLogs),
           softwareUpdates: stripSignal(intelligence.softwareUpdates),
@@ -902,6 +946,7 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
     sourceContract('tailscale', 'Tailscale', services.tailscale, { trust: 'trusted', source: 'Tailscale status probe', usedBy: ['network', 'service-grid'] }),
     sourceContract('internet', 'Internet', services.internet, { trust: 'trusted', source: 'WAN ping probe', usedBy: ['network', 'service-grid'] }),
     sourceContract('openclaw', 'OpenClaw', services.openclaw, { trust: 'trusted', source: 'OpenClaw gateway probe', usedBy: ['mac-mini', 'service-grid'] }),
+    sourceContract('teddycam', 'TeddyCam', services.teddycam, { trust: 'trusted', source: 'TeddyCam private video-lane receipt', usedBy: ['mac-mini', 'service-grid', 'evidence'], firstScreenEligible: false }),
     sourceContract('public-access', 'Public access', publicAccess, { source: 'Tailscale Funnel route check', usedBy: ['outside-access', 'house-state'] }),
     sourceContract('wan-quality', 'WAN latency', intelligence.wanQuality, { source: 'WAN quality probe', usedBy: ['network', 'evidence'] }),
     sourceContract('homebridge-accessories', 'Accessories', homebridge.accessories, { source: 'Homebridge accessory cache', usedBy: ['smart-home', 'evidence'] }),
@@ -912,6 +957,7 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
     sourceContract('service-logs', 'Service logs', intelligence.serviceLogs, { source: 'Grouped service logs', usedBy: ['mac-mini', 'smart-home', 'network', 'house-state'] }),
     sourceContract('mac-mini-service-logs', 'Mac mini service logs', intelligence.macMiniLogs, { source: 'Grouped service logs', usedBy: ['mac-mini', 'house-state'] }),
     sourceContract('network-service-logs', 'Network service logs', intelligence.networkLogs, { source: 'Grouped service logs', usedBy: ['network', 'evidence'] }),
+    sourceContract('teddycam-video-lane', 'TeddyCam video lane', intelligence.teddyCam, { source: 'TeddyCam private video-lane receipt', usedBy: ['evidence'], firstScreenEligible: false }),
     sourceContract('adguard-blocks', 'DNS blocks', intelligence.adguard, { source: 'AdGuard stats API', usedBy: ['evidence'], firstScreenEligible: false }),
     sourceContract('door-locks', 'Door locks', homebridge.doorLocks, { source: 'Homebridge cached accessories', usedBy: ['hidden-evidence'], firstScreenEligible: false }),
     sourceContract('cpu-vitals', 'CPU load', health.cpu, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
@@ -1264,6 +1310,90 @@ async function checkOpenClaw() {
   }
 }
 
+async function checkTeddyCam() {
+  const [artifact, stat] = await Promise.all([
+    readJsonFileSafe(TEDDYCAM_ARTIFACT_PATH, null),
+    fs.stat(TEDDYCAM_ARTIFACT_PATH).catch(() => null)
+  ]);
+  const [app, hls] = await Promise.all([
+    tcpCheck('127.0.0.1', TEDDYCAM_APP_PORT).then(() => true).catch(() => false),
+    tcpCheck('127.0.0.1', TEDDYCAM_HLS_PORT).then(() => true).catch(() => false)
+  ]);
+  return teddyCamSignalFrom({ artifact, stat, app, hls });
+}
+
+function teddyCamSignalFrom({ artifact, stat = null, app = false, hls = false, now = Date.now() }) {
+  const checkedAt = artifact && (artifact.captured_at || artifact.health && artifact.health.checked_at || artifact.started_at)
+    || stat && stat.mtime && stat.mtime.toISOString()
+    || null;
+  const ageMs = checkedAt ? now - new Date(checkedAt).getTime() : null;
+  const fresh = ageMs === null ? false : ageMs <= TEDDYCAM_FRESH_MS;
+  const health = artifact && artifact.health && typeof artifact.health === 'object' ? artifact.health : {};
+  const browser = artifact && artifact.browser && typeof artifact.browser === 'object' ? artifact.browser : {};
+  const safety = artifact && artifact.safety && typeof artifact.safety === 'object' ? artifact.safety : {};
+  const privacy = artifact && artifact.privacy && typeof artifact.privacy === 'object' ? artifact.privacy : {};
+  const source = artifact && artifact.source && typeof artifact.source === 'object' ? artifact.source : {};
+  const active = Boolean(artifact && artifact.active);
+  const browserVerified = Boolean(browser.verified);
+  const safePrivate = safety.public_stream !== true
+    && privacy.public_stream !== true
+    && safety.audio !== true
+    && privacy.audio !== true
+    && safety.no_credentials_in_artifact !== false
+    && privacy.tokens_omitted !== false;
+  const codec = health.codec || (Array.isArray(health.tracks) ? health.tracks[0] : null) || 'video';
+  const size = health.width && health.height ? `${health.width}x${health.height}` : source.camera_size || null;
+  const metric = active && browserVerified
+    ? [codec, size].filter(Boolean).join(' ')
+    : app ? 'private app' : 'not active';
+  const detail = active && browserVerified && app
+    ? `Private tailnet camera lane is active; browser player verified. Audio is off and stream URLs stay out of Homebase.`
+    : active && !app
+      ? 'Latest TeddyCam receipt says active, but the local app port is not responding.'
+      : artifact
+        ? 'TeddyCam has a local receipt, but the live browser lane is not verified right now.'
+        : 'No TeddyCam receipt was found for Homebase to summarize.';
+  const state = !safePrivate
+    ? 'bad'
+    : active && browserVerified && app && fresh
+      ? 'ok'
+      : active && browserVerified && app
+        ? 'info'
+        : active && !app
+          ? 'warn'
+          : 'info';
+  const result = {
+    state,
+    detail,
+    metric,
+    check: 'Private camera',
+    confidence: artifact ? 'persisted' : 'degraded',
+    checkedAt,
+    freshness: checkedAt ? formatAgeFromDate(new Date(checkedAt)) : 'unknown',
+    source: 'TeddyCam video-lane receipt',
+    routes: [
+      { name: 'TeddyCam', path: '/teddycam', access: 'tailnet' },
+      { name: 'TeddyCam Lite', path: '/teddycam-lite', access: 'tailnet' }
+    ],
+    privacy: {
+      audio: Boolean(privacy.audio || safety.audio),
+      publicStream: Boolean(privacy.public_stream || safety.public_stream),
+      tokensOmitted: privacy.tokens_omitted !== false,
+      streamUrlsOmitted: privacy.rtsp_urls_omitted !== false && safety.raw_rtsp_url_omitted !== false
+    },
+    local: {
+      app: app ? 'reachable' : 'closed',
+      hls: hls ? 'reachable' : 'closed'
+    },
+    hidden: false
+  };
+  if (!safePrivate) {
+    result.detail = 'TeddyCam privacy guard failed; check audio, public stream, and credential omission before using it.';
+    result.metric = 'privacy';
+  }
+  return result;
+}
+
 async function checkBackups() {
   return info('Backups are parked for now.', 'paused', 'Dan setting');
 }
@@ -1547,9 +1677,27 @@ function countMacUpdateItems(text) {
   return Math.max(starCount, labelCount);
 }
 
+function macUpdateNeedsAttention(text) {
+  return /\b(security|critical|urgent|restart|required)\b/i.test(String(text || ''));
+}
+
+function normalizeMacUpdateSignal(signal) {
+  if (!signal || typeof signal !== 'object') return signal;
+  if (signal.state !== 'warn') return signal;
+  const text = `${signal.metric || ''} ${signal.value || ''} ${signal.detail || ''} ${signal.label || ''}`;
+  if (macUpdateNeedsAttention(text)) return signal;
+  return {
+    ...signal,
+    state: 'info',
+    detail: `${signal.metric || signal.value || 'macOS'} macOS update available; keep for maintenance.`
+  };
+}
+
 async function checkMacUpdates(ctx) {
   const cached = readDataSafe(ctx, 'mac-updates.json', null);
-  if (cachedKnownFresh(cached, MAC_UPDATE_CACHE_MS, MAC_UPDATE_CACHE_SCHEMA)) return { ...cached, confidence: 'cached' };
+  if (cachedKnownFresh(cached, MAC_UPDATE_CACHE_MS, MAC_UPDATE_CACHE_SCHEMA)) {
+    return normalizeMacUpdateSignal({ ...cached, confidence: 'cached' });
+  }
 
   const result = await tryRunFull('/usr/sbin/softwareupdate', ['-l'], 6500);
   let signal;
@@ -1564,9 +1712,11 @@ async function checkMacUpdates(ctx) {
       if (count === 0) {
         signal = info('macOS update check finished without a readable update list.', 'unknown', 'macOS');
       } else {
-        const needsAttention = /security|critical|urgent|restart|recommended/i.test(output);
+        const needsAttention = macUpdateNeedsAttention(output);
         signal = (needsAttention ? warn : info)(
-          `${count} macOS update${count === 1 ? '' : 's'} available. Review before installing.`,
+          needsAttention
+            ? `${count} macOS update${count === 1 ? '' : 's'} available. Review before installing.`
+            : `${count} macOS update${count === 1 ? '' : 's'} available; keep for maintenance.`,
           `${count}`,
           'macOS'
         );
@@ -1574,7 +1724,7 @@ async function checkMacUpdates(ctx) {
     }
   }
 
-  const record = { checkedAt: nowIso(), schema: MAC_UPDATE_CACHE_SCHEMA, ...signal };
+  const record = normalizeMacUpdateSignal({ checkedAt: nowIso(), schema: MAC_UPDATE_CACHE_SCHEMA, ...signal });
   writeDataSafe(ctx, 'mac-updates.json', record);
   return record;
 }
@@ -1705,7 +1855,7 @@ async function fetchAdGuardStats() {
     ? { headers: { Cookie: adGuardSessionCookie } }
     : {});
   if (res.status !== 401 && res.status !== 403) return res;
-  if (Date.now() < adGuardLoginBlockedUntil) return res;
+  if (Date.now() < adGuardLoginBlockedUntil) return { ...res, adGuardAuth: 'login-backoff' };
 
   const credentials = await adGuardCredentials();
   if (!credentials) return res;
@@ -1720,7 +1870,10 @@ async function fetchAdGuardStats() {
       adGuardLoginBlockedUntil = Date.now() + 10 * 60 * 1000;
       return { ...res, adGuardAuth: 'rate-limited' };
     }
-    if (login.status !== 200 || !cookie) return { ...res, adGuardAuth: 'login-failed', loginStatus: login.status };
+    if (login.status !== 200 || !cookie) {
+      adGuardLoginBlockedUntil = Date.now() + ADGUARD_LOGIN_FAIL_BACKOFF_MS;
+      return { ...res, adGuardAuth: 'login-failed', loginStatus: login.status };
+    }
     adGuardSessionCookie = cookie.split(';')[0];
     res = await fetchJson(`${ADGUARD_BASE_URL}/control/stats`, { headers: { Cookie: adGuardSessionCookie } });
     if (res.status === 401 || res.status === 403) adGuardSessionCookie = '';
@@ -1746,6 +1899,16 @@ async function keychainPassword(service, account) {
 }
 
 function normalizeAdGuardStatsResponse(res) {
+  if (res.adGuardAuth === 'login-backoff') {
+    return {
+      state: 'info',
+      value: 'login backoff',
+      label: 'Login backoff',
+      detail: 'AdGuard stats are locked; Homebase is waiting before retrying the Teddy service login.',
+      confidence: 'needs-login',
+      topBlocked: []
+    };
+  }
   if (res.adGuardAuth === 'rate-limited') {
     return {
       state: 'info',
@@ -2629,7 +2792,7 @@ async function serviceLogOverview(ctx) {
     logFileSummary('AdGuard', [
       '/var/log/AdGuardHome.stderr.log',
       '/var/log/AdGuardHome.stdout.log'
-    ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS, ignorePattern: /webapi: http error host=127\.0\.0\.1:3001 method=POST url=\/control\/login status=429 ip=127\.0\.0\.1|auth: blocked for/i }),
+    ], { warnAt: 5, badAt: 20, recentMs: 3 * HOUR_MS, ignorePattern: /webapi: http error host=127\.0\.0\.1:3001 method=POST url=\/control\/login status=(403|429) ip=127\.0\.0\.1|auth: blocked for/i }),
     tailscaleLogSummary()
   ]);
   const normalizedItems = items.map(normalizeLogItem).map(item => {
@@ -3346,6 +3509,13 @@ async function buildInsights(services, systemVitals, intelligence) {
         detail: openclawReady.detail
       },
       {
+        title: 'TeddyCam',
+        value: services.teddycam.metric || '--',
+        label: services.teddycam.check || 'camera',
+        state: services.teddycam.state,
+        detail: services.teddycam.detail
+      },
+      {
         title: 'WAN',
         value: intelligence.wanQuality.metric || '--',
         label: intelligence.wanQuality.check || 'WAN',
@@ -3412,6 +3582,8 @@ function snapshotFor(services, intelligence, score) {
     macUpdateMetric: intelligence.macUpdates.metric,
     systemLogState: intelligence.systemLogs.state,
     systemLogMetric: intelligence.systemLogs.metric,
+    teddyCamState: intelligence.teddyCam && intelligence.teddyCam.state,
+    teddyCamMetric: intelligence.teddyCam && intelligence.teddyCam.metric,
     serviceLogState: intelligence.serviceLogs.state,
     serviceLogValue: intelligence.serviceLogs.value
   };
@@ -3447,12 +3619,15 @@ function buildWeirdThings(previous, current) {
   if (current.systemLogState === 'bad' || current.systemLogState === 'warn') {
     items.push({ state: current.systemLogState, title: 'Mac restart incident', detail: 'Mac system incident is still open.' });
   }
+  if ((current.teddyCamState === 'bad' || current.teddyCamState === 'warn') && previous.teddyCamMetric !== current.teddyCamMetric) {
+    items.push({ state: current.teddyCamState, title: 'TeddyCam', detail: 'Private camera lane needs review.' });
+  }
   if ((current.serviceLogState === 'bad' || current.serviceLogState === 'warn') && previous.serviceLogValue !== current.serviceLogValue) {
     items.push({ state: current.serviceLogState, title: current.serviceLogValue || 'Service logs', detail: 'Service log signal is still open.' });
   }
 
   if (items.length === 0) {
-    return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, accessory, WAN, update, or log changes since the last check.' }];
+    return [{ state: 'ok', title: 'No drift', detail: 'No service, public access, TeddyCam, accessory, WAN, update, or log changes since the last check.' }];
   }
   return items.slice(0, 5);
 }
@@ -3620,6 +3795,8 @@ function macIncidentDetail(systemLogs, systemVitals) {
 function translatePrimaryAction(needs) {
   if (!Array.isArray(needs) || needs.length === 0) return 'No review items.';
   const first = String(needs[0] || '').toLowerCase();
+  if (/network service logs.*adguard|adguard.*log/.test(first)) return 'Check AdGuard logs first.';
+  if (/network service logs/.test(first)) return 'Check network service logs first.';
   if (/tailscale/.test(first)) return 'Start with Tailscale.';
   if (/external|public|funnel|access/.test(first)) return 'Start with public access.';
   if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
@@ -4179,6 +4356,7 @@ function usefulSignals(intelligence, systemVitals) {
   return [
     [systemLogsReviewName(intelligence, systemVitals), intelligence.systemLogs],
     ['Public access', intelligence.publicAccess || intelligence.tailscaleFunnel],
+    ['TeddyCam', intelligence.teddyCam],
     ['Door locks', intelligence.homebridge && intelligence.homebridge.doorLocks],
     ['WAN', intelligence.wanQuality],
     ['Automation logs', intelligence.automationLogs],
@@ -4411,19 +4589,21 @@ function eventsFromServices(services) {
 }
 
 async function buildHealthPayload(ctx) {
-  const [adguard, homebridge, tailscale, internet, openclaw, backups, systemVitals, intelligence, homeStatsData] = await Promise.all([
+  const [adguard, homebridge, tailscale, internet, openclaw, teddycam, backups, systemVitals, intelligence, homeStatsData] = await Promise.all([
     checkAdGuard(),
     checkHomebridge(),
     checkTailscale(),
     checkInternet(),
     checkOpenClaw(),
+    checkTeddyCam(),
     checkBackups(),
     vitals(ctx),
     buildIntelligence(ctx),
     homeStats(ctx)
   ]);
 
-  const services = { adguard, homebridge, tailscale, internet, openclaw, backups };
+  const services = { adguard, homebridge, tailscale, internet, openclaw, teddycam, backups };
+  intelligence.teddyCam = teddycam;
   const score = scoreServices(services, intelligence, systemVitals);
   const timeline = updateTimeline(ctx, services, intelligence, score);
   const insights = await buildInsights(services, systemVitals, intelligence);
@@ -4432,7 +4612,10 @@ async function buildHealthPayload(ctx) {
   const incidents = updateIncidentLedger(ctx, services, intelligence, systemVitals);
   const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents);
   const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
-  const historicalSummaries = buildHistoricalSummaries(systemVitals, timeline, intelligence);
+  const historicalSummaries = [
+    ...buildHistoricalSummaries(systemVitals, timeline, intelligence),
+    operatorUpdateSummary(ctx)
+  ].filter(Boolean);
   const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);
   const visualEvidence = updateVisualEvidenceLog(
     ctx,
@@ -4507,7 +4690,8 @@ function teddyHouseApi(ctx = {}) {
               homebridge: ok('Fast health probe.', 'fast', 'Port'),
               tailscale: ok('Fast health probe.', 'fast', 'Tailscale'),
               internet: ok('Fast health probe.', 'fast', 'WAN'),
-              openclaw: ok('Fast health probe.', 'fast', 'Gateway')
+              openclaw: ok('Fast health probe.', 'fast', 'Gateway'),
+              teddycam: ok('Fast health probe.', 'fast', 'Private camera')
             }
           };
         }
@@ -4551,7 +4735,10 @@ teddyHouseApi._internals = {
   diagnosticReportKind,
   logLineDate,
   normalizeAdGuardStatsResponse,
-  fetchAdGuardStats
+  fetchAdGuardStats,
+  normalizeMacUpdateSignal,
+  teddyCamSignalFrom,
+  checkTeddyCam
 };
 
 module.exports = teddyHouseApi;
