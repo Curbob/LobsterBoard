@@ -4,52 +4,64 @@ The teddy camera is exposed as a HomeKit camera accessory via the
 `homebridge-camera-ffmpeg` plugin. You can see the live stream on any
 Apple TV that's signed into the same iCloud Home setup.
 
-## Auth: why we use a session cookie, not a Bearer token
+## Auth: how it actually works (after many rounds of debugging)
 
-**TL;DR:** The teddy camera server requires auth on its MJPEG stream and
-snapshot endpoints. The homebridge-camera-ffmpeg plugin's source string
-gets split on whitespace (`source.split(/\s+/)`), so any value with
-a space breaks the plugin's invocation of ffmpeg. The
-`Authorization: Bearer <token>` header has a space. The teddy
-camera's local session cookie (`Cookie: teddycam_session=...`) is a
-single token with no spaces — it works.
+The teddy camera server (port 18116) requires auth on its MJPEG
+stream and snapshot endpoints. We tried three approaches before
+finding the one that works:
 
-If you try to use `Authorization: Bearer <token>`, the plugin will:
-- Pass `-headers` correctly
-- Then pass `"Authorization:` as the next arg (corrupt)
-- Then pass `Bearer`
-- Then pass `<token>"`
+| Approach | Why it failed |
+|----------|---------------|
+| `Authorization: Bearer <token>` | The homebridge-camera-ffmpeg plugin does `source.split(/\s+/)`. With `Bearer <token>` (a space in the value), the split mangles the args. ffmpeg exits with code 8. |
+| `Cookie: teddycam_session=<cookie>` | ffmpeg's `-headers` format requires CRLF at the end of the cookie value. The teddy camera's custom cookie parser doesn't strip the trailing `\r`, so it returns 400. |
+| **`?token=<token>` in the URL via `bin/teddy-camera-shim.mjs`** | **Works.** No spaces, no CRLF. The shim authenticates the URL query, fetches a session cookie, and proxies to the camera with that cookie. |
 
-ffmpeg fails to parse this and exits with code 8. The camera shows
-"No response" in Home.app.
+The shim runs on `http://127.0.0.1:18118/`. It validates `?token=<camera-token>` and proxies to the camera with the proper cookie. The homebridge config uses the shim URL.
 
-The fix is to use `Cookie: teddycam_session=<cookie>` (no space in the
-cookie value). The plugin's `split(/\s+/)` keeps it as a single arg,
-ffmpeg parses it correctly, and the camera server accepts the session.
-
-The cookie expires periodically (when the homebridge restarts or after
-a long idle period). When it does, run the refresh script:
-
-```
-/Users/teddyclaw/teddy-house-lobsterboard/bin/teddy-camera-refresh-cookie.py
-```
-
-This re-fetches a fresh cookie, rewrites the homebridge config, and
-sends SIGHUP to the homebridge so it picks up the new config.
+If the camera token rotates (by deleting `~/.config/teddycamera/token` and re-running `bin/teddycamera-setup-token`), update the homebridge config's `?token=` value and restart homebridge. The shim reads the token from the same file at startup, so a shim restart picks up the new token.
 
 ## What's running
 
+- **Shim:** `bin/teddy-camera-shim.mjs` — listens on `127.0.0.1:18118`, validates `?token=<camera-token>`, bootstraps a session cookie from the camera, and proxies with that cookie
 - **Plugin:** `homebridge-camera-ffmpeg@3.1.4` (installed globally)
-- **Accessory:** `Teddy Front Door 68E3` — manufacturer "Teddy", serial
-  `teddy-front-door-1`, with Motion Sensor, Microphone,
-  CameraRTPStreamManagement services
-- **Stream source:** the teddy camera's MJPEG endpoint at
-  `http://127.0.0.1:18116/stream.mjpg`, authenticated via the
-  `Cookie: teddycam_session=...` local session
-- **Snapshot source:** the camera's `/latest.jpg` endpoint with the same
-  cookie
-- **Sensor:** `Teddy Front Door Motion Trigger` — wired to the camera
-  detection pipeline, exposed as a HomeKit motion sensor + switch
+- **Accessory:** `Teddy Front Door 68E3` — manufacturer "Teddy", serial `teddy-front-door-1`, with Motion Sensor, Microphone, CameraRTPStreamManagement services
+- **Stream source:** `http://127.0.0.1:18118/stream.mjpg?token=<token>` (via the shim)
+- **Snapshot source:** `http://127.0.0.1:18118/latest.jpg?token=<token>` (via the shim)
+
+## How to start the shim automatically
+
+The shim needs to be running for the homebridge to access the camera.
+Start it via a LaunchAgent or in the background:
+
+```bash
+nohup node /Users/teddyclaw/teddy-house-lobsterboard/bin/teddy-camera-shim.mjs > /tmp/teddy-shim.log 2>&1 &
+```
+
+Or add a LaunchAgent at `~/Library/LaunchAgents/com.teddycamera.shim.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.teddycamera.shim</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/teddyclaw/teddy-house-lobsterboard/bin/teddy-camera-shim.mjs</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+</dict>
+</plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.teddycamera.shim.plist
+```
 
 ## Where the config lives
 
@@ -72,8 +84,8 @@ platform is the last entry under `platforms`:
             "switches": true,
             "unbridge": true,
             "videoConfig": {
-                "source": "-headers \"Cookie:teddycam_session=<cookie>\" -i http://127.0.0.1:18116/stream.mjpg",
-                "stillImageSource": "-headers \"Cookie:teddycam_session=<cookie>\" -i http://127.0.0.1:18116/latest.jpg",
+                "source": "-i http://127.0.0.1:18118/stream.mjpg?token=<token>",
+                "stillImageSource": "-i http://127.0.0.1:18118/latest.jpg?token=<token>",
                 "maxStreams": 2,
                 "maxWidth": 1920,
                 "maxHeight": 1080,
@@ -90,15 +102,15 @@ platform is the last entry under `platforms`:
 
 **Important notes:**
 
-- The cookie value `<cookie>` is a 43-character base64 string. It's
-  baked into the homebridge config at the time of the last refresh.
+- The `<token>` in the URL is the camera token. If you rotate it,
+  update the URL and restart homebridge (or run the SIGHUP trick).
 - **`unbridge: true`** makes the camera a separate HomeKit accessory
   with its own HAP server. This avoids PASE pairing issues with the
   main homebridge and isolates the camera's bandwidth.
-- If you rotate the teddy camera's auth token (by deleting
-  `~/.config/teddycamera/token` and re-running
-  `bin/teddycamera-setup-token`), the session cookies are
-  invalidated. Re-pair via Home.app after a token rotation.
+- The shim URL has no spaces in it. The plugin's `source.split(/\s+/)`
+  leaves it intact.
+- The HAP port is dynamic. Each homebridge restart gets a new port.
+  Re-pair in Home.app if the port changes.
 
 ## How to see the camera
 
@@ -121,73 +133,44 @@ If the camera doesn't show in the list:
 
 When you open the camera tile in Home.app on Apple TV:
 
-1. HomeKit sends an RTP request to the homebridge (port 53358 or whatever the
-   current child bridge port is)
+1. HomeKit sends an RTP request to the homebridge (port `60025` or whatever the current child bridge port is)
 2. Homebridge spawns ffmpeg with the configured source command
-3. ffmpeg reads the MJPEG stream from the teddy camera (authenticated
-   with the local session cookie)
-4. ffmpeg transcodes MJPEG → H.264 in real time (libx264, baseline,
-   132 kbps, 640x360, 10 fps)
-5. ffmpeg serves the H.264 stream back to HomeKit via the
-   homebridge's child bridge
-6. Apple TV / iPhone shows the live feed
+3. ffmpeg reads the MJPEG stream from the shim at `http://127.0.0.1:18118/stream.mjpg?token=...`
+4. The shim fetches a fresh session cookie from the camera (or reuses the cached one) and proxies with that cookie
+5. The camera returns the MJPEG stream
+6. The shim pipes the MJPEG back to ffmpeg
+7. ffmpeg transcodes MJPEG → H.264 in real time (libx264, baseline, 132 kbps, 640x360, 10 fps)
+8. ffmpeg serves the H.264 stream back to HomeKit via the homebridge's child bridge
+9. Apple TV / iPhone shows the live feed
 
-Expected latency: ~1-2 seconds.
+Expected latency: ~2-3 seconds (one round-trip through ffmpeg + shim + camera).
 
-## When the cookie expires
+## When something breaks
 
-The teddy camera's session cookie expires when:
-- The homebridge restarts and the camera issues a new session
-- The camera server itself restarts
-- A long idle period (weeks)
+**"No response" in Home.app:**
+- The shim is probably not running. Restart it.
+- The camera token might have rotated. Update the homebridge config URL.
+- The homebridge child bridge may have moved to a new port. Re-pair in Home.app.
 
-When the cookie expires, the camera shows "No response" in Home.app.
-The fix:
+**Camera stream is dead in HomeKit but works in ffmpeg directly:**
+- The homebridge child bridge may be in a bad state. Restart the homebridge.
 
-```
-/Users/teddyclaw/teddy-house-lobsterboard/bin/teddy-camera-refresh-cookie.py
-```
+**The ffmpeg process keeps dying with code 8:**
+- The token in the URL is wrong. Update the homebridge config.
 
-This script:
-1. Fetches a fresh local-session cookie from `http://127.0.0.1:18116/`
-2. Rewrites `~/.homebridge/config.json` with the new cookie baked in
-3. Sends SIGHUP to the homebridge main process (PID stays the same,
-   the supervisor restarts the children)
-
-The homebridge restart takes ~5-10 seconds. The camera's HAP port
-may change (port allocation is dynamic). If the camera disappears
-from Home.app after a cookie refresh, re-pair it (Add Accessory →
-`Teddy Front Door 68E3` → code `516-28-297`).
-
-## Re-pairing
-
-If the camera is missing from Home.app:
-
-1. Open the homebridge config UI at `http://127.0.0.1:8581`
-2. Go to **Accessories** → find the camera → verify it's not greyed out
-3. If the camera is there but not in Home.app, re-pair: in the Home.app,
-   "Add Accessory" → enter the homebridge code `516-28-297`
-
-## Restarting homebridge (after config edits)
-
-```
-# Stop the running instance
-sudo hb-service stop
-
-# Start it back
-sudo hb-service start
-
-# Or for debugging
-hb-service run
+**To restart the shim:**
+```bash
+pkill -9 -f teddy-camera-shim
+nohup node /Users/teddyclaw/teddy-house-lobsterboard/bin/teddy-camera-shim.mjs > /tmp/teddy-shim.log 2>&1 &
 ```
 
-If you can't sudo, run it as your user:
-
+**To restart the homebridge (and force the camera child bridge to re-create):**
+```bash
+pkill -f "hb-service"
+nohup /opt/homebrew/bin/hb-service run > /tmp/hb.log 2>&1 &
 ```
-nohup hb-service run > /tmp/hb-service.log 2>&1 &
-```
 
-This won't survive a logout, so use sudo in production.
+The homebridge will pick a new port for the camera child bridge. Look in `~/.homebridge/homebridge.log` for `Teddy Front Door 68E3 is running on port XXXXX`. Re-pair in Home.app with the new port.
 
 ## Known limitations
 
@@ -203,9 +186,8 @@ This won't survive a logout, so use sudo in production.
   show a generic HomeKit error.
 - The camera is added as a "private" accessory — only the paired
   HomeKit controller can see it.
-- The HAP port (53358 by default) is dynamic. It changes whenever
-  the homebridge supervisor restarts. If Home.app loses the camera,
-  re-pair.
+- The HAP port is dynamic. It changes whenever the homebridge
+  supervisor restarts. If Home.app loses the camera, re-pair.
 
 ## Privacy
 
@@ -226,5 +208,8 @@ This won't survive a logout, so use sudo in production.
 - `~/.homebridge/homebridge.log` — the homebridge log
 - `~/Library/Logs/TeddyHouse/lobsterboard.{out,err}.log` — supervised
   homebridge stdout/stderr
-- `bin/teddy-camera-refresh-cookie.py` — refresh the session cookie
-  baked into the homebridge camera config
+- `bin/teddy-camera-shim.mjs` — the URL-auth shim that lets the
+  homebridge camera-ffmpeg plugin talk to the teddy camera
+- `bin/teddy-camera-refresh-cookie.py` — DEPRECATED. With the shim, we
+  no longer need to bake cookies into the homebridge config. Keep
+  around in case we revert.
