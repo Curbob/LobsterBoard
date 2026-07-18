@@ -3,6 +3,14 @@
 Recorded: 2026-05-17 05:38:53 PDT
 Updated: 2026-06-01
 
+## 2026-07-17 Trust And Exposure Update
+
+- Root `:443` is no longer a public Funnel. Approved public routes remain BlueBubbles `:8443` and passworded Teddy Homebase `:10000`.
+- Unauthenticated loopback access remains available for read-only Homebase page, health, logs, and local Ask probes. Incident capture and mark-known writes now require authenticated same-origin requests.
+- The release gate returns nonzero when Homebase acceptance fails.
+- Dependency audits are clean and the declared Node range matches the active toolchain.
+- Fresh proof after service restart: `npm run check:homebase` passed 207 tests, six responsive rendered lanes, public auth, story agreement, incident mutation auth, and all trust gates. Verdict: `Homebase is useful`; first action: `Nothing needs Dan.`
+
 Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 
 ## Current Contract

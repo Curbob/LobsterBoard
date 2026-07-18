@@ -25,6 +25,32 @@ beforeAll(() => {
   const wrapped = '(function() { ' + src + ' window.WIDGETS = WIDGETS; })();';
   dom.window.eval(wrapped);
   WIDGETS = dom.window.WIDGETS;
+  // Also load per-category widget modules (same as app.html <script> tags)
+  const moduleFiles = [
+    'js/widgets/shared/icons.js',
+    'js/widgets/shared/helpers.js',
+    'js/widgets/shared/stats.js',
+    'js/widgets/weather.js',
+    'js/widgets/system.js',
+    'js/widgets/ai-tools.js',
+    'js/widgets/media.js',
+    'js/widgets/productivity.js',
+    'js/widgets/time.js',
+    'js/widgets/layout.js',
+    'js/widgets/releases.js',
+    'js/widgets/misc.js',
+    'js/widgets/search.js',
+    'js/widgets/finance.js',
+  ];
+  for (const rel of moduleFiles) {
+    try {
+      const modSrc = readFileSync(join(process.cwd(), rel), 'utf8');
+      dom.window.eval(modSrc);
+    } catch (e) {
+      // Skip missing files
+    }
+  }
+  WIDGETS = dom.window.WIDGETS;
 });
 
 describe('WIDGETS object', () => {
@@ -86,6 +112,19 @@ describe('generateHtml', () => {
       expect(html, `${key} should contain its id`).toContain(id);
     }
   });
+
+  it('teddy-camera-events widget has expected structure', () => {
+    const w = WIDGETS['teddy-camera-events'];
+    expect(w, 'teddy-camera-events widget is registered').toBeDefined();
+    expect(w.category).toBe('large');
+    const props = { id: 'tc-1', title: 'Front Door', maxItems: 6, refreshInterval: 30, emptyState: 'Watching.' };
+    const html = w.generateHtml(props);
+    expect(html).toContain('tc-1');
+    expect(html).toContain('Front Door');
+    expect(html).toContain('dash-card');
+    expect(html).toContain('dash-card-head');
+    expect(html).toContain('Open Camera');
+  });
 });
 
 describe('generateJs', () => {
@@ -130,6 +169,17 @@ describe('generateJs', () => {
       const closes = (js.match(/\}/g) || []).length;
       expect(opens, `${key} balanced braces`).toBe(closes);
     }
+  });
+
+  it('teddy-camera-events widget JS polls the feed endpoint with the configured interval', () => {
+    const w = WIDGETS['teddy-camera-events'];
+    expect(w, 'teddy-camera-events widget is registered').toBeDefined();
+    const props = { id: 'tc-js-1', title: 'Front Door', maxItems: 6, refreshInterval: 45, emptyState: 'Watching.' };
+    const js = w.generateJs(props);
+    expect(js).toContain('tc-js-1');
+    expect(js).toContain('/api/teddy-camera/feed');
+    expect(js).toContain('45000'); // refreshInterval * 1000
+    expect(js).toContain('refresh_tc_js_1');
   });
 });
 

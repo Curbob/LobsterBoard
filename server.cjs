@@ -49,6 +49,7 @@ const proxyRoutes = require('./server/routes/proxy.cjs')();
 const financeRoutes = require('./server/routes/finance.cjs')();
 const templateRoutes = require('./server/routes/templates.cjs')(ctx);
 const fileRoutes = require('./server/routes/files.cjs')(ctx);
+const teddyCameraRoutes = require('./server/routes/teddy-camera.cjs')();
 
 const PUBLIC_INSTALL_ASSETS = new Set([
   '/pages/teddy-house/apple-touch-icon.png',
@@ -106,9 +107,26 @@ function isLocalHomebaseProbe(req, pathname) {
   if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/health') return true;
   if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/api/pages/teddy-house/logs') return true;
   if (req.method === 'POST' && pathname === '/api/pages/teddy-house/ask') return true;
-  if (req.method === 'POST' && pathname === '/api/pages/teddy-house/incidents/capture') return true;
-  if (req.method === 'POST' && /^\/api\/pages\/teddy-house\/incidents\/[^/]+\/known$/.test(pathname)) return true;
   return false;
+}
+
+function isHomebaseIncidentMutation(req, pathname) {
+  if (req.method !== 'POST') return false;
+  return pathname === '/api/pages/teddy-house/incidents/capture'
+    || /^\/api\/pages\/teddy-house\/incidents\/[^/]+\/known$/.test(pathname);
+}
+
+function requestSourceMatchesHost(req) {
+  const source = req.headers.origin || req.headers.referer;
+  if (!source) return false;
+  try {
+    const sourceUrl = new URL(source);
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+    const requestHost = forwardedHost || String(req.headers.host || '').trim();
+    return Boolean(requestHost) && sourceUrl.host.toLowerCase() === requestHost.toLowerCase();
+  } catch (_) {
+    return false;
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -162,6 +180,11 @@ const server = http.createServer(async (req, res) => {
         return;
       }
     }
+  }
+
+  if (isHomebaseIncidentMutation(req, pathname) && !requestSourceMatchesHost(req)) {
+    sendJson(res, 403, { status: 'error', message: 'Same-origin request required' });
+    return;
   }
 
   // CORS preflight
@@ -319,6 +342,9 @@ const server = http.createServer(async (req, res) => {
 
   // File routes (latest-image, browse-dirs)
   if (fileRoutes.handle(req, res, pathname, parsedUrl)) return;
+
+  // Teddy Camera routes (proxy to 127.0.0.1:18116 + friendly feed)
+  if (teddyCameraRoutes.handle(req, res, pathname, parsedUrl)) return;
 
   if (pathname === '/data' || pathname.startsWith('/data/')) {
     sendResponse(res, 404, 'text/plain', 'Not Found');

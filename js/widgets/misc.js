@@ -498,4 +498,198 @@
     `
   };
 
+  WIDGETS['teddy-camera-events'] = {
+    name: 'Teddy Camera',
+    icon: '📷',
+    category: 'large',
+    description: 'Recent person, vehicle, and package detections from Teddy AI Camera. Polls /api/teddy-camera/feed.',
+    defaultWidth: 320,
+    defaultHeight: 280,
+    hasApiKey: false,
+    properties: {
+      title: 'Front Door',
+      maxItems: 6,
+      refreshInterval: 30,
+      emptyState: 'Watching the front door.',
+      staleAfterSeconds: 300,
+      cameraUrl: ''
+    },
+    preview: `<div style="padding:6px 8px;font-size:11px;">
+      <div style="margin-bottom:4px;">🚶 Person on camera 10 min ago.</div>
+      <div style="margin-bottom:4px;opacity:0.85;">🚗 Car on camera 32 min ago.</div>
+      <div style="opacity:0.55;">📦 Package left at the door 2 hr ago.</div>
+    </div>`,
+    generateHtml: (props) => `
+      <style>
+        @keyframes teddycam-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .teddycam-row { display:flex; align-items:center; padding:5px 12px; border-bottom:1px solid var(--border-color,#21262d); cursor:pointer; transition: background 0.1s; }
+        .teddycam-row:hover { background: var(--bg-tertiary, #161b22); }
+        .teddycam-row img { width:48px; height:36px; object-fit:cover; border-radius:4px; margin-right:8px; flex-shrink:0; background: var(--bg-tertiary,#1f2937); }
+        .teddycam-row .line { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .teddycam-row .sub { font-size:10px; color: var(--text-muted,#8b949e); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .teddycam-stale { opacity: 0.55; }
+        .teddycam-pulse { display:inline-block; width:6px; height:6px; border-radius:50%; background:#3fb950; margin-right:5px; vertical-align:middle; animation: teddycam-pulse 1.6s ease-in-out infinite; }
+        .teddycam-pulse-dim { background:#8b949e; animation: none; }
+        .teddycam-modal { position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:zoom-out; }
+        .teddycam-modal img { max-width:90vw; max-height:90vh; border-radius:6px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); }
+      </style>
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">${renderIcon('camera')} ${props.title || 'Teddy Camera'}</span>
+          <span class="dash-card-badge" id="${props.id}-badge" style="display:none;">0</span>
+        </div>
+        <div class="dash-card-body" style="display:flex;flex-direction:column;height:100%;overflow:hidden;padding:0;">
+          <div id="${props.id}-list" style="flex:1;overflow-y:auto;padding:6px 0;font-size:calc(13px * var(--font-scale, 1));"></div>
+          <div id="${props.id}-footer" style="flex-shrink:0;padding:6px 12px 4px 12px;font-size:11px;color:var(--text-muted,#8b949e);border-top:1px solid var(--border-color,#21262d);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+              <span id="${props.id}-status" style="display:flex;align-items:center;gap:0;"></span>
+              <a id="${props.id}-link" data-camera-url="${_esc(props.cameraUrl || '')}" href="${_esc(props.cameraUrl || '/api/teddy-camera/health')}" target="_blank" rel="noopener" style="color:var(--accent-blue,#58a6ff);text-decoration:none;">Open Camera →</a>
+            </div>
+          </div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      // Teddy Camera Events Widget: ${props.id}
+      (function() {
+        const listEl = document.getElementById('${props.id}-list');
+        const statusEl = document.getElementById('${props.id}-status');
+        const badgeEl = document.getElementById('${props.id}-badge');
+        const linkEl = document.getElementById('${props.id}-link');
+        const endpoint = '/api/teddy-camera/feed';
+        const maxItems = ${Number(props.maxItems) || 6};
+        const emptyState = ${JSON.stringify(props.emptyState || 'Watching the front door.')};
+        const staleAfter = ${Number(props.staleAfterSeconds) || 300};
+        const cameraUrl = ${JSON.stringify(props.cameraUrl || '')};
+
+        // Resolve the "Open Camera" link. If the user left cameraUrl empty, we
+        // default to the homebase origin — that lands on the homebase index,
+        // which has the teddy house page. Users can override cameraUrl to point
+        // at any reachable teddy-camera player URL.
+        if (linkEl && (!cameraUrl || cameraUrl.trim() === '')) {
+          linkEl.href = window.location.origin + '/pages/teddy-house/';
+        }
+
+        function esc(s) {
+          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function openThumb(url) {
+          if (!url) return;
+          const modal = document.createElement('div');
+          modal.className = 'teddycam-modal';
+          const img = document.createElement('img');
+          img.src = baseUrl + url;
+          img.alt = 'detection frame';
+          modal.appendChild(img);
+          modal.addEventListener('click', () => modal.remove());
+          document.body.appendChild(modal);
+        }
+
+        function renderEmpty(msg) {
+          listEl.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text-muted,#8b949e);font-style:italic;line-height:1.5;">' + esc(msg) + '</div>';
+        }
+
+        function ageLabel(sec) {
+          if (sec == null) return '';
+          const s = Math.max(0, Math.floor(sec));
+          if (s < 60) return s + 's';
+          const m = Math.floor(s / 60);
+          if (m < 60) return m + 'm';
+          const h = Math.floor(m / 60);
+          if (h < 24) return h + 'h';
+          return Math.floor(h / 24) + 'd';
+        }
+
+        // Use the homebase origin as the base for thumb URLs. The homebase proxy
+        // already forwards /thumbs/* to the teddy camera server, so this works
+        // both on localhost and on the Tailscale funnel from a phone.
+        const baseUrl = window.location.origin;
+
+        function renderItems(items) {
+          if (!items || !items.length) { renderEmpty(emptyState); return; }
+          const html = items.slice(0, maxItems).map(function(it) {
+            const line = it.message || ((it.icon || '•') + ' ' + (it.label || 'Motion') + ' ' + (it.verb || 'on camera'));
+            const age = ageLabel(it.age_seconds);
+            const lineWithAge = age ? line + ' ' + age + ' ago' : line;
+            const thumb = it.thumb_url ? '<img src="' + baseUrl + it.thumb_url + '" alt="" onerror="this.style.display=\\'none\\'">' : '';
+            const sub = it.soc || it.teddy || (it.caption && it.caption !== it.label ? it.caption : null) || (it.source ? it.source.replace('rolling-thumbnail-yolo', 'camera').replace('simulated-detect', 'test') : null);
+            const tooltip = it.hand_off || (it.soc && it.teddy ? (it.soc + '  //  ' + it.teddy) : null);
+            const staleClass = (it.age_seconds != null && it.age_seconds > staleAfter) ? ' teddycam-stale' : '';
+            const thumbFull = it.thumb_url ? baseUrl + it.thumb_url : '';
+            const safeUrl = thumbFull ? esc(thumbFull) : '';
+            const click = thumbFull ? ' onclick=\\'window.open("' + safeUrl + '","_blank")\\'' : '';
+            return '<div class="teddycam-row' + staleClass + '"' + (tooltip ? ' title="' + esc(tooltip) + '"' : '') + click + '>' +
+              thumb +
+              '<div style="flex:1;min-width:0;">' +
+                '<div class="line">' + esc(lineWithAge) + '</div>' +
+                (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
+              '</div>' +
+            '</div>';
+          }).join('');
+          listEl.innerHTML = html;
+        }
+
+        function breakdown(items) {
+          const counts = {};
+          for (const it of items) {
+            const k = it.kind || (it.labels && it.labels[0]) || 'detection';
+            counts[k] = (counts[k] || 0) + 1;
+          }
+          return counts;
+        }
+
+        function breakdownTooltip(counts) {
+          const parts = [];
+          for (const k of Object.keys(counts).sort()) {
+            parts.push(counts[k] + ' ' + k);
+          }
+          return parts.join(', ');
+        }
+
+        let lastOkAt = 0;
+
+        function setStatus(text, fresh) {
+          const pulse = '<span class="teddycam-pulse' + (fresh ? '' : ' teddycam-pulse-dim') + '"></span>';
+          statusEl.innerHTML = pulse + esc(text);
+        }
+
+        async function refresh_${props.id.replace(/-/g, '_')}() {
+          try {
+            const res = await fetch(endpoint, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (!data.ok) {
+              renderEmpty('Camera offline. ' + (data.error || ''));
+              setStatus('Camera offline', false);
+              if (badgeEl) badgeEl.style.display = 'none';
+              return;
+            }
+            const items = data.items || [];
+            renderItems(items);
+            const n = items.length;
+            if (badgeEl) {
+              badgeEl.textContent = String(n);
+              badgeEl.style.display = n ? '' : 'none';
+              if (n) badgeEl.title = breakdownTooltip(breakdown(items));
+            }
+            const now = Date.now();
+            const updatedMs = data.last_updated ? Date.parse(data.last_updated) : now;
+            const ageMs = isNaN(updatedMs) ? 0 : (now - updatedMs);
+            const fresh = ageMs < 30000;
+            const time = data.last_updated ? new Date(data.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now';
+            setStatus(n ? (n + ' recent • ' + time) : ('Updated ' + time), fresh);
+            if (fresh) lastOkAt = now;
+          } catch (e) {
+            console.error('Teddy Camera widget error:', e);
+            renderEmpty('Camera unreachable. Retrying…');
+            setStatus('Unreachable', false);
+          }
+        }
+
+        refresh_${props.id.replace(/-/g, '_')}();
+        setInterval(refresh_${props.id.replace(/-/g, '_')}, ${(Number(props.refreshInterval) || 30) * 1000});
+      })();
+    `
+  };
+
 })(typeof window !== 'undefined' ? (window.WIDGETS = window.WIDGETS || {}) : {});

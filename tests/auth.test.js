@@ -98,9 +98,14 @@ describe('Password auth', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ known: true })
     });
-    expect(knownRes.status).toBe(404);
-    const known = await knownRes.json();
-    expect(known.message).toContain('not found');
+    expect(knownRes.status).toBe(401);
+
+    const captureRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/incidents/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Unauthenticated capture must fail' })
+    });
+    expect(captureRes.status).toBe(401);
   });
 
   it('keeps Homebase probes passworded for non-loopback hosts', async () => {
@@ -122,6 +127,7 @@ describe('Password auth', () => {
     await expect(requestStatus('/api/pages/teddy-house/health')).resolves.toBe(401);
     await expect(requestStatus('/api/pages/teddy-house/logs')).resolves.toBe(401);
     await expect(requestStatus('/api/pages/teddy-house/incidents/not-present/known', 'POST')).resolves.toBe(401);
+    await expect(requestStatus('/api/pages/teddy-house/incidents/capture', 'POST')).resolves.toBe(401);
     await expect(requestStatus('/pages/teddy-house/logs.js')).resolves.toBe(302);
   });
 
@@ -213,6 +219,41 @@ describe('Password auth', () => {
     expect(data).toHaveProperty('timestamp');
   });
 
+  it('requires authenticated same-origin incident mutations', async () => {
+    const loginRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
+    const cookie = cookiePair(setCookieHeaders(loginRes), 'lb_session');
+    const knownUrl = `${srv.baseUrl}/api/pages/teddy-house/incidents/not-present/known`;
+
+    const missingOrigin = await fetch(knownUrl, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ known: true })
+    });
+    expect(missingOrigin.status).toBe(403);
+
+    const crossOrigin = await fetch(knownUrl, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ known: true })
+    });
+    expect(crossOrigin.status).toBe(403);
+
+    const sameOrigin = await fetch(knownUrl, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: srv.baseUrl, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ known: true })
+    });
+    expect(sameOrigin.status).toBe(404);
+
+    const capture = await fetch(`${srv.baseUrl}/api/pages/teddy-house/incidents/capture`, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: srv.baseUrl, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Authenticated capture', context: {} })
+    });
+    expect(capture.status).toBe(200);
+    await expect(capture.json()).resolves.toEqual(expect.objectContaining({ status: 'ok', redacted: true }));
+  });
+
   it('trusted-device cookie refreshes the in-memory session after restart-like loss', async () => {
     const loginRes = await postJson(srv.baseUrl, '/api/auth/login', { password: 'test-secret-123' });
     const trustedCookie = cookiePair(setCookieHeaders(loginRes), 'lb_trusted');
@@ -226,6 +267,18 @@ describe('Password auth', () => {
     expect(cookiePair(cookies, 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
     expect(cookiePair(cookies, 'lb_trusted')).toMatch(/^lb_trusted=\d+\.[a-f0-9]{32}\.[a-f0-9]{64}$/);
     expect(cookies.join('\n')).toContain('SameSite=Lax');
+
+    const mutationRes = await fetch(`${srv.baseUrl}/api/pages/teddy-house/incidents/not-present/known`, {
+      method: 'POST',
+      headers: {
+        Cookie: trustedCookie,
+        Origin: srv.baseUrl,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ known: true })
+    });
+    expect(mutationRes.status).toBe(404);
+    expect(cookiePair(setCookieHeaders(mutationRes), 'lb_session')).toMatch(/^lb_session=[a-f0-9]{64}$/);
   });
 
   it('rejects invalid trusted-device cookies', async () => {

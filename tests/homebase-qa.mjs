@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { startServer } from '../helpers/server.js';
 
@@ -143,7 +144,7 @@ function reviewZone(label = '', source = '') {
   if (/\b(public access|external access|funnel|exposed|route drift)\b/.test(text)) return 'outside-access';
   if (/\b(dns|internet|wan|network|tailscale)\b/.test(text)) return 'network';
   if (/\b(homebridge|automation|accessor|govee|smart home)\b/.test(text)) return 'smart-home';
-  if (/\b(mac|openclaw|cpu|memory|disk|system logs|macos|service logs|restart|watchdog|panic)\b/.test(text)) return 'mac-mini';
+  if (/\b(mac|openclaw|cpu|memory|disk|system logs|macos|service logs|restart|watchdog|panic|teddycam|private camera)\b/.test(text)) return 'mac-mini';
   return null;
 }
 
@@ -179,6 +180,12 @@ function requestStatus({ port, path, host = '127.0.0.1', method = 'GET' }) {
     req.on('error', reject);
     req.end();
   });
+}
+
+function sessionCookieFrom(response) {
+  const combined = response.headers.get('set-cookie') || '';
+  const match = combined.match(/(?:^|,\s*)(lb_session=[a-f0-9]{64})/);
+  return match ? match[1] : null;
 }
 
 function assertNoFakeHomeState(data) {
@@ -1236,12 +1243,26 @@ async function smokeLocalRoutes() {
     assert(String(prepareData.promptPreview || '').includes('exact approval needed'), 'prepare-fix prompt is missing approval language');
     assert(!/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/.test(String(prepareData.promptPreview || '')), 'prepare-fix dry run included a mutation command');
 
+    const loginRes = await fetchWithTimeout(`${srv.baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'Danno' })
+    });
+    assert(loginRes.status === 200, `QA mutation login returned ${loginRes.status}`);
+    const mutationCookie = sessionCookieFrom(loginRes);
+    assert(mutationCookie, 'QA mutation login did not return a session cookie');
+    const mutationHeaders = {
+      'Content-Type': 'application/json',
+      Cookie: mutationCookie,
+      Origin: srv.baseUrl
+    };
+
     const activeIncident = data.houseState?.incident;
     let markKnown = { status: 'skipped', detail: 'no active incident' };
     if (activeIncident?.key) {
       const knownRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/${encodeURIComponent(activeIncident.key)}/known`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mutationHeaders,
         body: JSON.stringify({ known: true, note: 'QA mark-known smoke' })
       });
       assert(knownRes.status === 200, `Mark known returned ${knownRes.status}`);
@@ -1250,7 +1271,7 @@ async function smokeLocalRoutes() {
       assert(knownData.source === 'data/teddy-house/incidents.json', 'Mark known did not name the incident ledger source');
       const trackRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/${encodeURIComponent(activeIncident.key)}/known`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mutationHeaders,
         body: JSON.stringify({ known: false })
       });
       assert(trackRes.status === 200, `Track again returned ${trackRes.status}`);
@@ -1266,7 +1287,7 @@ async function smokeLocalRoutes() {
 
     const captureRes = await fetchWithTimeout(`${srv.baseUrl}/api/pages/teddy-house/incidents/capture`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: mutationHeaders,
       body: JSON.stringify({
         title: `${data.needsDan[0] || 'Homebase status'} dan@example.com 192.168.7.10`,
         clicked: { type: 'review', label: data.needsDan[0] || 'Homebase status' },
@@ -3154,9 +3175,19 @@ async function main() {
   await mkdir(SCREENSHOT_DIR, { recursive: true });
   await writeFile(QA_REPORT_FILE, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
+  applyAcceptanceExitCode(report);
 }
 
-main().catch(err => {
-  console.error(`Homebase QA failed: ${err.message}`);
-  process.exit(1);
-});
+function applyAcceptanceExitCode(report, runtime = process) {
+  if (report?.acceptanceStatus !== 'ok') runtime.exitCode = 1;
+  return runtime.exitCode || 0;
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error(`Homebase QA failed: ${err.message}`);
+    process.exit(1);
+  });
+}
+
+export { applyAcceptanceExitCode };

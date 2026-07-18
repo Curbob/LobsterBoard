@@ -3814,7 +3814,7 @@ function zoneKeyForReviewItem(item) {
   if (/external|public|funnel|access/.test(text)) return 'outside-access';
   if (/internet|wan|dns|tailscale|network/.test(text)) return 'network';
   if (/homebridge|automation|accessor|homebridge log/.test(text)) return 'smart-home';
-  if (/mac restart|watchdog|panic|openclaw|macos|mac os|system logs|cpu|memory|disk|updates|app versions|service logs/.test(text)) return 'mac-mini';
+  if (/mac restart|watchdog|panic|openclaw|macos|mac os|system logs|cpu|memory|disk|updates|app versions|service logs|teddycam|private camera/.test(text)) return 'mac-mini';
   return null;
 }
 
@@ -4189,7 +4189,9 @@ function deriveHomebaseStory({ incidents, macIncident, hasBad, hasReview, review
     const prefix = incidentStatusPrefix(primaryIncident);
     const zoneNoun = incidentZoneNoun(primaryIncident);
     const summaryStart = prefix
-      ? `${prefix} ${zoneNoun} issue.`
+      ? zoneNoun === 'public access'
+        ? `${prefix} ${zoneNoun}.`
+        : `${prefix} ${zoneNoun} issue.`
       : `${zoneNoun[0].toUpperCase()}${zoneNoun.slice(1)} needs a look.`;
     return {
       headline: primaryIncident.severity === 'issue' || primaryIncident.state === 'bad'
@@ -4393,7 +4395,14 @@ function needsDan(services, intelligence, systemVitals) {
     return `${item.name}: ${item.metric}`;
   });
   const vitalItems = usefulVitals(systemVitals).map(item => `${item.name}: ${item.metric}`);
-  return [...serviceItems, ...signalItems, ...vitalItems];
+  const items = [...serviceItems, ...signalItems, ...vitalItems];
+  const macRestartIndex = items.indexOf('Mac restart incident');
+  if (macRestartIndex <= 0) return items;
+  return [
+    items[macRestartIndex],
+    ...items.slice(0, macRestartIndex),
+    ...items.slice(macRestartIndex + 1)
+  ];
 }
 
 function reviewEvidenceFor(services, intelligence, systemVitals, reviewItems) {

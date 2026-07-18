@@ -51,42 +51,49 @@ if (!cameraToken) {
 
 let sessionCookie = null;
 let sessionCookieAcquiredAt = 0;
+let bootstrapPromise = null;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min
 
+function invalidateSession() {
+  sessionCookie = null;
+  sessionCookieAcquiredAt = 0;
+}
+
 async function getSessionCookie() {
-  // Re-use the cached cookie if it's still fresh.
   if (sessionCookie && Date.now() - sessionCookieAcquiredAt < SESSION_TTL_MS) {
     return sessionCookie;
   }
-  // The teddy camera server sets a session cookie on the 303 redirect from
-  // /?token=<token>. We need to request that URL with the Bearer auth header
-  // and capture the Set-Cookie from the response.
-  const cookie = await new Promise((resolve, reject) => {
+  if (bootstrapPromise) return bootstrapPromise;
+  bootstrapPromise = _doBootstrap();
+  try {
+    const cookie = await bootstrapPromise;
+    return cookie;
+  } finally {
+    bootstrapPromise = null;
+  }
+}
+
+function _doBootstrap() {
+  return new Promise((resolve, reject) => {
     let cookieValue = null;
-      function fetchOnce(targetUrl, hops) {
-        if (hops > 3) {
-          return reject(new Error('Too many redirects'));
-        }
-        const u = new URL(targetUrl);
-        const req = http.request({
-          host: u.hostname,
-          port: u.port || 80,
-          method: 'GET',
-          path: u.pathname + u.search,
-          headers: {
-            host: `${u.hostname}:${u.port || 80}`,
-            authorization: `Bearer ${cameraToken}`,
-            'user-agent': 'teddy-camera-shim/1.0',
-          },
-        }, res => {
-        // The Node http module concatenates multiple Set-Cookie values into
-        // a single string with comma-separation. But cookies with Expires
-        // attributes contain commas in the date, so the raw header is unsafe
-        // to split. Use the rawHeaders map (always available on the
-        // IncomingMessage) to access the array form.
+    let timedOut = false;
+    function fetchOnce(targetUrl, hops) {
+      if (hops > 3) return reject(new Error('Too many redirects'));
+      const u = new URL(targetUrl);
+      const req = http.request({
+        host: u.hostname,
+        port: u.port || 80,
+        method: 'GET',
+        path: u.pathname + u.search,
+        timeout: 10000,
+        headers: {
+          host: `${u.hostname}:${u.port || 80}`,
+          authorization: `Bearer ${cameraToken}`,
+          'user-agent': 'teddy-camera-shim/1.0',
+        },
+      }, res => {
         const rawSetCookies = res.rawHeaders
           ? (() => {
-              // rawHeaders is [name, value, name, value, ...]
               const out = [];
               for (let i = 0; i < res.rawHeaders.length; i += 2) {
                 if (res.rawHeaders[i].toLowerCase() === 'set-cookie') {
@@ -96,14 +103,9 @@ async function getSessionCookie() {
               return out;
             })()
           : [];
-        console.error(`[shim] bootstrap status=${res.statusCode} rawSetCookies.length=${rawSetCookies.length}`);
         for (const c of rawSetCookies) {
-          console.error(`[shim]   cookie: ${c.substring(0, 60)}...`);
           const m = c.match(/^teddycam_session=([^;,\s]+)/);
-          if (m) {
-            cookieValue = m[1];
-            break;
-          }
+          if (m) { cookieValue = m[1]; break; }
         }
         if (cookieValue) {
           res.resume();
@@ -116,17 +118,14 @@ async function getSessionCookie() {
           return;
         }
         res.resume();
-        reject(new Error(`No teddycam_session cookie in response (status ${res.statusCode}, raw headers: ${JSON.stringify(res.rawHeaders)})`));
+        reject(new Error(`No teddycam_session cookie (status ${res.statusCode})`));
       });
       req.on('error', reject);
+      req.on('timeout', () => { timedOut = true; req.destroy(new Error('bootstrap timeout')); });
       req.end();
     }
-    // Use the special URL that triggers redirectToCleanSession: /?token=<token>
     fetchOnce(`http://${CAMERA_HOST}:${CAMERA_PORT}/?token=${encodeURIComponent(cameraToken)}`, 0);
   });
-  sessionCookie = cookie;
-  sessionCookieAcquiredAt = Date.now();
-  return sessionCookie;
 }
 
 function proxyToCamera(req, res, urlPath) {
@@ -154,13 +153,21 @@ function proxyToCamera(req, res, urlPath) {
           host: `${CAMERA_HOST}:${CAMERA_PORT}`,
           cookie: cookieHeader,
           'user-agent': 'teddy-camera-shim/1.0',
-          'connection': 'close',
         },
       };
       const upstream = http.request(opts, upstreamRes => {
+        if (upstreamRes.statusCode === 403 || upstreamRes.statusCode === 401) {
+          console.error(`[shim] upstream ${upstreamRes.statusCode} — invalidating stale session`);
+          invalidateSession();
+        }
+        if (upstreamRes.statusCode >= 300 && upstreamRes.statusCode < 400 && upstreamRes.headers.location) {
+          upstreamRes.resume();
+          return;
+        }
         res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
         upstreamRes.pipe(res);
       });
+      upstream.setTimeout(15000, () => { upstream.destroy(new Error('proxy timeout')); });
       upstream.on('error', err => {
         res.writeHead(502, { 'Content-Type': 'text/plain' });
         res.end(`Upstream error: ${err.message}`);

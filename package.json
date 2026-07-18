@@ -68,7 +68,8 @@
     "dev": "node server.cjs",
     "lint": "node tests/static-lint.mjs",
     "check": "npm run lint && npm test",
-    "check:homebase": "npm run check -- --runInBand && node tests/homebase-qa.mjs",
+    "token:preflight": "node /Users/teddyclaw/.openclaw/workspace/scripts/codex-cost-preflight.mjs --cwd .",
+    "check:homebase": "npm run check && node tests/homebase-qa.mjs",
     "homebase:verdict": "node scripts/homebase-verdict.mjs",
     "homebase:test-ladder": "node scripts/homebase-test-ladder.mjs",
     "homebase:visual-baseline": "node scripts/homebase-visual-baseline.mjs",
@@ -84,17 +85,17 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@rollup/plugin-terser": "^0.4.4",
-    "@vitest/coverage-v8": "^4.1.2",
-    "jsdom": "^29.0.1",
-    "rollup": "^4.9.6",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "jsdom": "^29.1.1",
+    "rollup": "^4.62.2",
     "rollup-plugin-copy": "^3.5.0",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.10"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   },
   "dependencies": {
-    "systeminformation": "^5.30.7"
+    "systeminformation": "^5.31.17"
   }
 }

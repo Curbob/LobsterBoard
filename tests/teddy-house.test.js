@@ -2994,6 +2994,19 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(qa).toContain('healthCheckedAt: frozenHealth.checkedAt');
   });
 
+  it('fails the release command when Homebase acceptance is not ok', async () => {
+    const qa = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
+    const { applyAcceptanceExitCode } = await import('./homebase-qa.mjs');
+    const failedRuntime = { exitCode: 0 };
+    const passingRuntime = { exitCode: 0 };
+
+    expect(qa).toContain('applyAcceptanceExitCode(report)');
+    expect(applyAcceptanceExitCode({ acceptanceStatus: 'fail' }, failedRuntime)).toBe(1);
+    expect(failedRuntime.exitCode).toBe(1);
+    expect(applyAcceptanceExitCode({ acceptanceStatus: 'ok' }, passingRuntime)).toBe(0);
+    expect(passingRuntime.exitCode).toBe(0);
+  });
+
   it('asserts rendered screenshot story, action, affected zone, and quiet evidence', () => {
     const qa = readFileSync(join(process.cwd(), 'tests', 'homebase-qa.mjs'), 'utf8');
 

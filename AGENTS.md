@@ -5,11 +5,14 @@ This repo is LobsterBoard plus Dan's private Teddy Homebase layer. Treat it like
 ## Commands
 
 ```bash
+npm run token:preflight
 npm run lint
 npm test
 npm run check -- --runInBand
 npm run check:homebase
 ```
+
+Run `npm run token:preflight` before broad, repeated, or log-heavy Homebase work. Use compact receipts instead of raw Codex log replay.
 
 Use `npm run check:homebase` as the preferred Homebase release gate. It includes lint/tests, replay fixtures, local Homebase route smokes, first-screen copy blacklist checks, rendered first-screen assertions, phone/iPad/desktop screenshot capture, persisted evidence retention checks, and public Funnel auth smoke when reachable.
 

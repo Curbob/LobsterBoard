@@ -130,3 +130,26 @@
 - `npm run homebase:visual-baseline`: phone, phone landscape, iPad, desktop, 4K, and Retina all ok.
 - In-app browser smoke at `http://127.0.0.1:8080/pages/teddy-house/`: button enabled for the first review item, no horizontal overflow, no console warnings/errors.
 - Latest proof after the progress rail: `npm run test -- tests/teddy-house-design.test.js tests/teddy-house.test.js` passed 108/108, and live in-app browser click showed `Planning` mid-flight and `Answered` from `teddy` after completion.
+
+## 2026-06-29 Token Preflight Guard
+
+- Added `npm run token:preflight`, reusing the global OpenClaw Codex cost preflight with `--cwd .`.
+- Updated `AGENTS.md` so future Teddy Homebase work starts with compact cost proof before broad/log-heavy inspection.
+- Proof: `npm run --silent token:preflight` passed with `sessions=31`, `tokens=13225558`, `localPreflight=yes`, and `warnings=0`.
+
+## 2026-07-17 Nightly Error Repair
+
+- Removed the stale `--runInBand` pass-through from `npm run check:homebase`; current Vitest runs cleanly without it.
+- Shortened recurring public-access incident summary copy from `Recurring public access issue.` to `Recurring public access.` so the 4K first-screen copy budget stays under `2700`.
+- Proof: `npx vitest run tests/teddy-house.test.js tests/teddy-house-design.test.js` passed 110/110.
+- Proof: `npm run homebase:nightly` passed; latest QA `acceptanceStatus=ok`, `publicAuth=enforced`, `visual-baseline=ok`, archive `30/30`, verdict `Homebase needs Dan` with first action `Check public access first.`
+
+## 2026-07-17 Homebase Trust And Exposure Closeout
+
+- Removed the unexpected root `:443` Tailscale Funnel configuration. Public Funnel exposure is now limited to approved BlueBubbles `:8443` and passworded Teddy Homebase `:10000`; the OpenClaw root remains tailnet-only.
+- Removed incident capture and mark-known writes from the unauthenticated loopback probe allowlist. Both routes now require a valid dashboard session or trusted-device login plus a matching `Origin` or `Referer` host.
+- Updated the Homebase QA mutation smoke to log in explicitly and added local, remote-looking Host, cross-origin, same-origin, authenticated-session, and trusted-device regression coverage.
+- Homebase QA now sets a failing process exit code when `acceptanceStatus` is not `ok`, so a failed visual or trust gate cannot leave the release command green.
+- Upgraded Rollup, Vitest, coverage, jsdom, terser, and `systeminformation`; aligned the declared Node engine with the toolchain's supported Node 20.19+, 22.12+, and 24+ ranges.
+- Proof: full and production-only `npm audit` report zero vulnerabilities; `npm run build` passed; `npm run check:homebase` passed 207 tests and every acceptance/trust gate.
+- Fresh live verdict: `Homebase is useful`, readiness `100`, `Nothing needs Dan.`, public auth `enforced`, no failed gates/checks, and 4K first-screen copy `2238/2700`.
