@@ -70,6 +70,7 @@ const TEDDYCAM_ARTIFACT_PATH = process.env.HOMEBASE_TEDDYCAM_ARTIFACT
 const TEDDYCAM_APP_PORT = Number(process.env.HOMEBASE_TEDDYCAM_APP_PORT || 18116);
 const TEDDYCAM_HLS_PORT = Number(process.env.HOMEBASE_TEDDYCAM_HLS_PORT || 8888);
 const TEDDYCAM_FRESH_MS = Number(process.env.HOMEBASE_TEDDYCAM_FRESH_MS || 2 * HOUR_MS);
+const TEDDYCAM_ARTIFACT_TIMEOUT_MS = Number(process.env.HOMEBASE_TEDDYCAM_ARTIFACT_TIMEOUT_MS || 500);
 const ADGUARD_LOGIN_FAIL_BACKOFF_MS = Number(process.env.HOMEBASE_ADGUARD_LOGIN_FAIL_BACKOFF_MS || 6 * HOUR_MS);
 let adGuardSessionCookie = '';
 let adGuardLoginBlockedUntil = 0;
@@ -250,9 +251,17 @@ function writeDataSafe(ctx, filename, obj) {
   } catch (_) {}
 }
 
-async function readJsonFileSafe(filePath, fallback = null) {
+async function readJsonFileSafe(filePath, fallback = null, timeoutMs = TIMEOUT_MS) {
   try {
-    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+    // Isolate pathological receipt I/O so it cannot consume the server's filesystem workers.
+    const text = await new Promise((resolve, reject) => {
+      execFile('/bin/cat', [filePath], {
+        timeout: timeoutMs,
+        killSignal: 'SIGKILL',
+        maxBuffer: 1024 * 64
+      }, (err, stdout) => err ? reject(err) : resolve(stdout));
+    });
+    return JSON.parse(text);
   } catch (_) {
     return fallback;
   }
@@ -1313,7 +1322,7 @@ async function checkOpenClaw() {
 
 async function checkTeddyCam() {
   const [artifact, stat] = await Promise.all([
-    readJsonFileSafe(TEDDYCAM_ARTIFACT_PATH, null),
+    readJsonFileSafe(TEDDYCAM_ARTIFACT_PATH, null, TEDDYCAM_ARTIFACT_TIMEOUT_MS),
     fs.stat(TEDDYCAM_ARTIFACT_PATH).catch(() => null)
   ]);
   const [app, hls] = await Promise.all([

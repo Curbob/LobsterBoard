@@ -162,3 +162,10 @@
 - Live proof after restart: readiness `100`, `needsDan=[]`, AdGuard DNS `ok`, and AdGuard intelligence `ok` with live query/block totals.
 - `npx vitest run tests/teddy-house.test.js`: `106/106` passing, including the incomplete-version regression.
 - `npm run check:homebase`: static lint passed, `208/208` tests passed, acceptance `ok`, public auth enforced, six responsive screenshots captured, and truth verdict `Homebase is useful`.
+
+## 2026-07-18 Cold Health Load Guard
+
+- Found a TeddyCam `latest.json` receipt that allowed metadata reads but blocked indefinitely when its contents were opened. A cold Homebase health request therefore never reached Dan's first decision even though every primary house service was healthy.
+- Isolated TeddyCam receipt reads in a short-lived helper with a `500 ms` hard kill deadline. An unhealthy camera receipt now becomes degraded, evidence-only context and cannot consume Homebase's filesystem workers or delay the primary service story.
+- Live cold-load proof after restart: the full health payload returned in about `4 seconds`, readiness `100`, `needsDan=[]`, Now `Nothing needs Dan.`, live AdGuard blocked-query totals, and Homebridge `ok`.
+- Final proof: focused Teddy House tests passed `106/106`; `npm run check:homebase` passed static lint, `208/208` tests, acceptance `ok`, public auth enforced, six responsive screenshots, and truth verdict `Homebase is useful`.
