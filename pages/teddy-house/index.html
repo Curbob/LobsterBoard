@@ -42,10 +42,11 @@
       <nav id="page-nav" class="lobster-page-nav" aria-label="Pages"></nav>
       <nav class="side-nav" aria-label="Sections">
         <a class="active" href="#overview">Home</a>
-        <a href="#server">Mac mini</a>
+        <a href="#daily-decision">Today</a>
         <a href="#house-state">House state</a>
-        <a href="#home-stats">Home stats</a>
         <a href="#ask-teddy">Ask</a>
+        <a href="#home-stats">Home stats</a>
+        <a href="#server">Mac mini</a>
         <a href="#evidence">Evidence</a>
         <a href="#history">Memory</a>
         <a href="#timeline">Changes</a>
@@ -98,17 +99,6 @@
         </div>
       </section>
 
-      <article class="panel vitals-panel hidden-until-loaded" id="server">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Mac mini</p>
-            <h3>Vitals</h3>
-          </div>
-          <span class="state-pill" id="vitals-pill">Mac vitals</span>
-        </div>
-        <div class="vitals-grid" id="vitals-grid"></div>
-      </article>
-
       <section class="decision-strip hidden-until-loaded" id="daily-decision" aria-label="Daily decision">
         <article class="decision-slot state-ok" data-decision-slot="now">
           <p class="eyebrow">Now</p>
@@ -132,17 +122,6 @@
         <div class="needs-list" id="needs-list"></div>
       </section>
 
-      <section class="panel home-stats-panel hidden-until-loaded" id="home-stats" aria-labelledby="home-stats-title">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Home Stats</p>
-            <h3 id="home-stats-title">Local context</h3>
-          </div>
-          <span class="state-pill" id="home-stats-pill">Sensor first</span>
-        </div>
-        <div class="home-stats-grid" id="home-stats-grid"></div>
-      </section>
-
       <section class="incident-ribbon hidden-until-loaded" id="incident-ribbon" hidden aria-live="polite">
         <div>
           <p class="eyebrow">Incident</p>
@@ -155,49 +134,75 @@
         </div>
       </section>
 
-      <section class="panel house-state-panel hidden-until-loaded" id="house-state" aria-labelledby="house-state-title">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">House State</p>
-            <h3 id="house-state-title">Daily state</h3>
+      <div class="primary-grid hidden-until-loaded">
+        <section class="panel house-state-panel" id="house-state" aria-labelledby="house-state-title">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">House State</p>
+              <h3 id="house-state-title">Daily state</h3>
+            </div>
+            <span class="state-pill" id="house-state-pill">Checking</span>
           </div>
-          <span class="state-pill" id="house-state-pill">Checking</span>
-        </div>
-        <div class="house-zone-grid" id="house-zone-grid"></div>
-      </section>
+          <div class="house-zone-grid" id="house-zone-grid"></div>
+        </section>
 
-      <section class="panel ask-panel" id="ask-teddy" aria-labelledby="ask-title">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Ask Teddy</p>
-            <h3 id="ask-title">Ask about this status</h3>
+        <section class="panel ask-panel" id="ask-teddy" aria-labelledby="ask-title">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Ask Teddy</p>
+              <h3 id="ask-title">Ask about this status</h3>
+            </div>
+            <span class="state-pill" id="ask-state">Ready</span>
           </div>
-          <span class="state-pill" id="ask-state">Ready</span>
-        </div>
-        <form class="ask-form" id="ask-form">
-          <label class="sr-only" for="ask-input">Ask Teddy about this dashboard</label>
-          <textarea id="ask-input" rows="2" maxlength="600" placeholder="Ask what changed, what matters, or what to check first."></textarea>
-          <div class="ask-actions">
-            <button class="ask-secondary" id="ask-status-button" type="button">Send status</button>
-            <button id="ask-submit" type="submit">Ask Teddy</button>
+          <form class="ask-form" id="ask-form">
+            <label class="sr-only" for="ask-input">Ask Teddy about this dashboard</label>
+            <textarea id="ask-input" rows="2" maxlength="600" placeholder="Ask what changed, what matters, or what to check first."></textarea>
+            <div class="ask-actions">
+              <button class="ask-secondary" id="ask-status-button" type="button">Send status</button>
+              <button id="ask-submit" type="submit">Ask Teddy</button>
+            </div>
+          </form>
+          <div class="ask-progress" id="ask-progress" aria-live="polite" hidden>
+            <div class="ask-progress-step" data-ask-step="context">
+              <span class="ask-progress-dot"></span>
+              <span>Context gathered</span>
+            </div>
+            <div class="ask-progress-step" data-ask-step="teddy">
+              <span class="ask-progress-dot"></span>
+              <span>Teddy planning</span>
+            </div>
+            <div class="ask-progress-step" data-ask-step="approval">
+              <span class="ask-progress-dot"></span>
+              <span>Approval gate</span>
+            </div>
           </div>
-        </form>
-        <div class="ask-progress" id="ask-progress" aria-live="polite" hidden>
-          <div class="ask-progress-step" data-ask-step="context">
-            <span class="ask-progress-dot"></span>
-            <span>Context gathered</span>
+          <div class="ask-response" id="ask-response" aria-live="polite" tabindex="-1">Ask what changed, what matters, or what to check first.</div>
+        </section>
+      </div>
+
+      <div class="context-grid hidden-until-loaded">
+        <section class="panel home-stats-panel" id="home-stats" aria-labelledby="home-stats-title">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Home Stats</p>
+              <h3 id="home-stats-title">Local context</h3>
+            </div>
+            <span class="state-pill" id="home-stats-pill">Sensor first</span>
           </div>
-          <div class="ask-progress-step" data-ask-step="teddy">
-            <span class="ask-progress-dot"></span>
-            <span>Teddy planning</span>
+          <div class="home-stats-grid" id="home-stats-grid"></div>
+        </section>
+
+        <article class="panel vitals-panel" id="server">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Mac mini</p>
+              <h3>Vitals</h3>
+            </div>
+            <span class="state-pill" id="vitals-pill">Mac vitals</span>
           </div>
-          <div class="ask-progress-step" data-ask-step="approval">
-            <span class="ask-progress-dot"></span>
-            <span>Approval gate</span>
-          </div>
-        </div>
-        <div class="ask-response" id="ask-response" aria-live="polite" tabindex="-1">Ask what changed, what matters, or what to check first.</div>
-      </section>
+          <div class="vitals-grid" id="vitals-grid"></div>
+        </article>
+      </div>
 
       <section class="panel evidence-panel hidden-until-loaded" id="evidence" aria-labelledby="evidence-title">
         <div class="panel-head">

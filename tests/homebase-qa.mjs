@@ -961,14 +961,14 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.positions.homeStats !== null, `Home Stats section missing at ${width}px`);
   assert(value.positions.ask !== null, `Ask Teddy section missing at ${width}px`);
   if (value.positions.review !== null) {
-    assert(value.positions.vitals < value.positions.dailyDecision, `daily decision appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
     assert(value.positions.dailyDecision < value.positions.review, `review appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
-    assert(value.positions.review < value.positions.homeStats, `Home Stats appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
-    assert(value.positions.homeStats < value.positions.houseState, `House State appears before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
+    assert(value.positions.review < value.positions.houseState, `House State appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
   }
-  assert(value.positions.vitals < value.positions.houseState, `House state appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
-  assert(value.positions.homeStats < value.positions.houseState, `House State appears before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
-  assert(value.positions.houseState < value.positions.ask, `Ask Teddy appears before House State at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.dailyDecision < value.positions.houseState, `House State appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.houseState <= value.positions.ask, `Ask Teddy appears before House State at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.ask < value.positions.homeStats, `Home Stats appears before Ask Teddy at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.homeStats <= value.positions.vitals, `Mac vitals appear before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
+  assert(value.positions.evidence === null || value.positions.vitals < value.positions.evidence, `evidence appears before Mac vitals at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.evidence === null || value.positions.ask < value.positions.evidence, `evidence appears before Ask Teddy at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.signals === null || value.positions.evidence === null || value.positions.evidence < value.positions.signals, `signals appear before service evidence at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.history === null || value.positions.signals === null || value.positions.signals < value.positions.history, `history appears before evidence signals at ${width}px: ${JSON.stringify(value.positions)}`);

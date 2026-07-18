@@ -3049,7 +3049,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
 
     expect(html).toContain('<body class="homebase-loading">');
-    expect(html).toContain('house-state-panel hidden-until-loaded');
+    expect(html).toContain('primary-grid hidden-until-loaded');
+    expect(html).toContain('context-grid hidden-until-loaded');
     expect(html).toContain('evidence-panel hidden-until-loaded');
     expect(html).toContain('signals-panel hidden-until-loaded');
     expect(html).toContain('lower-grid hidden-until-loaded');

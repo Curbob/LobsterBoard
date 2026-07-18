@@ -34,10 +34,6 @@ function homebaseDom() {
       <button id="primary-fix-button"></button>
       <div id="last-check"></div>
       <div id="teddy-line"></div>
-      <section id="server" class="vitals-panel hidden-until-loaded">
-        <span id="vitals-pill"></span>
-        <div id="vitals-grid"></div>
-      </section>
       <section id="daily-decision" class="decision-strip hidden-until-loaded">
         <article class="decision-slot" data-decision-slot="now">
           <p class="eyebrow"></p>
@@ -56,15 +52,23 @@ function homebaseDom() {
         <div id="needs-title"></div>
         <div id="needs-list"></div>
       </section>
-      <section id="home-stats" class="home-stats-panel hidden-until-loaded">
-        <span id="home-stats-pill"></span>
-        <div id="home-stats-grid"></div>
-      </section>
-      <section id="house-state" class="house-state-panel hidden-until-loaded">
-        <span id="house-state-pill"></span>
-        <div id="house-zone-grid"></div>
-      </section>
-      <section id="ask-teddy"></section>
+      <div class="primary-grid hidden-until-loaded">
+        <section id="house-state" class="house-state-panel">
+          <span id="house-state-pill"></span>
+          <div id="house-zone-grid"></div>
+        </section>
+        <section id="ask-teddy"></section>
+      </div>
+      <div class="context-grid hidden-until-loaded">
+        <section id="home-stats" class="home-stats-panel">
+          <span id="home-stats-pill"></span>
+          <div id="home-stats-grid"></div>
+        </section>
+        <section id="server" class="vitals-panel">
+          <span id="vitals-pill"></span>
+          <div id="vitals-grid"></div>
+        </section>
+      </div>
       <section id="service-grid" class="service-grid hidden-until-loaded"></section>
       <section id="signals" class="signals-panel hidden-until-loaded">
         <h3 id="signals-title"></h3>
@@ -222,17 +226,17 @@ describe('Teddy Homebase design guardrails', () => {
 
     expect(houseStateIndex).toBeGreaterThan(-1);
     expect(vitalsIndex).toBeGreaterThan(-1);
-    expect(vitalsIndex).toBeLessThan(dailyIndex);
-    expect(homeStatsIndex).toBeGreaterThan(dailyIndex);
-    expect(houseStateIndex).toBeGreaterThan(homeStatsIndex);
-    expect(askIndex).toBeGreaterThan(houseStateIndex);
+    expect(dailyIndex).toBeLessThan(houseStateIndex);
+    expect(houseStateIndex).toBeLessThan(askIndex);
+    expect(askIndex).toBeLessThan(homeStatsIndex);
+    expect(homeStatsIndex).toBeLessThan(vitalsIndex);
     expect(evidenceIndex).toBeGreaterThan(askIndex);
     expect(historyIndex).toBeGreaterThan(evidenceIndex);
     expect(timelineIndex).toBeGreaterThan(historyIndex);
     expect(localLinksIndex).toBeGreaterThan(timelineIndex);
   });
 
-  it('renders Mac vitals first and keeps service evidence subordinate', async () => {
+  it('renders decisions and actions first while keeping context and evidence subordinate', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = homebaseDom();
     const health = healthyWithOneWarning();
@@ -258,8 +262,6 @@ describe('Teddy Homebase design guardrails', () => {
       'Public access is known and passworded.',
       'Homebridge UI has a patch update when convenient.'
     ]);
-    expect(document.getElementById('server').nextElementSibling.id).toBe('daily-decision');
-    expect(document.getElementById('daily-decision').previousElementSibling.id).toBe('server');
     expect(document.getElementById('daily-decision').nextElementSibling.id).toBe('review-lane');
     expect(document.getElementById('daily-decision').textContent).not.toMatch(/Front Door|Side Door|Door locks|100\.64|8443, 10000|5\.22\.0/i);
     expect(document.querySelectorAll('.house-zone-card')).toHaveLength(4);
@@ -270,9 +272,10 @@ describe('Teddy Homebase design guardrails', () => {
       'Mac mini'
     ]);
     expect(document.getElementById('house-zone-grid').textContent).not.toMatch(/Front Door|Side Door|Door locks/i);
-    expect(document.getElementById('review-lane').nextElementSibling.id).toBe('home-stats');
-    expect(document.getElementById('home-stats').nextElementSibling.id).toBe('house-state');
+    expect(document.getElementById('review-lane').nextElementSibling.classList.contains('primary-grid')).toBe(true);
     expect(document.getElementById('house-state').nextElementSibling.id).toBe('ask-teddy');
+    expect(document.querySelector('.primary-grid').nextElementSibling.classList.contains('context-grid')).toBe(true);
+    expect(document.getElementById('home-stats').nextElementSibling.id).toBe('server');
     expect([...document.querySelectorAll('#home-stats-grid .tiny-label')].map(el => el.textContent)).toEqual([
       'Home time',
       'Inside',

@@ -3,6 +3,14 @@
 Recorded: 2026-05-17 05:38:53 PDT
 Updated: 2026-06-01
 
+## 2026-07-18 Ask And First-Screen Update
+
+- Ask Teddy is back on its documented fast local dashboard-context path. The installed LaunchAgent now uses `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1`; live OpenClaw/Teddy proof remains opt-in.
+- The first-screen order is now readiness, `Now / Watch / Later`, then House State and Ask Teddy. Home Stats and Mac mini vitals are supporting context below the action surface.
+- Desktop uses a readable House State and Ask Teddy split; phone and tablet layouts stack without horizontal overflow.
+- Fresh rendered proof: Ask Teddy answered in about 0.36 seconds at 1280x720, and the layout passed direct 1280x720 and 390x844 browser checks.
+- Fresh release proof: `npm run check:homebase` passed 207 tests, six responsive screenshots, public auth, story agreement, fallback honesty, and all trust gates. Verdict: `Homebase is useful`; first action: `Nothing needs Dan.`
+
 ## 2026-07-17 Trust And Exposure Update
 
 - Root `:443` is no longer a public Funnel. Approved public routes remain BlueBubbles `:8443` and passworded Teddy Homebase `:10000`.

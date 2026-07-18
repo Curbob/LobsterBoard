@@ -924,7 +924,7 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     scrollAskIntoView();
     setAskState("Planning", "Preparing a safe fix plan...");
   } else {
-    setAskState("Asking", "Sending the current dashboard context to Teddy...");
+    setAskState("Asking", "Reading the current dashboard context...");
   }
   setAskProgress("teddy");
 
@@ -947,9 +947,7 @@ async function askTeddy({ action = "ask", prompt = "", clicked = null } = {}) {
     if (!res.ok || data.status === "error") throw new Error(data.message || data.error || `Ask Teddy returned ${res.status}`);
     const answerState = data.source === "local-fallback"
       ? "Fallback"
-      : data.source === "local"
-        ? "Local"
-        : data.status === "complete"
+      : data.status === "complete"
           ? "Answered"
           : "Done";
     const answerText = data.source === "local-fallback" && !/Teddy bridge/i.test(data.answer || "")

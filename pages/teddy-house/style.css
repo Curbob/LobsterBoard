@@ -1029,6 +1029,34 @@ h3 {
   padding: 16px;
 }
 
+.primary-grid,
+.context-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.primary-grid {
+  grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
+  align-items: start;
+}
+
+.primary-grid .house-zone-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.context-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.primary-grid .house-state-panel,
+.primary-grid .ask-panel,
+.context-grid .home-stats-panel,
+.context-grid .vitals-panel {
+  margin-top: 0;
+}
+
 .vitals-panel {
   margin-top: 14px;
 }
@@ -1479,6 +1507,11 @@ h3 {
 
   .house-zone-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .primary-grid,
+  .context-grid {
+    grid-template-columns: 1fr;
   }
 
   .signal-grid,
