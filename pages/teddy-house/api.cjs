@@ -56,7 +56,8 @@ const SERVICE_NAMES = {
   backups: 'Backups'
 };
 const ADGUARD_BASE_URL = process.env.HOMEBASE_ADGUARD_URL || 'http://127.0.0.1:3001';
-const ADGUARD_KEYCHAIN_SERVICE = process.env.HOMEBASE_ADGUARD_KEYCHAIN_SERVICE || 'teddy-homebase-adguard';
+const ADGUARD_KEYCHAIN_SERVICE = process.env.HOMEBASE_ADGUARD_KEYCHAIN_SERVICE || 'AdGuardHome';
+const ADGUARD_KEYCHAIN_ACCOUNT = process.env.HOMEBASE_ADGUARD_KEYCHAIN_ACCOUNT || 'danno';
 const HOME_TIME_ZONE = process.env.HOMEBASE_TIME_ZONE || 'America/Los_Angeles';
 const HOME_SENSOR_STALE_MS = Number(process.env.HOMEBASE_HOME_SENSOR_STALE_MS || DAY_MS);
 const WEATHER_URL = process.env.HOMEBASE_WEATHER_URL || 'https://wttr.in/?format=j1';
@@ -1026,7 +1027,7 @@ async function checkAdGuard() {
     } catch (_) {
       admin = 'DNS works; admin UI not checked';
     }
-    return ok(`Local DNS responded. ${admin === 'admin locked' ? 'AdGuard stats are locked.' : 'AdGuard is reachable.'}`, `${dnsMs} ms`, 'DNS');
+    return ok(`Local DNS responded. ${admin === 'admin locked' ? 'AdGuard admin requires login.' : 'AdGuard is reachable.'}`, `${dnsMs} ms`, 'DNS');
   } catch (err) {
     return bad(`Local DNS did not respond: ${err.message}.`, 'failed', 'DNS');
   }
@@ -1889,8 +1890,8 @@ async function adGuardCredentials() {
   const envPass = process.env.HOMEBASE_ADGUARD_PASSWORD;
   if (envUser && envPass) return { name: envUser, password: envPass };
 
-  const password = await keychainPassword(ADGUARD_KEYCHAIN_SERVICE, 'teddy');
-  return password ? { name: 'teddy', password } : null;
+  const password = await keychainPassword(ADGUARD_KEYCHAIN_SERVICE, ADGUARD_KEYCHAIN_ACCOUNT);
+  return password ? { name: ADGUARD_KEYCHAIN_ACCOUNT, password } : null;
 }
 
 async function keychainPassword(service, account) {
@@ -4485,7 +4486,7 @@ function decisionSlot(key, text, state, source) {
 
 function optionalMaintenance(intelligence) {
   const homebridge = intelligence.homebridge || {};
-  if (homebridge.version && homebridge.version.state === 'info' && /ui|patch|optional/i.test(homebridge.version.detail || '')) {
+  if (homebridge.version && homebridge.version.state === 'info' && homebridge.version.label === 'optional UI update') {
     return 'Homebridge UI has a patch update when convenient.';
   }
   if (intelligence.softwareUpdates && intelligence.softwareUpdates.state === 'info') {

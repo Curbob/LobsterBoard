@@ -153,3 +153,12 @@
 - Upgraded Rollup, Vitest, coverage, jsdom, terser, and `systeminformation`; aligned the declared Node engine with the toolchain's supported Node 20.19+, 22.12+, and 24+ ranges.
 - Proof: full and production-only `npm audit` report zero vulnerabilities; `npm run build` passed; `npm run check:homebase` passed 207 tests and every acceptance/trust gate.
 - Fresh live verdict: `Homebase is useful`, readiness `100`, `Nothing needs Dan.`, public auth `enforced`, no failed gates/checks, and 4K first-screen copy `2238/2700`.
+
+## 2026-07-18 AdGuard Credential And Service Copy Repair
+
+- Repointed Homebase's AdGuard stats login to the existing `AdGuardHome` Keychain entry and account instead of the stale Teddy-only credential. No plaintext password was added to files or LaunchAgents.
+- Changed the healthy DNS card from the misleading `AdGuard stats are locked` text to `AdGuard admin requires login`; authenticated intelligence still reports live blocked-query stats.
+- Fixed a decision-copy bug where an incomplete Homebridge UI version check was falsely labeled as a patch update; the Later slot now requires the explicit `optional UI update` signal.
+- Live proof after restart: readiness `100`, `needsDan=[]`, AdGuard DNS `ok`, and AdGuard intelligence `ok` with live query/block totals.
+- `npx vitest run tests/teddy-house.test.js`: `106/106` passing, including the incomplete-version regression.
+- `npm run check:homebase`: static lint passed, `208/208` tests passed, acceptance `ok`, public auth enforced, six responsive screenshots captured, and truth verdict `Homebase is useful`.

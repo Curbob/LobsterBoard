@@ -256,6 +256,21 @@ describe('Teddy Homebase page', () => {
     expectCleanFirstScreen(result);
   });
 
+  it('does not turn an incomplete Homebridge version check into a fake patch update', () => {
+    const fixture = loadReplayFixture('healthy');
+    fixture.intelligence.homebridge.version = {
+      state: 'info',
+      value: 'unknown',
+      label: 'version',
+      detail: 'Homebridge version check was incomplete. Homebridge UI version check was incomplete.'
+    };
+
+    const result = replayHouseState(fixture);
+
+    expect(result.dailyDecision.slots[2].text).toBe('Logs and route exposure are accounted for.');
+    expect(result.dailyDecision.slots[2].text).not.toMatch(/patch update/i);
+  });
+
   it('serves the custom page with LobsterBoard shared nav and custom icon', async () => {
     const res = await fetch(`${srv.baseUrl}/pages/teddy-house/`);
     expect(res.status).toBe(200);
