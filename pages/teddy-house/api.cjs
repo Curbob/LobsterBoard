@@ -643,7 +643,7 @@ function stripLogItem(item) {
   };
 }
 
-function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
+function buildHistoricalSummaries(vitalsData, timeline, intelligence, currentRecentChanges = null) {
   const summaries = [];
   const vitalsHistory = vitalsData && vitalsData.vitalsHistory;
   if (vitalsHistory && Number(vitalsHistory.samples) > 0 && vitalsHistory.source) {
@@ -754,11 +754,13 @@ function buildHistoricalSummaries(vitalsData, timeline, intelligence) {
       const at = new Date(event && event.at || 0).getTime();
       return Number.isFinite(at) && at >= cutoff;
     });
-    const meaningful = recent.filter(event => {
-      const title = String(event && event.title || '');
-      const detail = String(event && event.detail || '');
-      return title !== 'Status check' && !/no changes/i.test(detail);
-    });
+    const meaningful = Array.isArray(currentRecentChanges)
+      ? currentRecentChanges
+      : recent.filter(event => {
+          const title = String(event && event.title || '');
+          const detail = String(event && event.detail || '');
+          return title !== 'Status check' && !/no changes/i.test(detail);
+        });
     if (recent.length > 0) {
       const checkedAt = recent[0] && recent[0].at || null;
       summaries.push({
@@ -2633,8 +2635,10 @@ async function logFileSummary(name, candidates, options = {}) {
   const detail = stale
     ? `${name} log is stale; newest file update was ${formatAgeFromDate(latest.stat.mtime)}.`
     : issueLines.length > 0
-      ? `${issueLines.length} notable line${issueLines.length === 1 ? '' : 's'} in the recent ${name} log window.`
-      : `${name} log is quiet.`;
+      ? state === 'ok'
+        ? `${issueLines.length} recent connection line${issueLines.length === 1 ? '' : 's'}; below the alert threshold.`
+        : `${issueLines.length} notable line${issueLines.length === 1 ? '' : 's'} in the recent ${name} log window.`
+      : `No recent ${name} log lines.`;
   return {
     name,
     state,
@@ -2851,7 +2855,7 @@ async function serviceLogOverview(ctx) {
   const noisyLabels = noisy.map(item => item.issueLabel || item.name);
   const detail = noisy.length > 0
     ? noisy.map(item => `${item.issueLabel || item.name}: ${item.detail}`).join(' ')
-    : `Logs checked for ${normalizedItems.map(item => item.name).join(', ')}. No noisy service logs need action.`;
+    : `${normalizedItems.length} sources checked. Private evidence stays redacted.`;
   const result = {
     checkedAt: nowIso(),
     state,
@@ -3661,7 +3665,15 @@ function buildWeirdThings(previous, current) {
     items.push({ state: current.teddyCamState, title: 'TeddyCam', detail: 'Private camera lane needs review.' });
   }
   if ((current.serviceLogState === 'bad' || current.serviceLogState === 'warn') && previous.serviceLogValue !== current.serviceLogValue) {
-    items.push({ state: current.serviceLogState, title: current.serviceLogValue || 'Service logs', detail: 'Service log signal is still open.' });
+    const source = current.serviceLogValue || 'Service logs';
+    items.push({
+      eventId: `service-log:${String(source).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown'}`,
+      kind: 'service-log',
+      source,
+      state: current.serviceLogState,
+      title: source,
+      detail: 'Service log signal is still open.'
+    });
   }
 
   if (items.length === 0) {
@@ -3686,6 +3698,15 @@ function normalizeTimelineEvent(event) {
       ...event,
       title: 'Service log signal',
       detail: 'Service log signal is still open.'
+    };
+  }
+  if (/service log signal is still open/i.test(detail)) {
+    const source = title || 'Service logs';
+    return {
+      ...event,
+      eventId: event.eventId || `service-log:${source.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown'}`,
+      kind: 'service-log',
+      source: event.source || source
     };
   }
   return event;
@@ -3713,6 +3734,9 @@ function compactTimeline(events) {
 
 function eventFromWeird(item) {
   return {
+    ...(item.eventId ? { eventId: item.eventId } : {}),
+    ...(item.kind ? { kind: item.kind } : {}),
+    ...(item.source ? { source: item.source } : {}),
     at: nowIso(),
     time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     title: item.title,
@@ -3866,7 +3890,8 @@ function isResolvedRecentChange(event, current) {
     }
   }
   if (title.includes('system logs')) return current.systemLogs && current.systemLogs.state === 'ok';
-  if (title.includes('service logs')) {
+  const detail = String(event.detail || '').toLowerCase();
+  if (event.kind === 'service-log' || String(event.eventId || '').startsWith('service-log:') || title.includes('service logs') || detail.includes('service log signal is still open')) {
     return current.serviceLogs && current.serviceLogs.state !== 'warn' && current.serviceLogs.state !== 'bad';
   }
   if (title.includes('updates') || title.includes('app versions')) {
@@ -4252,7 +4277,7 @@ function deriveHomebaseStory({ incidents, macIncident, hasBad, hasReview, review
         ? `${translatePrimaryAction(reviewItems)} Core evidence is still available below.`
         : hasReview
           ? `${translatePrimaryAction(reviewItems)} Everything else is responding.`
-          : 'Internet, automations, public access, and the Mac mini are quiet.',
+          : 'Core services are responding. Public access is expected and passworded.',
     tone: hasBad ? 'issue' : hasReview ? 'review' : 'steady',
     primaryAction: macIncident ? 'Start with the Mac mini restart.' : translatePrimaryAction(reviewItems),
     incident: macIncident ? null : null,
@@ -4301,9 +4326,9 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       id: 'outside-access',
       title: 'Public access',
       state: outsideState,
-      value: zoneValue(outsideState, 'Known', 'Known'),
+      value: zoneValue(outsideState, 'Protected', 'Protected'),
       detail: outsideState === 'ok' || outsideState === 'info'
-        ? publicAccess.detail || 'Expected public routes are accounted for.'
+        ? 'Expected public routes are passworded.'
         : publicAccess.detail || 'Public access needs review.',
       evidence: publicAccess.acceptedRoutes && publicAccess.acceptedRoutes.length > 0
         ? publicAccess.acceptedRoutes.map(route => route.name)
@@ -4337,7 +4362,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       detail: macIncident
         ? macIncidentDetail(intelligence.systemLogs, systemVitals)
         : macMiniState === 'ok'
-        ? 'System checks, updates, and service logs are quiet.'
+        ? 'OpenClaw, macOS, and service checks are responding.'
         : firstReviewDetail(macMiniSignals, 'Mac mini checks need review.'),
       evidence: ['OpenClaw', 'macOS', 'System logs', 'Service logs']
     }
@@ -4660,7 +4685,7 @@ async function buildHealthPayload(ctx) {
   const houseState = deriveHouseState(services, intelligence, systemVitals, reviewItems, timeline, score, incidents);
   const dailyDecision = deriveDailyDecision(services, intelligence, systemVitals, reviewItems, houseState);
   const historicalSummaries = [
-    ...buildHistoricalSummaries(systemVitals, timeline, intelligence),
+    ...buildHistoricalSummaries(systemVitals, timeline, intelligence, houseState.recentChanges),
     operatorUpdateSummary(ctx)
   ].filter(Boolean);
   const sourceContracts = buildSourceContracts(services, intelligence, systemVitals, houseState, historicalSummaries);

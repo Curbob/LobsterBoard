@@ -227,6 +227,29 @@ unless a trust or production incident promotes them.
 7. Ship this as one scoped clarity release before progressive-disclosure or
    module-extraction work.
 
+## 2026-07-19 OODA Refinement Closeout
+
+The copy-and-truth slice above is now implemented locally. Sol and Gemini were
+used as independent reviewers, then their recommendations were checked against
+fresh live desktop and mobile evidence before adoption.
+
+- Healthy-state repetition is removed: one readiness conclusion replaces the
+  disabled fix action and filler Now/Watch/Later strip.
+- Logs use action-oriented language, group empty sources, and keep raw examples
+  behind operator disclosure.
+- Ask Teddy, Live status, and Home environment now have distinct labels and
+  jobs.
+- A stale AdGuard warning bug was fixed at the event-normalization and current-
+  state reconciliation boundary.
+- Touch targets, focus styling, disclosure names, and desktop vitals layout were
+  tightened without changing auth or exposure.
+- The full proof and retained screenshots are recorded in
+  `docs/TEDDY-HOMEBASE-OODA-2026-07-19.md`.
+
+This closes the immediate healthy-state clarity work. The remaining roadmap is
+progressive disclosure under real warning states, dedicated assistive-
+technology proof, and incremental maintainability work.
+
 ## 2026-07-17 Closeout
 
 The immediate trust-and-security slice is complete:

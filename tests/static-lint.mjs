@@ -67,7 +67,7 @@ expect(html.includes('id="evidence-details"'), 'missing collapsible service evid
 expect(html.includes('id="signals-details"'), 'missing collapsible signal evidence surface');
 expect(html.includes('https://openclaw-mac-mini.tail02a3b6.ts.net:3001/'), 'missing tailnet AdGuard operator link');
 expect(html.includes('>AdGuard</a>'), 'missing AdGuard operator link label');
-expect(html.includes('House State'), 'missing house-state shell copy');
+expect(html.includes('Live status'), 'missing system-status shell copy');
 expect(html.includes('Evidence'), 'missing evidence shell copy');
 expect(logsHtml.includes('Homebase Logs'), 'missing hidden logs detail page');
 expect(logsHtml.includes('/pages/teddy-house/logs.js'), 'logs detail page must load its client script');

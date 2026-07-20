@@ -15,10 +15,7 @@
     nextAction: document.getElementById('logs-next-action'),
     state: document.getElementById('logs-state'),
     teddyLine: document.getElementById('logs-teddy-line'),
-    sourceGrid: document.getElementById('log-source-grid'),
-    codexTake: document.getElementById('codex-take'),
-    teddyTake: document.getElementById('teddy-take'),
-    frameworkGrid: document.getElementById('framework-grid')
+    sourceGrid: document.getElementById('log-source-grid')
   };
 
   function text(value, fallback = '--') {
@@ -35,7 +32,7 @@
     if (state === 'bad') return 'Needs action';
     if (state === 'warn') return 'Review';
     if (state === 'info') return 'FYI';
-    return 'Quiet';
+    return 'Clear';
   }
 
   function focusMatches(item) {
@@ -69,7 +66,25 @@
       return byState || text(a.name).localeCompare(text(b.name));
     });
 
-    for (const item of sorted) {
+    const quietItems = sorted.filter(item => item.state === 'ok'
+      && Number(item.issues) === 0
+      && item.ignored !== true
+      && !focusMatches(item));
+    const visibleItems = quietItems.length > 1
+      ? [
+          ...sorted.filter(item => !quietItems.includes(item)),
+          {
+            name: `${quietItems.length} quiet sources`,
+            state: 'ok',
+            issues: 0,
+            rollup: true,
+            detail: `${quietItems.map(item => item.name).join(', ')} checked with no recent lines.`,
+            examples: []
+          }
+        ]
+      : sorted;
+
+    for (const item of visibleItems) {
       const card = document.createElement('article');
       card.className = `log-source-card ${item.state || 'info'}${item.ignored ? ' ignored' : ''}`;
       if (focusMatches(item)) card.className += ' focused';
@@ -80,14 +95,22 @@
       const titleBlock = document.createElement('div');
       const eyebrow = document.createElement('p');
       eyebrow.className = 'eyebrow';
-      eyebrow.textContent = item.ignored ? 'Ignored source' : stateLabel(item.state);
+      eyebrow.textContent = item.ignored
+        ? 'Ignored source'
+        : item.rollup
+          ? 'Checked'
+          : item.state === 'ok' && Number(item.issues) > 0
+            ? 'Below threshold'
+            : item.state === 'ok' ? 'Checked' : stateLabel(item.state);
       const title = document.createElement('h4');
       title.textContent = text(item.name, 'Service');
       titleBlock.append(eyebrow, title);
 
       const count = document.createElement('span');
       count.className = 'state-pill';
-      count.textContent = item.issues === null || item.issues === undefined ? 'unknown' : `${item.issues} lines`;
+      count.textContent = item.rollup
+        ? `${quietItems.length} sources`
+        : item.issues === null || item.issues === undefined ? 'unknown' : `${item.issues} lines`;
       head.append(titleBlock, count);
 
       const detail = document.createElement('p');
@@ -95,13 +118,11 @@
       detail.textContent = text(item.detail, 'No detail available.');
 
       const lines = Array.isArray(item.examples) ? item.examples : [];
-      if (lines.length > 0) {
-        const preview = document.createElement('code');
-        preview.className = 'log-example-preview';
-        preview.textContent = lines[0];
-        card.append(head, detail, preview);
-      } else {
-        card.append(head, detail);
+      card.append(head, detail);
+
+      if (item.rollup) {
+        elements.sourceGrid.append(card);
+        continue;
       }
 
       const operatorDetails = document.createElement('details');
@@ -130,22 +151,6 @@
     }
   }
 
-  function renderFramework(framework) {
-    elements.codexTake.textContent = text(framework.codexTake, 'Normalize first. Escalate only when the evidence earns it.');
-    elements.teddyTake.textContent = text(framework.teddyTake, 'Keep the daily page calm and make the evidence easy to reach.');
-    elements.frameworkGrid.textContent = '';
-    for (const step of framework.architecture || []) {
-      const item = document.createElement('article');
-      item.className = 'framework-step';
-      const title = document.createElement('h4');
-      title.textContent = text(step.layer, 'Layer');
-      const detail = document.createElement('p');
-      detail.textContent = text(step.detail, 'No detail available.');
-      item.append(title, detail);
-      elements.frameworkGrid.append(item);
-    }
-  }
-
   async function loadLogs() {
     elements.refresh.disabled = true;
     elements.state.textContent = 'Checking';
@@ -158,7 +163,7 @@
       const logHealth = stateLabel(logs.state);
       elements.lastCheck.textContent = formatTime(logs.checkedAt || data.checkedAt);
       elements.summaryTitle.textContent = logs.state === 'ok'
-        ? 'Service logs are quiet'
+        ? 'No log source needs action'
         : logs.state === 'warn'
           ? 'Some logs need review'
           : logs.state === 'bad'
@@ -170,12 +175,11 @@
       elements.healthLabel.textContent = logHealth;
       elements.nextAction.textContent = items.some(item => item.state === 'warn' || item.state === 'bad')
         ? 'Start with the top source'
-        : 'No noisy source';
-      elements.state.textContent = stateLabel(logs.state);
-      elements.teddyLine.textContent = logs.state === 'ok' ? 'The log room is quiet.' : 'The loudest source is ranked first.';
+        : `${items.length} sources checked`;
+      elements.state.textContent = logs.state === 'ok' ? `${items.length} sources` : stateLabel(logs.state);
+      elements.teddyLine.textContent = logs.state === 'ok' ? 'No source needs action.' : 'The loudest source is ranked first.';
       if (currentFocus) elements.teddyLine.textContent = focusLabel();
       renderSources(items);
-      renderFramework(data.framework || {});
     } catch (err) {
       elements.summaryTitle.textContent = 'Could not load logs';
       elements.summaryCopy.textContent = `The log detail API did not answer: ${err.message}.`;
@@ -187,8 +191,14 @@
   }
 
   elements.refresh.addEventListener('click', loadLogs);
-  if (elements.backLink && currentReview) {
-    elements.backLink.href = `/pages/teddy-house/?review=${encodeURIComponent(currentReview)}#review-lane`;
+  if (elements.backLink) {
+    if (currentReview) {
+      elements.backLink.href = `/pages/teddy-house/?review=${encodeURIComponent(currentReview)}#review-lane`;
+      elements.backLink.textContent = '← Back to review';
+    } else {
+      elements.backLink.href = '/pages/teddy-house/';
+      elements.backLink.textContent = '← Back to Homebase';
+    }
   }
   loadLogs();
 })();

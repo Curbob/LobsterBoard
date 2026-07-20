@@ -94,7 +94,7 @@ function healthyWithOneWarning() {
     needsDan: [],
     houseState: {
       headline: "Dan's house is steady.",
-      summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+      summary: 'Core services are responding. Public access is expected and passworded.',
       tone: 'steady',
       primaryAction: 'No review items.',
       zones: [
@@ -255,7 +255,9 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.getElementById('review-lane').hidden).toBe(true);
     expect(document.getElementById('needs-list').textContent).toBe('');
     expect(document.getElementById('primary-fix-button').disabled).toBe(true);
-    expect(document.getElementById('primary-fix-button').textContent).toBe('Nothing to fix');
+    expect(document.getElementById('primary-fix-button').hidden).toBe(true);
+    expect(document.getElementById('primary-fix-button').textContent).toBe('Ask Teddy to Fix');
+    expect(document.getElementById('daily-decision').hidden).toBe(true);
     expect(document.querySelectorAll('#daily-decision .decision-slot')).toHaveLength(3);
     expect([...document.querySelectorAll('#daily-decision h3')].map(el => el.textContent)).toEqual([
       'Nothing needs Dan.',
@@ -313,7 +315,7 @@ describe('Teddy Homebase design guardrails', () => {
     expect(document.getElementById('history-grid').textContent).toContain('2m ago');
     expect(document.querySelectorAll('#history-grid .history-sample')).toHaveLength(3);
     expect(document.querySelector('#history-grid .history-samples').getAttribute('aria-label')).toContain('data/teddy-house/vitals-history.json');
-    expect(document.getElementById('next-action').textContent).toBe('No review items.');
+    expect(document.getElementById('next-action').textContent).toBe('No trusted signal needs review.');
   });
 
   it('enables the primary fix button only when a review item exists', async () => {

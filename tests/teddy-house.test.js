@@ -875,6 +875,58 @@ describe('Teddy Homebase page', () => {
     expect(cards[0].querySelector('.log-operator-details')).not.toBeNull();
   });
 
+  it('keeps healthy Logs concise while preserving below-threshold evidence', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/logs.js'), 'utf8');
+    const dom = new JSDOM(`<!doctype html>
+      <button id="logs-refresh"></button>
+      <div id="logs-last-check"></div>
+      <div id="logs-summary-title"></div>
+      <div id="logs-summary-copy"></div>
+      <a id="logs-back-link"></a>
+      <div id="logs-health"></div>
+      <div id="logs-health-label"></div>
+      <div id="logs-next-action"></div>
+      <div id="logs-state"></div>
+      <div id="logs-teddy-line"></div>
+      <div id="log-source-grid"></div>`, {
+      url: 'http://127.0.0.1/pages/teddy-house/logs/',
+      runScripts: 'outside-only'
+    });
+
+    dom.window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        checkedAt: '2026-05-16T23:00:00.000Z',
+        serviceLogs: {
+          checkedAt: '2026-05-16T23:00:00.000Z',
+          state: 'ok',
+          detail: '4 sources checked. Private evidence stays redacted.',
+          items: [
+            { name: 'AdGuard', state: 'ok', issues: 0, source: 'adguard.log', detail: 'No recent lines.', examples: [] },
+            { name: 'Homebase', state: 'ok', issues: 0, source: 'homebase.log', detail: 'No recent lines.', examples: [] },
+            { name: 'Tailscale', state: 'ok', issues: 0, source: 'tailscale status', detail: 'No health warnings.', examples: [] },
+            { name: 'Homebridge', state: 'ok', issues: 13, source: 'homebridge.log', detail: '13 recent connection lines; below the alert threshold.', examples: ['connection dropped'] }
+          ]
+        }
+      })
+    }));
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const document = dom.window.document;
+    const cards = [...document.querySelectorAll('.log-source-card')];
+    expect(document.getElementById('logs-summary-title').textContent).toBe('No log source needs action');
+    expect(document.getElementById('logs-health-label').textContent).toBe('Clear');
+    expect(document.getElementById('logs-next-action').textContent).toBe('4 sources checked');
+    expect(document.getElementById('logs-back-link').textContent).toBe('← Back to Homebase');
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector('.eyebrow').textContent).toBe('Below threshold');
+    expect(cards[0].querySelector('.log-operator-details').open).toBe(false);
+    expect(document.querySelector('.log-example-preview')).toBeNull();
+    expect(cards[1].querySelector('h4').textContent).toBe('3 quiet sources');
+  });
+
   it('labels Ask Teddy fallback visibly in the dashboard UI', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = new JSDOM(`<!doctype html>
@@ -1451,7 +1503,7 @@ describe('Teddy Homebase health API', () => {
             needsDan: [],
             houseState: {
               headline: "Dan's house is steady.",
-              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              summary: 'Core services are responding. Public access is expected and passworded.',
               tone: 'steady',
               primaryAction: 'No review items.'
             },
@@ -1512,7 +1564,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy b
             score: 100,
             houseState: {
               headline: "Dan's house is steady.",
-              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              summary: 'Core services are responding. Public access is expected and passworded.',
               tone: 'steady',
               primaryAction: 'No review items.',
               zones: [
@@ -1578,7 +1630,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
             needsDan: [],
             houseState: {
               headline: "Dan's house is steady.",
-              summary: 'Internet, automations, public access, and the Mac mini are quiet.',
+              summary: 'Core services are responding. Public access is expected and passworded.',
               tone: 'steady',
               primaryAction: 'No review items.'
             }
@@ -2402,6 +2454,39 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     }));
   });
 
+  it('removes a legacy source-named service-log warning once live logs recover', () => {
+    const healthy = replayHouseState(loadReplayFixture('healthy'));
+    const staleAdGuardWarning = [{
+      at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      time: '9:55 PM',
+      title: 'AdGuard',
+      detail: 'Service log signal is still open.',
+      state: 'warn'
+    }];
+    const houseState = teddyHouseInternals.deriveHouseState(
+      healthy.services,
+      healthy.intelligence,
+      healthy.systemVitals,
+      healthy.reviewItems,
+      staleAdGuardWarning,
+      healthy.score
+    );
+
+    expect(healthy.intelligence.serviceLogs.state).toBe('ok');
+    expect(houseState.recentChanges).toEqual([]);
+    const summaries = teddyHouseInternals.buildHistoricalSummaries(
+      healthy.systemVitals,
+      staleAdGuardWarning,
+      healthy.intelligence,
+      houseState.recentChanges
+    );
+    expect(summaries.find(summary => summary.id === 'house-changes-24h')).toEqual(expect.objectContaining({
+      value: 'Quiet',
+      meaningfulCount: 0,
+      detail: 'No meaningful persisted timeline events in the last 24 hours.'
+    }));
+  });
+
   it('keeps default graphs backed by real health signals', async () => {
     const res = await fetch(`${srv.baseUrl}/api/pages/teddy-house/health`);
     expect(res.status).toBe(200);
@@ -3136,16 +3221,16 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(html).toContain('Waiting for first check');
     expect(html).toContain('Internet, automations, public access, and the Mac mini.');
     expect(html).toContain('Running checks');
-    expect(html).toContain('Ask about this status');
-    expect(html).toContain('Ask what changed, what matters, or what to check first.');
-    expect(html).toContain('placeholder="Ask what changed, what matters, or what to check first."');
-    expect(html).toContain('House State');
-    expect(html).toContain('Daily state');
+    expect(html).toContain('Ask Teddy');
+    expect(html).toContain('Try: What changed since yesterday?');
+    expect(html).toContain('placeholder="What changed?"');
+    expect(html).toContain('Systems');
+    expect(html).toContain('Live status');
     expect(html).toContain('Evidence signals');
     expect(html).toContain('Mac vitals');
     expect(html).toContain('Core service health');
     expect(html).toContain('Local memory');
-    expect(html).toContain('Readiness');
+    expect(html).toContain('Core readiness');
     expect(html).toContain('Private');
     expect(html).not.toContain('Source backed</span>');
     expect(html).not.toContain('Not checked yet');

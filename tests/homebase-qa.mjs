@@ -855,6 +855,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const reviewLabel = document.querySelector('#needs-list .need-chip > .need-label');
       const mobileReviewLink = document.querySelector('#needs-list .need-mobile-link');
       const mobileReviewRect = mobileReviewLink?.getBoundingClientRect();
+      const primaryFixButton = document.querySelector('#primary-fix-button');
+      const primaryFixRect = primaryFixButton?.getBoundingClientRect();
       const firstReview = reviewLabel?.textContent?.trim() || "";
       const incidentMeta = document.querySelector('#incident-meta')?.textContent?.trim() || "";
       const incidentVisible = Boolean(document.querySelector('#incident-ribbon') && !document.querySelector('#incident-ribbon').hidden);
@@ -881,6 +883,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
           href: mobileReviewLink?.getAttribute('href') || "",
           desktopLabelVisible: Boolean(reviewLabel && getComputedStyle(reviewLabel).display !== 'none')
         },
+        primaryFixVisible: Boolean(primaryFixRect && primaryFixRect.width > 0 && primaryFixRect.height > 0),
         incidentMeta,
         incidentVisible,
         evidenceOpen,
@@ -949,6 +952,8 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   if (healthyState) {
     assert(value.evidenceOpen === false, `healthy service evidence should be collapsed at ${width}px: ${JSON.stringify(value)}`);
     assert(value.signalsOpen === false, `healthy signal evidence should be collapsed at ${width}px: ${JSON.stringify(value)}`);
+    assert(value.positions.dailyDecision === null, `healthy filler decisions should be hidden at ${width}px: ${JSON.stringify(value.positions)}`);
+    assert(value.primaryFixVisible === false, `healthy disabled fix action should be hidden at ${width}px`);
   } else {
     assert(value.evidenceOpen === true, `warning service evidence should stay available at ${width}px: ${JSON.stringify(value)}`);
     assert(value.signalsOpen === true, `warning signal evidence should stay available at ${width}px: ${JSON.stringify(value)}`);
@@ -967,7 +972,9 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.recentChangeRows.length <= 3, `rendered recent changes should stay grouped at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
   assert(new Set(value.recentChangeRows).size === value.recentChangeRows.length, `rendered recent changes include duplicate rows at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
   assert(!/Status check|No drift|Recent Mac logs need attention/i.test(value.recentChangeRows.join('\n')), `rendered recent changes include noisy raw timeline copy at ${width}px: ${JSON.stringify(value.recentChangeRows)}`);
-  assert(value.positions.dailyDecision !== null, `daily decision section missing at ${width}px`);
+  if (!healthyState) {
+    assert(value.positions.dailyDecision !== null, `daily decision section missing at ${width}px`);
+  }
   if (!healthyState) {
     assert(value.positions.review !== null, `review section missing at ${width}px`);
   }
@@ -976,10 +983,13 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(value.positions.homeStats !== null, `Home Stats section missing at ${width}px`);
   assert(value.positions.ask !== null, `Ask Teddy section missing at ${width}px`);
   if (value.positions.review !== null) {
+    assert(value.positions.dailyDecision !== null, `review is visible without a ranked daily decision at ${width}px`);
     assert(value.positions.dailyDecision < value.positions.review, `review appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
     assert(value.positions.review < value.positions.houseState, `House State appears before review at ${width}px: ${JSON.stringify(value.positions)}`);
   }
-  assert(value.positions.dailyDecision < value.positions.houseState, `House State appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
+  if (value.positions.dailyDecision !== null) {
+    assert(value.positions.dailyDecision < value.positions.houseState, `House State appears before daily decision at ${width}px: ${JSON.stringify(value.positions)}`);
+  }
   assert(value.positions.houseState <= value.positions.ask, `Ask Teddy appears before House State at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.ask < value.positions.homeStats, `Home Stats appears before Ask Teddy at ${width}px: ${JSON.stringify(value.positions)}`);
   assert(value.positions.homeStats <= value.positions.vitals, `Mac vitals appear before Home Stats at ${width}px: ${JSON.stringify(value.positions)}`);
@@ -1005,6 +1015,7 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       actionVisible,
       phoneCopyBudgetOk,
       compactViewport,
+      healthyModeCompact: healthyState ? value.positions.dailyDecision === null && value.primaryFixVisible === false : true,
       mobileOneTapReview: !warningState || width > 430 || (
         value.mobileReview?.visible === true
         && value.mobileReview?.height >= 44
@@ -2637,7 +2648,7 @@ function healthyFreshnessCoverage() {
   const staleLanguageClear = !/\b(stale|cached|degraded|ignored|unknown|last check unavailable)\b/i.test(copy);
   const steadySpecific = fixture.expected?.headline === "Dan's house is steady."
     && fixture.expected?.nowText === 'Nothing needs Dan.'
-    && fixture.expected?.summary === 'Internet, automations, public access, and the Mac mini are quiet.';
+    && fixture.expected?.summary === 'Core services are responding. Public access is expected and passworded.';
   return {
     status: staleLanguageClear && steadySpecific ? 'ok' : 'fail',
     detail: `${steadySpecific ? 'steady copy specific' : 'steady copy drifted'}; ${staleLanguageClear ? 'no stale-source language' : 'stale-source language found'}`,
@@ -2661,6 +2672,7 @@ function visualContractCoverage(local, healthyFreshness) {
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
       && item.visualContract.recentChangesGrouped
+      && item.visualContract.healthyModeCompact
       && item.visualContract.firstViewportFreeOfRawTelemetry),
     visualContract: item.visualContract || null
   }));
@@ -2755,6 +2767,7 @@ function renderedReplayCoverage(renderedReplay) {
       && item.visualContract.healthyEvidenceCollapsed
       && item.visualContract.activeIncidentMetadata
       && item.visualContract.evidenceBelowDecision
+      && item.visualContract.healthyModeCompact
       && item.visualContract.firstViewportFreeOfRawTelemetry);
   return {
     status: renderedReplay && /^skipped/.test(renderedReplay.status || '')

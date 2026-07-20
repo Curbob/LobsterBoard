@@ -293,8 +293,9 @@ function updatePrimaryFixButton(health) {
   if (!button) return;
   const target = primaryFixTarget(health);
   const hasReview = Boolean(target && target.label);
+  button.hidden = !hasReview;
   button.disabled = askInFlight || !hasReview;
-  button.textContent = askInFlight && hasReview ? "Teddy is planning" : hasReview ? "Ask Teddy to Fix" : "Nothing to fix";
+  button.textContent = askInFlight && hasReview ? "Teddy is planning" : "Ask Teddy to Fix";
   button.title = hasReview
     ? `Prepare a safe fix plan for ${formatNeedLabel(target.label)}.`
     : "Homebase has no active review item.";
@@ -400,6 +401,10 @@ function renderDailyDecision(decision) {
     { key: "later", label: "Later", text: "Maintenance can wait.", state: "info" }
   ];
   const slots = Array.isArray(decision && decision.slots) && decision.slots.length === 3 ? decision.slots : fallback;
+  const isFillerHealthyState = decision && decision.tone === "steady"
+    && slots.every(slot => slot && !["bad", "warn"].includes(slot.state))
+    && slots.some(slot => slot.key === "now" && slot.text === "Nothing needs Dan.");
+  section.hidden = Boolean(isFillerHealthyState);
   slots.forEach(slot => {
     const card = section.querySelector(`[data-decision-slot="${slot.key}"]`);
     if (!card) return;
@@ -708,7 +713,9 @@ function renderSummary(data) {
   if (houseState && houseState.headline) {
     title.textContent = houseState.headline;
     copy.textContent = houseState.summary || "House state is derived from live evidence.";
-    next.textContent = needCount > 0 ? `${needCount} review item${needCount === 1 ? "" : "s"}` : nextAction;
+    next.textContent = needCount > 0
+      ? `${needCount} review item${needCount === 1 ? "" : "s"}`
+      : "No trusted signal needs review.";
     teddyLine.textContent = houseState.tone === "steady"
       ? "Dan's house is steady."
       : needCount === 1 ? "1 item to review." : `${needCount} items to review.`;
@@ -718,7 +725,7 @@ function renderSummary(data) {
 
   if (score >= 90 && needCount === 0) {
     title.textContent = "Dan's house is steady.";
-    copy.textContent = "Internet, automations, public access, and the Mac mini are quiet.";
+    copy.textContent = "Core services are responding. Public access is expected and passworded.";
     next.textContent = "Clear for now.";
     teddyLine.textContent = "Clear for now.";
   } else if (score >= 90) {
@@ -751,13 +758,20 @@ function setEvidenceDetailState(data) {
     && (!Array.isArray(data.needsDan) || data.needsDan.length === 0);
   document.body.classList.toggle("homebase-steady", Boolean(isSteady));
   [
-    ["evidence-details", "evidence-summary", isSteady ? "Show service evidence" : "Service evidence"],
-    ["signals-details", "signals-summary", isSteady ? "Show signal evidence" : "Signal evidence"]
+    ["evidence-details", "evidence-summary", "service evidence"],
+    ["signals-details", "signals-summary", "signal evidence"]
   ].forEach(([detailsId, summaryId, label]) => {
     const details = document.getElementById(detailsId);
     const summary = document.getElementById(summaryId);
     if (details) details.open = !isSteady;
-    if (summary) summary.textContent = label;
+    const syncLabel = () => {
+      if (summary) summary.textContent = `${details && details.open ? "Hide" : "Show"} ${label}`;
+    };
+    syncLabel();
+    if (details && !details.dataset.labelBound) {
+      details.addEventListener("toggle", syncLabel);
+      details.dataset.labelBound = "true";
+    }
   });
 }
 
@@ -1098,7 +1112,7 @@ document.getElementById("ask-form").addEventListener("submit", (event) => {
 });
 
 document.getElementById("ask-status-button").addEventListener("click", () => {
-  askTeddy({ action: "status", prompt: "Summarize the current Homebase status and explain what needs review." });
+  askTeddy({ action: "status", prompt: "Briefly summarize the current Homebase status and call out only what needs attention." });
 });
 
 configureLocalLinks();
