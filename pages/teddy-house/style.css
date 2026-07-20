@@ -9,7 +9,7 @@
   --border-soft: rgba(255, 255, 255, 0.08);
   --text: #f3f7f2;
   --muted: #a8b3ad;
-  --faint: #6f7a76;
+  --faint: #89948f;
   --green: #58d68d;
   --amber: #f1b64c;
   --red: #ff6b62;
@@ -481,7 +481,7 @@ h3 {
 }
 
 .primary-fix-button {
-  min-height: 32px;
+  min-height: 44px;
   margin-top: 10px;
   padding: 0 12px;
   border: 1px solid rgba(102, 217, 208, 0.34);
@@ -1218,7 +1218,7 @@ h3 {
 
 .ask-actions button,
 .ask-mini {
-  min-height: 32px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid rgba(102, 217, 208, 0.28);
   border-radius: 999px;
@@ -1272,9 +1272,8 @@ h3 {
 
 .ask-progress-step span:last-child {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ask-progress-dot {
@@ -1338,8 +1337,12 @@ h3 {
 }
 
 .ask-mini {
-  min-height: 24px;
-  padding: 0 9px;
+  min-width: 44px;
+  padding: 0 11px;
+}
+
+.need-mobile-link {
+  display: none;
 }
 
 .need-chip .ask-mini:not(:first-of-type) {
@@ -1367,8 +1370,54 @@ h3 {
   gap: 18px;
 }
 
-.logs-status .score-ring {
-  --score: 0%;
+.logs-health-card {
+  min-width: 250px;
+}
+
+.logs-back-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin: -8px 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.logs-back-link:hover,
+.logs-back-link:focus-visible {
+  color: var(--text);
+}
+
+.logs-health-indicator {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.logs-health-indicator span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--blue);
+}
+
+.logs-health-card[data-state="ok"] .logs-health-indicator span { background: var(--green); }
+.logs-health-card[data-state="warn"] .logs-health-indicator span { background: var(--amber); }
+.logs-health-card[data-state="bad"] .logs-health-indicator span { background: var(--red); }
+
+#logs-health-label {
+  display: block;
+  margin: 3px 0 4px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.1;
 }
 
 .log-source-grid,
@@ -1440,6 +1489,31 @@ h3 {
   font-size: 11px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.log-example-preview {
+  display: block;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.log-operator-details {
+  margin-top: 10px;
+}
+
+.log-operator-details summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 740;
 }
 
 .log-examples {
@@ -1579,8 +1653,51 @@ h3 {
 }
 
 @media (max-width: 430px) {
+  .needs-list,
+  .need-chip {
+    width: 100%;
+  }
+
+  .need-chip {
+    display: block;
+    padding: 0;
+    border-radius: 12px;
+  }
+
+  .need-chip > span.need-label:first-child,
   .need-chip .ask-mini {
     display: none;
+  }
+
+  .need-chip.need-chip-more {
+    width: auto;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .need-mobile-link {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: #f8d99a;
+    text-decoration: none;
+  }
+
+  .need-mobile-action {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-weight: 760;
+  }
+
+  .need-mobile-link:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
   }
 }
 
@@ -1778,7 +1895,7 @@ h3 {
   }
 
   .primary-fix-button {
-    min-height: 28px;
+    min-height: 44px;
     margin-top: 6px;
     padding: 0 10px;
     font-size: 11px;

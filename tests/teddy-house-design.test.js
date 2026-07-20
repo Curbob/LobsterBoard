@@ -422,6 +422,81 @@ describe('Teddy Homebase design guardrails', () => {
     expect(askBody.context.intelligence.networkLogs.items).toBeUndefined();
   });
 
+  it('keeps one network warning actionable while scoping Explain to its evidence', async () => {
+    const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
+    const dom = homebaseDom();
+    const health = healthyWithOneWarning();
+    let askBody = null;
+    health.score = 92;
+    health.needsDan = ['Network service logs: AdGuard'];
+    health.reviewEvidence = [{
+      label: 'Network service logs: AdGuard',
+      source: 'local service logs',
+      confidence: 'live',
+      checkedAt: health.checkedAt,
+      detail: 'AdGuard login errors appeared in recent logs.'
+    }];
+    health.historicalSummaries = [{
+      title: 'Mac boot',
+      value: 'Current boot stable',
+      source: 'data/teddy-house/boot-history.json'
+    }];
+    health.houseState = {
+      ...health.houseState,
+      headline: 'Something needs a look.',
+      summary: 'Network log evidence needs review.',
+      tone: 'review',
+      primaryAction: 'Check network service logs first.'
+    };
+    health.dailyDecision.slots[0] = {
+      key: 'now',
+      label: 'Now',
+      text: 'Check network service logs first.',
+      state: 'warn',
+      source: 'networkLogs'
+    };
+    health.intelligence.networkLogs = {
+      state: 'warn',
+      value: 'AdGuard',
+      detail: 'AdGuard login errors appeared in recent logs.'
+    };
+    health.intelligence.serviceLogs = {
+      state: 'warn',
+      value: 'AdGuard',
+      label: 'review',
+      detail: 'AdGuard login errors appeared in recent logs.'
+    };
+
+    dom.window.fetch = vi.fn(async (url, options = {}) => {
+      if (url === '/api/pages/teddy-house/health') return { ok: true, json: async () => health };
+      if (url === '/api/pages/teddy-house/ask') {
+        askBody = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ status: 'complete', source: 'local', answer: 'Focused explanation.' }) };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+
+    dom.window.eval(script);
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    const serviceLogsCard = [...dom.window.document.querySelectorAll('.signal-card')]
+      .find(card => card.querySelector('.tiny-label')?.textContent === 'Service logs');
+    expect(serviceLogsCard.textContent).toContain('Covered by Review');
+    expect(serviceLogsCard.textContent).not.toContain('AdGuard login errors appeared in recent logs.');
+    expect(dom.window.document.getElementById('next-action').textContent).toBe('1 review item');
+
+    dom.window.document.querySelector('#needs-list .ask-mini').click();
+    await new Promise(resolve => dom.window.setTimeout(resolve, 0));
+
+    expect(askBody.action).toBe('explain');
+    expect(askBody.context.needsDan).toEqual(['Network service logs: AdGuard']);
+    expect(askBody.context.reviewEvidence).toHaveLength(1);
+    expect(askBody.context.historicalSummaries).toEqual([]);
+    expect(Object.keys(askBody.context.services)).toEqual(['adguard', 'tailscale', 'internet']);
+    expect(askBody.context.vitals).toBeNull();
+    expect(dom.window.document.getElementById('ask-progress').hidden).toBe(true);
+  });
+
   it('shows progress while Teddy is preparing a fix plan', async () => {
     const script = readFileSync(join(process.cwd(), 'pages/teddy-house/script.js'), 'utf8');
     const dom = homebaseDom();

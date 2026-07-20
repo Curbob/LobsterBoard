@@ -852,7 +852,10 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       const activeZone = document.querySelector("#house-zone-grid .house-zone-card.active-zone .tiny-label")?.textContent?.trim() || "";
       const firstDecision = textOf('#next-action');
       const nowDecision = document.querySelector('[data-decision-slot="now"] h3')?.textContent?.trim() || "";
-      const firstReview = document.querySelector('#needs-list .need-chip')?.textContent?.replace(/(?:Explain\\s*Prepare fix\\s*Open logs\\s*Capture|Ask\\s*Plan\\s*Logs\\s*Save)/g, '')?.trim() || "";
+      const reviewLabel = document.querySelector('#needs-list .need-chip > .need-label');
+      const mobileReviewLink = document.querySelector('#needs-list .need-mobile-link');
+      const mobileReviewRect = mobileReviewLink?.getBoundingClientRect();
+      const firstReview = reviewLabel?.textContent?.trim() || "";
       const incidentMeta = document.querySelector('#incident-meta')?.textContent?.trim() || "";
       const incidentVisible = Boolean(document.querySelector('#incident-ribbon') && !document.querySelector('#incident-ribbon').hidden);
       const evidenceOpen = document.querySelector('#evidence-details')?.open ?? null;
@@ -872,6 +875,12 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
         firstDecision,
         nowDecision,
         firstReview,
+        mobileReview: {
+          visible: Boolean(mobileReviewRect && mobileReviewRect.width > 0 && mobileReviewRect.height > 0),
+          height: mobileReviewRect ? Math.round(mobileReviewRect.height) : 0,
+          href: mobileReviewLink?.getAttribute('href') || "",
+          desktopLabelVisible: Boolean(reviewLabel && getComputedStyle(reviewLabel).display !== 'none')
+        },
         incidentMeta,
         incidentVisible,
         evidenceOpen,
@@ -930,6 +939,12 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
   assert(phoneCopyBudgetOk, `phone first viewport copy is too long at ${width}px: ${firstScreenTextLength}/${PHONE_FIRST_SCREEN_COPY_BUDGET}: ${value.firstScreenText}`);
   if (warningState && requireReviewVisible) {
     assert(value.rects?.review?.visible === true, `review lane is not visible with active warning at ${width}px: ${JSON.stringify(value.rects?.review)}`);
+  }
+  if (warningState && width <= 430) {
+    assert(value.mobileReview?.visible === true, `mobile review action is not visible at ${width}px: ${JSON.stringify(value.mobileReview)}`);
+    assert(value.mobileReview?.height >= 44, `mobile review action is below the 44px touch target at ${width}px: ${JSON.stringify(value.mobileReview)}`);
+    assert(/\/pages\/teddy-house\/logs\/\?focus=.+&review=/.test(value.mobileReview?.href || ''), `mobile review action does not preserve focused log context at ${width}px: ${JSON.stringify(value.mobileReview)}`);
+    assert(value.mobileReview?.desktopLabelVisible === false, `mobile review repeats the desktop label at ${width}px: ${JSON.stringify(value.mobileReview)}`);
   }
   if (healthyState) {
     assert(value.evidenceOpen === false, `healthy service evidence should be collapsed at ${width}px: ${JSON.stringify(value)}`);
@@ -990,6 +1005,12 @@ async function assertRenderedFirstScreen(chrome, sessionId, width, options = {})
       actionVisible,
       phoneCopyBudgetOk,
       compactViewport,
+      mobileOneTapReview: !warningState || width > 430 || (
+        value.mobileReview?.visible === true
+        && value.mobileReview?.height >= 44
+        && /\/pages\/teddy-house\/logs\/\?focus=.+&review=/.test(value.mobileReview?.href || '')
+        && value.mobileReview?.desktopLabelVisible === false
+      ),
       reviewVisibleWhenWarning: warningState ? (requireReviewVisible ? value.rects?.review?.visible === true : value.positions.review !== null) : true,
       affectedZoneMarked: value.activeZone === value.firstZone,
       healthyEvidenceCollapsed: healthyState ? value.evidenceOpen === false && value.signalsOpen === false : true,

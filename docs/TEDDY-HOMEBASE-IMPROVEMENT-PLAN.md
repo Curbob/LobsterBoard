@@ -2,6 +2,231 @@
 
 Recorded: 2026-07-16 PDT
 
+Current roadmap refresh: 2026-07-19 PDT
+
+## 2026-07-19 Tip-To-Tail Product Roadmap
+
+This is the canonical backlog for the current Homebase product pass. It folds a
+fresh live review, rendered desktop and mobile evidence, repository inspection,
+and a privacy-safe independent Grok critique into one execution order. The
+independent reviewer saw a bounded product packet and current screenshots, not
+credentials, raw logs, private data, or unrestricted repository access.
+
+Current live baseline:
+
+- Readiness was `92/100` with one AdGuard/network service-log review item.
+- The page correctly said `Something needs a look.` and Ask Teddy explained the
+  same issue from local evidence.
+- Desktop at 1280 x 720 and mobile at 390 x 844 rendered without horizontal
+  overflow.
+- Static lint and all 208 tests in `npm run check` passed.
+- The product is already credible and trustworthy. The next gain comes from
+  editing, hierarchy, and clearer action paths rather than more features.
+
+Review artifacts are retained locally at:
+
+```text
+/Users/teddyclaw/.codex/visualizations/2026/07/18/019f736b-b091-7561-9e5b-33a23ba6ead0/homebase-grok-audit-2026-07-19/
+```
+
+The folder contains the desktop warning state, explained state, focused Logs
+page, mobile warning state, concise audit summary, and full Grok and Gemini
+independent reviews.
+
+### Gemini Cross-Check
+
+Gemini Pro independently reviewed the redacted product packet and challenged
+the proposed sequence. Its useful additions are incorporated below:
+
+- Frame the next release as `One-Tap Triage`: one story and one unmistakable
+  mobile action.
+- Scope Ask context to the selected incident or zone rather than injecting a
+  broad system-state payload.
+- Restore focus and selected-incident context when returning from focused Logs.
+- Treat dry run, blast-radius explanation, verification, and rollback as entry
+  requirements for any future mutation feature, not follow-up hardening.
+- Prove whether the existing `Mark known` path handles recurring noise before
+  adding a separate snooze concept.
+
+Gemini's suggestion of a persistent mobile action bar remains a hypothesis. Use
+the quietest interaction that passes one-tap mobile acceptance; begin with the
+whole 44 px Review row as the primary target and add persistent chrome only if
+real interaction proof shows it is necessary.
+
+### Now: One-Warning Clarity Pass
+
+This is the highest-leverage next release. It should make one real issue feel
+obvious, calm, and actionable without weakening source truth.
+
+#### 1. Remove Repeated Warning Copy
+
+The current AdGuard/log warning can appear in the hero, readiness area, `Now`,
+`Review`, Internet zone, Ask Teddy, and Signals. Repetition makes one modest
+issue feel larger and pushes the actual action down the page.
+
+Implementation:
+
+1. Keep one primary warning sentence in the hero/story area.
+2. Keep one compact review row with the first action and source/freshness.
+3. Let zones and Signals show state, not repeat the complete narrative.
+4. Make Ask Teddy add explanation or next action instead of restating the hero.
+5. Add rendered assertions that cap the complete warning sentence at two
+   appearances above the fold.
+
+#### 2. Make `Explain` A Fast, Focused Answer
+
+The current Ask flow is too ceremonial for a read-only explanation. It always
+shows stages such as `Context`, `Teddy planning`, and `Approval gate`, and it can
+include unrelated CPU-peak or boot-memory context merely because a review item
+exists.
+
+Implementation:
+
+1. Treat `Explain` as a short local read-only response with no approval stage.
+2. Include only evidence causally related to the selected review item.
+3. Build the context payload from the selected incident or zone; do not pass a
+   broad system-state payload and rely on the model to ignore irrelevant fields.
+4. Reserve planning and approval language for a requested action that could
+   mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, credentials, or
+   routes.
+5. Prevent progress text from truncating on narrow screens.
+6. Add fixtures proving unrelated memory is omitted from warning explanations.
+
+Likely code seams:
+
+- `pages/teddy-house/api.cjs`: `answerFromDashboardContext()` and its conditional
+  memory inclusion.
+- `pages/teddy-house/script.js`: Ask progress-state selection.
+- `pages/teddy-house/style.css`: Ask panel height and progress layout.
+
+#### 3. Restore A Complete Mobile Review Action
+
+Below 430 px, the review row hides Ask, Plan, Logs, and Save controls. The label
+survives but the user can no longer take the next step.
+
+Implementation:
+
+1. Keep one visible primary mobile action: `Open logs` for log-backed reviews.
+2. Route directly to the relevant focused Logs state in one tap.
+3. Put secondary actions in progressive disclosure only if they remain useful.
+4. Test at 390 x 844 plus the existing phone portrait and landscape sizes.
+5. Preserve the calm one-story layout and avoid a new mobile action toolbar.
+
+#### 4. Differentiate Readiness From Log Health
+
+The circular `72` on Logs visually resembles the dashboard readiness `92`, but
+the scores describe different things. This invites a false comparison.
+
+Implementation:
+
+1. Replace or relabel the Logs ring as `Log signal quality`, `Log health`, or a
+   non-score status treatment.
+2. State the denominator and meaning if a numeric score remains.
+3. Keep the main readiness score unique in shape, placement, or semantics.
+4. Add accessible names that communicate the distinction without relying on
+   color or position.
+
+#### 5. Raise Accessibility Basics
+
+The muted eyebrow color is approximately 3.84:1 to 4.08:1 on the current dark
+surfaces, below the 4.5:1 target for normal text. Several review actions are
+24-32 px tall rather than a practical 44 px touch target.
+
+Implementation:
+
+1. Raise small-label contrast to at least 4.5:1 in every rendered state.
+2. Give primary touch controls a minimum 44 x 44 px target or equivalent
+   spacing.
+3. Verify visible keyboard focus, logical focus order, and non-color state
+   communication.
+4. Run the existing screenshot matrix and add focused accessibility assertions
+   where deterministic.
+
+Acceptance for the whole `Now` slice:
+
+- Dan can answer `steady?`, `what first?`, and `what changed?` within five
+  seconds.
+- A complete warning sentence appears no more than twice above the fold.
+- `Explain` agrees with the ranked story, omits unrelated memory, and shows no
+  approval gate for read-only work.
+- Mobile reaches focused Logs in one tap from the active review.
+- Readiness and log health cannot reasonably be mistaken for the same metric.
+- Small text meets 4.5:1 contrast and primary touch targets are practical.
+- No public route, auth boundary, mutation policy, or source contract changes.
+- `npm run check:homebase` passes with fresh desktop and mobile evidence.
+
+### Next: Progressive Disclosure And Incident Closure
+
+After the warning flow is clear, shorten the long page without hiding proof.
+
+1. Collapse detailed Evidence, Signals, and Memory by default; keep the active
+   incident's most relevant proof open.
+2. Make the lifecycle legible as `detected -> explained -> plan ready ->
+   approved -> verified`, while skipping irrelevant stages for read-only work.
+3. Preserve a clear round trip from dashboard review to focused Logs and back.
+4. Restore keyboard focus and selected-incident context to the exact Review row
+   that opened Logs.
+5. Move raw paths, parsing examples, and implementation-facing log details
+   behind an operator details disclosure.
+6. Keep freshness, confidence, and degraded/fallback labels visible whenever
+   they change whether a claim should be trusted.
+7. Verify screen-reader landmarks, headings, live regions, focus restoration,
+   and keyboard behavior across dashboard, Ask, and Logs.
+8. Exercise the existing `Mark known` lifecycle against a recurring benign
+   warning before designing a separate snooze or mute feature.
+
+Acceptance:
+
+- The active issue and first action remain visible without opening details.
+- Opening details reveals source-backed evidence, not decorative telemetry.
+- Completing or marking an incident known updates the story predictably and
+  preserves the evidence trail.
+- Dashboard-to-Logs-to-dashboard navigation retains the selected incident.
+
+### Later: Reliability And Maintainability
+
+These are valuable, but they should follow the visible warning-flow cleanup
+unless a trust or production incident promotes them.
+
+1. Add deterministic CI for lint, unit, replay, and browser QA; keep Mac-mini
+   probes and public Funnel checks in the local release/nightly lane.
+2. Split `pages/teddy-house/api.cjs` incrementally along existing seams:
+   probes, normalization/redaction, persistence/retention, scoring/story, Ask,
+   and route assembly.
+3. Split the large Homebase QA and unit files by the same product boundaries so
+   behavior remains traceable during extraction.
+4. Add guarded update actions only where dry run, blast radius, approval,
+   verification, and rollback are complete entry requirements for the first
+   release of that action.
+5. Add new incident bundles only for observed failure modes that the current
+   story engine cannot explain.
+6. Continue the reliability and production-hygiene phases below, using fresh
+   evidence to retire items that have already landed.
+
+### Explicitly Do Not Build
+
+- A generic widget gallery, room map, decorative chart wall, or gamified
+  readiness score.
+- Autonomous `just fix it` behavior for household services or network routes.
+- Broader public exposure, richer unauthenticated APIs, or weakened trusted
+  device behavior.
+- Fake trends, invented room/device state, or trusted Eufy lock status.
+- Focus Room, Claude Usage, Teddy Weather, or other adjacent product surfaces
+  inside Homebase without an explicit product decision.
+- A framework rewrite or big-bang API decomposition.
+
+### Recommended Delivery Sequence
+
+1. De-duplicate the warning story and add rendered regression coverage.
+2. Simplify `Explain` and remove unrelated context.
+3. Restore the one-tap mobile Logs action.
+4. Differentiate Logs health from readiness.
+5. Fix contrast, touch targets, focus, and truncation.
+6. Run `npm run check:homebase`, inspect the fresh desktop/mobile evidence, and
+   verify local health and Logs routes.
+7. Ship this as one scoped clarity release before progressive-disclosure or
+   module-extraction work.
+
 ## 2026-07-17 Closeout
 
 The immediate trust-and-security slice is complete:

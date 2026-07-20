@@ -36,6 +36,7 @@ Before changing Homebase behavior, read:
 
 - `AGENTS.md`
 - `CLAUDE.md`
+- `docs/TEDDY-HOMEBASE-IMPROVEMENT-PLAN.md`
 - `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`
 - `docs/UNIFIED-LOGGING-PLAN.md`
 - `specs/001-homebridge-guard-card/spec.md`

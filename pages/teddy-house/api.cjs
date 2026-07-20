@@ -276,6 +276,16 @@ function summarizeForTeddy(context) {
     .map(([key, service]) => `${SERVICE_NAMES[key] || key}: ${service.state || 'unknown'} (${service.metric || '--'})`)
     .join('; ');
   const review = Array.isArray(data.needsDan) ? data.needsDan.slice(0, 5).map(item => shortText(item, 140)).join('; ') : '';
+  const selectedEvidence = Array.isArray(data.reviewEvidence)
+    ? data.reviewEvidence.filter(Boolean).slice(0, 1).map(item => ({
+        label: shortText(item.label, 140),
+        state: item.state || null,
+        source: shortText(item.source, 120),
+        confidence: item.confidence || null,
+        checkedAt: item.checkedAt || null,
+        detail: shortText(item.detail, 180)
+      }))[0] || null
+    : null;
   const memory = Array.isArray(data.historicalSummaries)
     ? data.historicalSummaries
       .filter(summary => summary && summary.source)
@@ -344,11 +354,15 @@ function summarizeForTeddy(context) {
     } : null,
     summary: serviceSummary || 'No service summary supplied.',
     review: review || 'No review items supplied.',
+    selectedEvidence,
     memory,
     signals: {
       externalAccess: intelligence.tailscaleFunnel ? stripSignal(intelligence.tailscaleFunnel) : null,
       teddyCam: intelligence.teddyCam ? stripSignal(intelligence.teddyCam) : null,
       wanQuality: intelligence.wanQuality ? stripSignal(intelligence.wanQuality) : null,
+      networkLogs: intelligence.networkLogs ? stripSignal(intelligence.networkLogs) : null,
+      automationLogs: intelligence.automationLogs ? stripSignal(intelligence.automationLogs) : null,
+      macMiniLogs: intelligence.macMiniLogs ? stripSignal(intelligence.macMiniLogs) : null,
       serviceLogs: intelligence.serviceLogs ? stripSignal(intelligence.serviceLogs) : null,
       systemLogs: intelligence.systemLogs ? stripSignal(intelligence.systemLogs) : null,
       macUpdates: intelligence.macUpdates ? stripSignal(intelligence.macUpdates) : null
@@ -431,7 +445,9 @@ async function askTeddy(ctx, body) {
     'Answer in 3-5 short bullets. If a fix would require action, say what you would check first and what approval would be needed.',
     action === 'prepare-fix'
       ? 'For prepare-fix, produce a dry-run plan only: likely cause, read-only checks, exact approval needed, and what must not be touched yet.'
-      : 'For explain, diagnose the signal in plain language without proposing any write action as already approved.',
+      : action === 'explain'
+        ? 'For explain, answer with one conclusion, one evidence-backed reason, and one next step. Do not include unrelated memory or approval ceremony.'
+        : 'For status and questions, diagnose the signal in plain language without proposing any write action as already approved.',
     '',
     `Action: ${action}`,
     `Prompt: ${prompt || 'Summarize current status and review items.'}`,
@@ -556,6 +572,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   const external = context.signals && context.signals.externalAccess;
   const wan = context.signals && context.signals.wanQuality;
   const systemLogs = context.signals && context.signals.systemLogs;
+  const selectedEvidence = context.selectedEvidence;
   const memory = Array.isArray(context.memory) ? context.memory : [];
   const memoryLine = memory.length > 0
     ? `Memory: ${memory.slice(0, 3).map(item => `${item.title || item.id}: ${item.value || item.window || 'recorded'}`).join('; ')}.`
@@ -563,7 +580,18 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   const lines = [];
   if (fallbackReason) lines.push('Teddy bridge did not answer cleanly, so I used the live dashboard context instead.');
   const hasReview = review !== 'No review items are currently called out.';
-  if (action === 'prepare-fix' && clickedLabel) {
+  if (action === 'explain' && clickedLabel) {
+    const reason = selectedEvidence && selectedEvidence.detail
+      || context.signals?.networkLogs?.detail
+      || context.signals?.automationLogs?.detail
+      || context.signals?.macMiniLogs?.detail
+      || context.signals?.systemLogs?.detail
+      || review;
+    lines.push(`Conclusion: ${clickedLabel}. Readiness ${score}.`);
+    lines.push(`Why: ${reason || 'The selected source is the first ranked review item.'}`);
+    lines.push(`Next: ${firstAction || 'open the focused source evidence'}.`);
+    return lines.slice(0, 4).map(line => `- ${line}`).join('\n');
+  } else if (action === 'prepare-fix' && clickedLabel) {
     const actionText = firstAction ? ` Suggested next step: ${firstAction}.` : '';
     lines.push(`Readiness ${score}. Fix target: ${clickedLabel}.${actionText} ${review}`);
   } else if (external && external.metric && (external.state === 'warn' || external.state === 'bad')) {
@@ -577,7 +605,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   if (action === 'prepare-fix') {
     lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or files.');
   }
-  if (memoryLine && (hasReview || action === 'status' || /chang|history|memory|trend|recent/i.test(prompt || ''))) lines.push(memoryLine);
+  if (memoryLine && action !== 'explain' && (hasReview || action === 'status' || /chang|history|memory|trend|recent/i.test(prompt || ''))) lines.push(memoryLine);
   if (wan && wan.state !== 'ok' && wan.detail) lines.push(`Internet: ${wan.detail}`);
   if (systemLogs && systemLogs.state !== 'ok' && systemLogs.detail) lines.push(`System logs: ${systemLogs.detail}`);
   lines.push(hasReview

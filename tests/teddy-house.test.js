@@ -538,7 +538,7 @@ describe('Teddy Homebase page', () => {
     const zones = [...dom.window.document.querySelectorAll('#house-zone-grid .tiny-label')].map(el => el.textContent);
     expect(zones).toEqual(['Automations', 'Public access', 'Internet', 'Mac mini']);
     expect(dom.window.document.getElementById('summary-title').textContent).toBe('Something needs a look.');
-    expect(dom.window.document.getElementById('next-action').textContent).toBe('Start with automations.');
+    expect(dom.window.document.getElementById('next-action').textContent).toBe('1 review item');
     const chip = dom.window.document.querySelector('#needs-list .need-chip');
     expect(chip.dataset.source).toBe('Homebridge Port');
     expect(chip.dataset.confidence).toBe('live');
@@ -547,7 +547,10 @@ describe('Teddy Homebase page', () => {
     const logsLink = chip.querySelector('.need-log-link');
     expect(logsLink.textContent).toBe('Logs');
     expect(logsLink.getAttribute('aria-label')).toBe('Open logs');
-    expect(logsLink.getAttribute('href')).toBe('/pages/teddy-house/logs/?focus=homebridge');
+    expect(logsLink.getAttribute('href')).toBe('/pages/teddy-house/logs/?focus=homebridge&review=Homebridge%20needs%20review');
+    const mobileLogsLink = chip.querySelector('.need-mobile-link');
+    expect(mobileLogsLink.getAttribute('aria-label')).toBe('Open logs for Homebridge needs review');
+    expect(mobileLogsLink.getAttribute('href')).toBe(logsLink.getAttribute('href'));
 
     const signals = [...dom.window.document.querySelectorAll('#signal-grid .signal-card .tiny-label')].map(el => el.textContent);
     expect(signals.slice(0, 4)).toEqual(['Homebridge log', 'DNS blocks', 'Homebridge version', "What's exposed"]);
@@ -783,7 +786,7 @@ describe('Teddy Homebase page', () => {
     expect(script).toContain('function setAskProgress');
     expect(script).toContain('/api/pages/teddy-house/ask');
     expect(script).toContain('function contextForAsk');
-    expect(script).toContain('context: contextForAsk(currentHealth)');
+    expect(script).toContain('context: contextForAsk(currentHealth, { action, clicked })');
     expect(script).toContain('credentials: "same-origin"');
     expect(script).toContain('setTimeout(() => controller.abort(), 75000)');
     expect(script).toContain('Explain');
@@ -823,8 +826,9 @@ describe('Teddy Homebase page', () => {
       <div id="logs-last-check"></div>
       <div id="logs-summary-title"></div>
       <div id="logs-summary-copy"></div>
-      <div id="logs-score"></div>
-      <div id="logs-score-ring"></div>
+      <a id="logs-back-link"></a>
+      <div id="logs-health"></div>
+      <div id="logs-health-label"></div>
       <div id="logs-next-action"></div>
       <div id="logs-state"></div>
       <div id="logs-teddy-line"></div>
@@ -832,7 +836,7 @@ describe('Teddy Homebase page', () => {
       <div id="codex-take"></div>
       <div id="teddy-take"></div>
       <div id="framework-grid"></div>`, {
-      url: 'http://127.0.0.1/pages/teddy-house/logs/?focus=homebridge',
+      url: 'http://127.0.0.1/pages/teddy-house/logs/?focus=homebridge&review=Homebridge%20needs%20review',
       runScripts: 'outside-only'
     });
 
@@ -865,6 +869,10 @@ describe('Teddy Homebase page', () => {
     expect(cards[0].querySelector('h4').textContent).toBe('Homebridge');
     expect(cards[0].className).toContain('focused');
     expect(dom.window.document.getElementById('logs-teddy-line').textContent).toBe('Homebridge evidence is first.');
+    expect(dom.window.document.getElementById('logs-health-label').textContent).toBe('Needs action');
+    expect(dom.window.document.getElementById('logs-health').getAttribute('aria-label')).toBe('Log health: Needs action');
+    expect(dom.window.document.getElementById('logs-back-link').getAttribute('href')).toBe('/pages/teddy-house/?review=Homebridge%20needs%20review#review-lane');
+    expect(cards[0].querySelector('.log-operator-details')).not.toBeNull();
   });
 
   it('labels Ask Teddy fallback visibly in the dashboard UI', async () => {
@@ -1387,6 +1395,50 @@ describe('Teddy Homebase health API', () => {
       expect(data.answer).not.toContain('macOS reports no available updates');
       expect(data.answer).not.toContain('DNS: ok');
       expect(data.answer).not.toContain('Homebridge: ok');
+
+      const explainRes = await fetch(`${localAsk.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'explain',
+          prompt: 'Explain this Homebase review item: Network service logs: AdGuard',
+          clicked: { type: 'review', label: 'Network service logs: AdGuard' },
+          context: {
+            checkedAt: '2026-05-16T23:00:00.000Z',
+            score: 92,
+            needsDan: ['Network service logs: AdGuard'],
+            reviewEvidence: [{
+              label: 'Network service logs: AdGuard',
+              source: 'local service logs',
+              confidence: 'live',
+              detail: 'AdGuard login errors appeared in recent logs.'
+            }],
+            houseState: {
+              headline: 'Something needs a look.',
+              tone: 'review',
+              primaryAction: 'Check network service logs first.'
+            },
+            dailyDecision: {
+              slots: [{ key: 'now', text: 'Check network service logs first.', state: 'warn' }]
+            },
+            intelligence: {
+              networkLogs: { state: 'warn', detail: 'AdGuard login errors appeared in recent logs.' }
+            },
+            historicalSummaries: [{
+              title: 'Mac boot',
+              value: 'Current boot stable',
+              source: 'data/teddy-house/boot-history.json'
+            }]
+          }
+        })
+      });
+      const explainData = await explainRes.json();
+      expect(explainData.answer).toContain('Conclusion: Network service logs: AdGuard.');
+      expect(explainData.answer).toContain('Why: AdGuard login errors appeared in recent logs.');
+      expect(explainData.answer).toContain('Next: Check network service logs first.');
+      expect(explainData.answer).not.toContain('Memory:');
+      expect(explainData.answer).not.toContain('Approval');
+      expect(explainData.answer.split('\n')).toHaveLength(3);
 
       const steadyRes = await fetch(`${localAsk.baseUrl}/api/pages/teddy-house/ask`, {
         method: 'POST',

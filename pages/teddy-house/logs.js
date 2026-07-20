@@ -1,14 +1,17 @@
 (function() {
   const stateRank = { bad: 0, warn: 1, info: 2, ok: 3 };
-  const currentFocus = new URLSearchParams(window.location.search).get('focus') || '';
+  const params = new URLSearchParams(window.location.search);
+  const currentFocus = params.get('focus') || '';
+  const currentReview = params.get('review') || '';
 
   const elements = {
     refresh: document.getElementById('logs-refresh'),
     lastCheck: document.getElementById('logs-last-check'),
     summaryTitle: document.getElementById('logs-summary-title'),
     summaryCopy: document.getElementById('logs-summary-copy'),
-    score: document.getElementById('logs-score'),
-    scoreRing: document.getElementById('logs-score-ring'),
+    health: document.getElementById('logs-health'),
+    healthLabel: document.getElementById('logs-health-label'),
+    backLink: document.getElementById('logs-back-link'),
     nextAction: document.getElementById('logs-next-action'),
     state: document.getElementById('logs-state'),
     teddyLine: document.getElementById('logs-teddy-line'),
@@ -33,13 +36,6 @@
     if (state === 'warn') return 'Review';
     if (state === 'info') return 'FYI';
     return 'Quiet';
-  }
-
-  function scoreFor(items) {
-    if (items.some(item => item.state === 'bad')) return 40;
-    if (items.some(item => item.state === 'warn')) return 72;
-    if (items.some(item => item.state === 'info' && !item.ignored)) return 90;
-    return 100;
   }
 
   function focusMatches(item) {
@@ -98,13 +94,25 @@
       detail.className = 'log-source-detail';
       detail.textContent = text(item.detail, 'No detail available.');
 
+      const lines = Array.isArray(item.examples) ? item.examples : [];
+      if (lines.length > 0) {
+        const preview = document.createElement('code');
+        preview.className = 'log-example-preview';
+        preview.textContent = lines[0];
+        card.append(head, detail, preview);
+      } else {
+        card.append(head, detail);
+      }
+
+      const operatorDetails = document.createElement('details');
+      operatorDetails.className = 'log-operator-details';
+      const operatorSummary = document.createElement('summary');
+      operatorSummary.textContent = 'Operator details';
       const source = document.createElement('div');
       source.className = 'log-source-path';
       source.textContent = text(item.source, 'source unavailable');
-
       const examples = document.createElement('div');
       examples.className = 'log-examples';
-      const lines = Array.isArray(item.examples) ? item.examples : [];
       if (lines.length > 0) {
         for (const line of lines) {
           const row = document.createElement('code');
@@ -116,8 +124,8 @@
         quiet.textContent = 'No notable recent lines.';
         examples.append(quiet);
       }
-
-      card.append(head, detail, source, examples);
+      operatorDetails.append(operatorSummary, source, examples);
+      card.append(operatorDetails);
       elements.sourceGrid.append(card);
     }
   }
@@ -147,7 +155,7 @@
       const data = await res.json();
       const logs = data.serviceLogs || {};
       const items = Array.isArray(logs.items) ? logs.items : [];
-      const score = scoreFor(items.filter(item => item.ignored !== true));
+      const logHealth = stateLabel(logs.state);
       elements.lastCheck.textContent = formatTime(logs.checkedAt || data.checkedAt);
       elements.summaryTitle.textContent = logs.state === 'ok'
         ? 'Service logs are quiet'
@@ -157,8 +165,9 @@
             ? 'A log source needs action'
             : 'Log evidence is limited';
       elements.summaryCopy.textContent = text(logs.detail, 'Grouped service log evidence is ready.');
-      elements.score.textContent = score;
-      elements.scoreRing.style.setProperty('--score', `${score}%`);
+      elements.health.dataset.state = logs.state || 'info';
+      elements.health.setAttribute('aria-label', `Log health: ${logHealth}`);
+      elements.healthLabel.textContent = logHealth;
       elements.nextAction.textContent = items.some(item => item.state === 'warn' || item.state === 'bad')
         ? 'Start with the top source'
         : 'No noisy source';
@@ -178,5 +187,8 @@
   }
 
   elements.refresh.addEventListener('click', loadLogs);
+  if (elements.backLink && currentReview) {
+    elements.backLink.href = `/pages/teddy-house/?review=${encodeURIComponent(currentReview)}#review-lane`;
+  }
   loadLogs();
 })();
