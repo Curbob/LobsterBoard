@@ -35,7 +35,7 @@ const EXPECTED_DAILY_SLOT_KEYS = ['now', 'watch', 'later'];
 const EXPECTED_SOURCE_TRUST = ['trusted', 'degraded', 'ignored', 'needs-login'];
 const REQUIRED_INCIDENT_STATE_FIXTURES = ['new-govee', 'recurring-govee', 'resolved-govee', 'stale-prior-govee'];
 const EVIDENCE_ONLY_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update'];
-const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-openclaw-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'mac-panic-with-noise', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
+const REQUIRED_REPLAY_FIXTURES = ['healthy', 'stale-android-proof', 'post-reboot-recovered', 'post-outage-adguard-stats-unavailable', 'post-outage-homebridge-ui-patch', 'post-outage-optional-app-update', 'post-outage-macos-optional-update', 'post-outage-homebridge-down', 'post-outage-dns-down', 'post-outage-funnel-missing', 'post-outage-tailscale-offline', 'post-outage-hermes-bridge-degraded', 'post-outage-macos-update-required', 'post-outage-system-logs-warning', 'post-outage-resource-pressure', 'homebridge-down', 'adguard-dns-down', 'tailscale-funnel-missing', 'mac-panic', 'mac-panic-with-noise', 'govee-loop', 'public-exposure-drift', 'wan-dns-degraded', 'teddy-bridge-fallback'];
 const PHONE_FIRST_SCREEN_COPY_BUDGET = 700;
 const WARNING_REPLAY_FIXTURES = REQUIRED_REPLAY_FIXTURES.filter(name => !EVIDENCE_ONLY_REPLAY_FIXTURES.includes(name));
 const FIRST_SCREEN_COPY_BLACKLIST = [
@@ -144,7 +144,7 @@ function reviewZone(label = '', source = '') {
   if (/\b(public access|external access|funnel|exposed|route drift)\b/.test(text)) return 'outside-access';
   if (/\b(dns|internet|wan|network|tailscale)\b/.test(text)) return 'network';
   if (/\b(homebridge|automation|accessor|govee|smart home)\b/.test(text)) return 'smart-home';
-  if (/\b(mac|openclaw|cpu|memory|disk|system logs|macos|service logs|restart|watchdog|panic|teddycam|private camera)\b/.test(text)) return 'mac-mini';
+  if (/\b(mac|hermes|cpu|memory|disk|system logs|macos|service logs|restart|watchdog|panic|teddycam|private camera)\b/.test(text)) return 'mac-mini';
   return null;
 }
 
@@ -540,7 +540,7 @@ async function smokeAskFallback() {
   const srv = await startServer({
     env: {
       TEDDY_HOMEBASE_ASK_AGENT: '1',
-      TEDDY_HOMEBASE_OPENCLAW_BIN: '/private/tmp/homebase-missing-openclaw-bin',
+      TEDDY_HOMEBASE_HERMES_BIN: '/private/tmp/homebase-missing-hermes-bin',
       TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '1000'
     }
   });
@@ -553,15 +553,15 @@ async function smokeAskFallback() {
         prompt: 'What matters right now?',
         context: {
           score: 84,
-          needsDan: ['OpenClaw: bridge degraded'],
+          needsDan: ['Hermes: bridge degraded'],
           houseState: {
             headline: 'Something needs a look.',
-            summary: 'Start with OpenClaw. Everything else is responding.',
+            summary: 'Start with Hermes. Everything else is responding.',
             tone: 'review',
-            primaryAction: 'Check OpenClaw first.'
+            primaryAction: 'Check Hermes first.'
           },
           services: {
-            openclaw: { state: 'warn', metric: '127.0.0.1', detail: 'Bridge degraded.' }
+            hermes: { state: 'warn', metric: '127.0.0.1', detail: 'Bridge degraded.' }
           }
         }
       })
@@ -571,7 +571,7 @@ async function smokeAskFallback() {
     assert(data.status === 'complete', `Ask Teddy fallback smoke did not complete: ${JSON.stringify(data)}`);
     assert(data.source === 'local-fallback', `Ask Teddy fallback smoke returned source ${data.source}, expected local-fallback`);
     assert(/Teddy bridge did not answer cleanly/i.test(String(data.answer || '')), 'Ask Teddy fallback answer was not labeled honestly');
-    assert(/OpenClaw|bridge/i.test(String(data.answer || '')), 'Ask Teddy fallback answer did not preserve bridge context');
+    assert(/Hermes|bridge/i.test(String(data.answer || '')), 'Ask Teddy fallback answer did not preserve bridge context');
     return {
       status: 'ok',
       source: data.source,
@@ -1055,7 +1055,7 @@ function askMentionsFirstAction(answer, firstAction) {
   if (text.includes(action)) return true;
   if (/nothing needs/.test(action) && /nothing needs action|no review item|no review items/.test(text)) return true;
   if (/automations/.test(action) && /automations/.test(text)) return true;
-  if (/mac mini|restart/.test(action) && /mac mini|restart|openclaw/.test(text)) return true;
+  if (/mac mini|restart/.test(action) && /mac mini|restart|hermes/.test(text)) return true;
   if (/load|memory pressure/.test(action) && /mac mini|cpu|load|memory|pressure/.test(text)) return true;
   if (/macos/.test(action) && /macos|mac os|update/.test(text)) return true;
   if (/tailscale/.test(action) && /tailscale/.test(text)) return true;
@@ -1271,7 +1271,7 @@ async function smokeLocalRoutes() {
     const prepareData = await prepare.json();
     assert(prepareData.status === 'complete' && prepareData.dryRun === true, `Ask Teddy prepare-fix was not a dry run: ${JSON.stringify(prepareData)}`);
     assert(String(prepareData.promptPreview || '').includes('dry-run plan only'), 'prepare-fix prompt is missing dry-run language');
-    assert(String(prepareData.promptPreview || '').includes('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.'), 'prepare-fix prompt is missing no-mutation guard');
+    assert(String(prepareData.promptPreview || '').includes('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.'), 'prepare-fix prompt is missing no-mutation guard');
     assert(String(prepareData.promptPreview || '').includes('exact approval needed'), 'prepare-fix prompt is missing approval language');
     assert(!/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/.test(String(prepareData.promptPreview || '')), 'prepare-fix dry run included a mutation command');
 
@@ -1374,7 +1374,7 @@ async function smokeLocalRoutes() {
         fallbackLabeled: askFallback.labeled,
         prepareFixDryRun: prepareData.dryRun === true,
         prepareFixGuarded: /dry-run plan only/.test(String(prepareData.promptPreview || ''))
-          && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state\./.test(String(prepareData.promptPreview || ''))
+          && /Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state\./.test(String(prepareData.promptPreview || ''))
           && /exact approval needed/.test(String(prepareData.promptPreview || '')),
         markKnown,
         captureIncident: {
@@ -1410,7 +1410,7 @@ function assertLogsDetailContract(logData) {
   const logs = logData.serviceLogs || {};
   const items = Array.isArray(logs.items) ? logs.items : [];
   assert(items.length > 0, 'grouped service logs are missing');
-  for (const name of ['Homebase', 'Homebridge', 'Eufy plugin', 'OpenClaw', 'AdGuard', 'Tailscale']) {
+  for (const name of ['Homebase', 'Homebridge', 'Eufy plugin', 'Hermes', 'AdGuard', 'Tailscale']) {
     const item = items.find(entry => entry.name === name);
     assert(item, `logs detail is missing ${name}`);
     assert(item.source, `${name} log item is missing source`);
@@ -1546,7 +1546,7 @@ function verifyReplayFixtures() {
     'post-outage-dns-down': ['network', 'Check DNS first.'],
     'post-outage-funnel-missing': ['outside-access', 'Check public access first.'],
     'post-outage-tailscale-offline': ['network', 'Check Tailscale first.'],
-    'post-outage-openclaw-bridge-degraded': ['mac-mini', 'Check OpenClaw first.'],
+    'post-outage-hermes-bridge-degraded': ['mac-mini', 'Check Hermes first.'],
     'post-outage-macos-update-required': ['mac-mini', 'Review macOS update.'],
     'post-outage-system-logs-warning': ['mac-mini', 'Review system logs.'],
     'post-outage-resource-pressure': ['mac-mini', 'Check Mac mini load first.'],
@@ -1558,7 +1558,7 @@ function verifyReplayFixtures() {
     'mac-panic-with-noise': ['mac-mini', 'Review the Mac mini restart.'],
     'public-exposure-drift': ['outside-access', 'Check public access first.'],
     'wan-dns-degraded': ['network', 'Check internet quality first.'],
-    'teddy-bridge-fallback': ['mac-mini', 'Check OpenClaw first.']
+    'teddy-bridge-fallback': ['mac-mini', 'Check Hermes first.']
   };
   const contracts = [];
   for (const [name, [zone, nowText]] of Object.entries(expected)) {
@@ -1703,39 +1703,39 @@ function verifyReplayFixtures() {
         dailyDecision: replayData.dailyDecision
       })), 'post-outage Tailscale outage should not invent panic/watchdog or public-access-first copy');
     }
-    if (name === 'post-outage-openclaw-bridge-degraded') {
-      assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage OpenClaw bridge outage should lead with Mac mini');
-      assert(replayData.needsDan?.[0] === 'OpenClaw: bridge degraded', 'post-outage OpenClaw bridge outage should keep OpenClaw as first review item');
-      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check OpenClaw first.', 'post-outage OpenClaw bridge outage should name OpenClaw as the first action');
+    if (name === 'post-outage-hermes-bridge-degraded') {
+      assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage Hermes bridge outage should lead with Mac mini');
+      assert(replayData.needsDan?.[0] === 'Hermes: bridge degraded', 'post-outage Hermes bridge outage should keep Hermes as first review item');
+      assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check Hermes first.', 'post-outage Hermes bridge outage should name Hermes as the first action');
       assert(!/panic|watchdog|public access first|tailscale first/i.test(JSON.stringify({
         headline: replayData.houseState?.headline,
         summary: replayData.houseState?.summary,
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
-      })), 'post-outage OpenClaw bridge outage should not invent panic/watchdog, public-access, or Tailscale copy');
+      })), 'post-outage Hermes bridge outage should not invent panic/watchdog, public-access, or Tailscale copy');
     }
     if (name === 'post-outage-macos-update-required') {
       assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage macOS update should lead with Mac mini');
       assert(replayData.needsDan?.[0] === 'macOS: update required', 'post-outage macOS update should keep macOS as first review item');
       assert(replayData.dailyDecision?.slots?.[0]?.text === 'Review macOS update.', 'post-outage macOS update should name macOS as the first action');
-      assert(!/panic|watchdog|restart|openclaw first|public access first|tailscale first/i.test(JSON.stringify({
+      assert(!/panic|watchdog|restart|hermes first|public access first|tailscale first/i.test(JSON.stringify({
         headline: replayData.houseState?.headline,
         summary: replayData.houseState?.summary,
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
-      })), 'post-outage macOS update should not invent restart, OpenClaw, public-access, or Tailscale copy');
+      })), 'post-outage macOS update should not invent restart, Hermes, public-access, or Tailscale copy');
     }
     if (name === 'post-outage-system-logs-warning') {
       assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage system logs warning should lead with Mac mini');
       assert(replayData.needsDan?.[0] === 'Mac system logs: needs review', 'post-outage system logs warning should keep Mac system logs as first review item');
       assert(replayData.dailyDecision?.slots?.[0]?.text === 'Review system logs.', 'post-outage system logs warning should name system logs as the first action');
       assert(!replayData.houseState?.incident, 'post-outage system logs warning should not create a Mac restart incident');
-      assert(!/panic|watchdog|restart|reboot|openclaw first|public access first|tailscale first/i.test(JSON.stringify({
+      assert(!/panic|watchdog|restart|reboot|hermes first|public access first|tailscale first/i.test(JSON.stringify({
         headline: replayData.houseState?.headline,
         summary: replayData.houseState?.summary,
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
-      })), 'post-outage system logs warning should not invent restart, OpenClaw, public-access, or Tailscale copy');
+      })), 'post-outage system logs warning should not invent restart, Hermes, public-access, or Tailscale copy');
     }
     if (name === 'post-outage-resource-pressure') {
       assert(replayData.houseState?.zones?.[0]?.id === 'mac-mini', 'post-outage resource pressure should lead with Mac mini');
@@ -1743,12 +1743,12 @@ function verifyReplayFixtures() {
       assert(replayData.dailyDecision?.slots?.[0]?.text === 'Check Mac mini load first.', 'post-outage resource pressure should name Mac mini load as the first action');
       assert(replayData.dailyDecision?.slots?.[0]?.source === 'CPU', 'post-outage resource pressure should source the Now action to CPU');
       assert(!replayData.houseState?.incident, 'post-outage resource pressure should not create a Mac restart incident');
-      assert(!/panic|watchdog|restart|reboot|openclaw first|public access first|tailscale first|system logs/i.test(JSON.stringify({
+      assert(!/panic|watchdog|restart|reboot|hermes first|public access first|tailscale first|system logs/i.test(JSON.stringify({
         headline: replayData.houseState?.headline,
         summary: replayData.houseState?.summary,
         primaryAction: replayData.houseState?.primaryAction,
         dailyDecision: replayData.dailyDecision
-      })), 'post-outage resource pressure should not invent restart, OpenClaw, public-access, Tailscale, or system-log copy');
+      })), 'post-outage resource pressure should not invent restart, Hermes, public-access, Tailscale, or system-log copy');
     }
     const storyAgreement = assertReplayStoryAgreement(name, fixture, replayData);
     contracts.push({
@@ -2355,7 +2355,7 @@ function nightlyTruthSuiteSpecCoverage() {
     ['incident-replay', /recorded incident|WindowServer restart/i],
     ['mobile-smoke', /Android Chrome|iPhone Home Screen PWA|iPad Home Screen PWA/i],
     ['truth-verdict', /Homebase is useful|Homebase is lying|Homebase needs Dan/],
-    ['no-mutations', /does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw/i]
+    ['no-mutations', /does not mutate Homebridge, Tailscale, AdGuard, macOS, Hermes/i]
   ].map(([name, pattern]) => ({
     name,
     ok: typeof pattern === 'boolean' ? pattern : pattern.test(text)
@@ -2386,7 +2386,7 @@ function scenarioReplayPackSpecCoverage(fixtureContracts, renderedReplay, record
     ['mac-restart-outranks-noise', /Mac restart scenario fails if Homebridge log counts outrank the restart incident/i.test(text)],
     ['public-routes-known', /known routes are presented as unknown exposure/i.test(text)],
     ['teddy-fallback-honesty', /fallback is hidden or presented as live Teddy/i.test(text)],
-    ['read-only', /read-only/i.test(text) && /does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw/i.test(text)]
+    ['read-only', /read-only/i.test(text) && /does not mutate Homebridge, Tailscale, AdGuard, macOS, Hermes/i.test(text)]
   ].map(([name, ok]) => ({
     name,
     ok: Boolean(ok)
@@ -2432,7 +2432,7 @@ function levelUpRoadmapSpecCoverage() {
     ['recurring-resolved-lifecycle', /REQUIRED_INCIDENT_STATE_FIXTURES/.test(qaText) && /new-govee.+recurring-govee.+resolved-govee.+stale-prior-govee/s.test(qaText)],
     ['healthy-raw-copy-blacklist', /FIRST_SCREEN_COPY_BLACKLIST/.test(qaText) && /raw ports, IPs, versions, package counts, log counts, and ignored sources/i.test(text)],
     ['warning-zone-before-evidence', /affectedZoneMarked/.test(qaText) && /evidenceBelowDecision/.test(qaText)],
-    ['ask-source-honesty', /local-fallback/.test(qaText) && /Teddy bridge did not answer cleanly/.test(qaText) && /routes Ask Teddy through a fresh OpenClaw Teddy session when explicitly enabled/.test(teddyHouseTest)],
+    ['ask-source-honesty', /local-fallback/.test(qaText) && /Teddy bridge did not answer cleanly/.test(qaText) && /routes Ask Teddy through a fresh Hermes Teddy session when explicitly enabled/.test(teddyHouseTest)],
     ['action-safety-gate', /prepareFixGuarded/.test(qaText) && /Mark known/.test(teddyHouseTest) && /Capture incident/.test(qaText)],
     ['frozen-responsive-qa', /__HOMEBASE_FROZEN_HEALTH/.test(qaText) && /SCREENSHOT_VIEWPORTS/.test(qaText)],
     ['public-auth-gate', /remote-password-gate/.test(qaText) && /publicAuth === 'enforced'/.test(qaText)],
@@ -3108,7 +3108,7 @@ async function main() {
   checks.push({
     name: 'live-teddy-proof-spec',
     status: liveTeddyProofSpec.status,
-    detail: 'Live Teddy proof spec keeps OpenClaw bridge proof explicit, opt-in, and distinct from local fallback.'
+    detail: 'Live Teddy proof spec keeps Hermes bridge proof explicit, opt-in, and distinct from local fallback.'
   });
   gates.push({
     name: 'dan-trust-gauntlet-spec',

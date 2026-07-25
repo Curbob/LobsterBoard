@@ -32,11 +32,13 @@ launchctl kickstart -k gui/$(id -u)/com.teddy.house-lobsterboard
 ## Product Contract
 
 - Teddy Homebase is the quiet Mac mini and home-stack cockpit.
+- Hermes owns Teddy's live agent runtime. OpenClaw is legacy data only and must not be used for new Homebase agent calls, health checks, or logs.
 - The first screen should answer: is the house stack steady, what needs review, and what changed?
 - Keep the daily screen ranked and calm. Do not add widgets unless they improve Dan's first decision.
 - Keep Focus Room, Claude Usage, Teddy Weather, and other adjacent pages out of Homebase unless Dan explicitly promotes them.
 - Use real probes, logs, histories, and evidence. No fake charts, fake trends, decorative metrics, or invented room/device state.
 - Eufy lock data is unreliable and must stay ignored/hidden on the daily dashboard until a trusted lock source replaces it.
+- Android desk context hints are secondary evidence only. The `androidDesk` signal is trusted only when its privacy-safe artifact is fresh within 10 minutes; presence, work mode, and spin risk remain coarse inferences. Stale or incomplete receipts are hidden/ignored and cannot shape score, `needsDan`, daily decisions, or House State zones.
 
 ## Homebase Surfaces
 
@@ -82,7 +84,7 @@ This Mac mini should not fill the internal disk with bulky artifacts.
 - Use `/Volumes/Media Claw` for large screenshots, videos, generated reports, service cache archives, and media-related working files.
 - Keep stable media references on `/Users/teddyclaw/TeddyMedia` and `/Users/teddyclaw/Music/Teddy Focus Room`; both are compatibility paths into `Media Claw`.
 - If `Media Claw` is not mounted, stop before creating large artifacts and tell Dan.
-- Do not move or rewrite live Homebase, OpenClaw, Homebridge, Jellyfin, or auth data without service-specific checks.
+- Do not move or rewrite live Homebase, Hermes, legacy OpenClaw, Homebridge, Jellyfin, or auth data without service-specific checks.
 
 ## Review And Release Rules
 
@@ -98,3 +100,4 @@ This Mac mini should not fill the internal disk with bulky artifacts.
 - `docs/TEDDY-HOMEBASE-ARCHITECTURE.md`: system boundaries and proof gates.
 - `docs/UNIFIED-LOGGING-PLAN.md`: logging architecture.
 - `docs/TEDDY-HOMEBASE-HANDOFF.md`: latest handoff and Ask/auth notes.
+- Android desk integration is documented in the Android lab's `docs/ANDROID-CUSTOMER-BRIEF.md`, `docs/ANDROID-BUSINESS-BRIEF.md`, and `docs/ANDROID-SECOND-OPINION.md`.

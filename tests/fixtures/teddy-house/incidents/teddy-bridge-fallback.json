@@ -8,7 +8,7 @@
       "path": "data/teddy-house/snapshot.json",
       "checkedAt": "2026-05-31T04:05:00.000Z",
       "redacted": true,
-      "summary": "OpenClaw bridge was degraded while the rest of Homebase services stayed online."
+      "summary": "Hermes bridge was degraded while the rest of Homebase services stayed online."
     },
     {
       "path": "data/teddy-house/ask-history.json",
@@ -19,7 +19,7 @@
   ],
   "logExcerpts": [
     {
-      "source": "OpenClaw gateway",
+      "source": "Hermes gateway",
       "redacted": true,
       "text": "gateway bridge did not answer before local timeout"
     },
@@ -32,7 +32,7 @@
   "expected": {
     "headline": "Something needs a look.",
     "firstZone": "mac-mini",
-    "firstReview": "OpenClaw: bridge degraded",
-    "firstAction": "Check OpenClaw first."
+    "firstReview": "Hermes: bridge degraded",
+    "firstAction": "Check Hermes first."
   }
 }

@@ -1,6 +1,6 @@
 # Teddy Homebase Architecture
 
-Last updated: 2026-06-01
+Last updated: 2026-07-25
 
 ## Purpose
 
@@ -25,7 +25,7 @@ Inside this repo:
 
 Outside this repo:
 
-- OpenClaw gateway and logs.
+- Hermes gateway and logs.
 - Homebridge and Homebridge accessory cache.
 - AdGuard DNS/admin surface.
 - Tailscale Serve/Funnel.
@@ -42,7 +42,7 @@ Expected public Funnel routes:
 Tailnet-only/local surfaces include:
 
 - AdGuard on `:3001`
-- OpenClaw root route
+- Hermes root route
 - `/pages/teddy-house`
 - `/api/pages/teddy-house`
 - `/ipad-drop`
@@ -151,13 +151,16 @@ Public, LAN, tailnet, and Funnel-looking hosts must remain passworded. Direct `/
 
 ## Ask Teddy
 
-Ask Teddy should answer quickly from the dashboard context by default.
-
-The live OpenClaw/Teddy bridge is opt-in with:
+Teddy runs on Hermes. Production Ask Teddy uses the live bridge, with the local dashboard-context answer retained as the failure fallback:
 
 ```bash
 TEDDY_HOMEBASE_ASK_AGENT=1
+TEDDY_HOMEBASE_ASK_LOCAL_ONLY=0
+TEDDY_HOMEBASE_HERMES_BIN=/Users/teddyclaw/.local/bin/hermes
+HERMES_HOME=/Volumes/MacMiniWork/Hermes
 ```
+
+The bridge runs `hermes chat` with source `homebase`, the restricted `session_search` toolset, four maximum tool turns, and the existing Homebase read-only prompt guard. The browser API remains `POST /api/pages/teddy-house/ask`; Hermes failures return the labeled local fallback. Set `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1` only for deliberate local-only recovery.
 
 No write action should run from Ask Teddy without explicit approval, dry-run behavior, and tests.
 

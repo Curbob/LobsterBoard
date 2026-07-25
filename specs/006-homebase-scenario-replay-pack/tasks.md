@@ -21,7 +21,7 @@
 - [x] Add a post-outage DNS-down replay when local DNS is still down after recovery.
 - [x] Add a post-outage public-access replay when Funnel is still down after recovery.
 - [x] Add a post-outage Tailscale-node-offline replay when the Mac mini drops from Tailscale after recovery.
-- [x] Add a post-outage OpenClaw-bridge-degraded replay when the dashboard is up but Ask Teddy is degraded after recovery.
+- [x] Add a post-outage Hermes-bridge-degraded replay when the dashboard is up but Ask Teddy is degraded after recovery.
 - [x] Add a post-outage macOS-update-required replay when a critical update is available after recovery.
 - [x] Add a post-outage system-logs-warning replay when system logs need review without a low-uptime panic.
 - [x] Add a post-outage resource-pressure replay when Mac mini CPU or memory needs review after recovery.

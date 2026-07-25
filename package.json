@@ -68,7 +68,7 @@
     "dev": "node server.cjs",
     "lint": "node tests/static-lint.mjs",
     "check": "npm run lint && npm test",
-    "token:preflight": "node /Users/teddyclaw/.openclaw/workspace/scripts/codex-cost-preflight.mjs --cwd .",
+    "token:preflight": "node scripts/codex-cost-preflight.mjs --cwd .",
     "check:homebase": "npm run check && node tests/homebase-qa.mjs",
     "homebase:verdict": "node scripts/homebase-verdict.mjs",
     "homebase:test-ladder": "node scripts/homebase-test-ladder.mjs",

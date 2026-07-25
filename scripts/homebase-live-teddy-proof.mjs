@@ -132,7 +132,8 @@ async function runLiveTeddyProof() {
     await waitForServer(baseUrl, serverState);
     const health = await fetchJson(`${baseUrl}/api/pages/teddy-house/health`);
     if (health.status !== 200 || !health.json) throw new Error(`health returned ${health.status}`);
-    const firstAction = health.json.dailyDecision?.now?.text
+    const firstAction = health.json.dailyDecision?.slots?.find(slot => slot?.key === 'now')?.text
+      || health.json.dailyDecision?.now?.text
       || health.json.houseState?.primaryAction
       || 'Summarize current Homebase status.';
     const ask = await fetchJson(`${baseUrl}/api/pages/teddy-house/ask`, {
@@ -173,7 +174,7 @@ async function main() {
   console.log(`Homebase live Teddy proof: ${result.status}`);
   console.log(result.detail);
   if (!runLive) {
-    console.log('Set HOMEBASE_RUN_LIVE_TEDDY_PROOF=1 to run the opt-in live OpenClaw bridge proof.');
+    console.log('Set HOMEBASE_RUN_LIVE_TEDDY_PROOF=1 to run the opt-in live Hermes bridge proof.');
   }
   if (result.status !== 'ok' && process.env.HOMEBASE_REQUIRE_LIVE_TEDDY_PROOF === '1') process.exit(1);
 }

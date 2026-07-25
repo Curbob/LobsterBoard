@@ -173,6 +173,43 @@ beforeAll(async () => {
 afterAll(async () => { if (srv) await srv.kill(); });
 
 describe('Teddy Homebase page', () => {
+  it('keeps Android desk freshness and last-known-good state explicit', () => {
+    const now = Date.parse('2026-07-20T23:40:00Z');
+    const artifact = {
+      captured_at: '2026-07-20T23:39:00Z',
+      verdict: { presence: 'present', work_mode: 'active_build', spin_risk: 'low', confidence: 0.8 },
+      readiness: [{ name: 'android_desk', status: 'ready' }],
+      recommended_teddy_action: 'Stay quiet unless asked.',
+      privacy: {
+        private_text_omitted: true,
+        notifications_omitted: true,
+        clipboard_omitted: true,
+        accounts_omitted: true,
+        ssid_omitted: true,
+        ip_addresses_omitted: true,
+        serials_omitted: true
+      }
+    };
+    const fresh = teddyHouseInternals.androidDeskSignalFrom({ artifact, now });
+    const stale = teddyHouseInternals.androidDeskSignalFrom({
+      artifact: { ...artifact, captured_at: '2026-07-20T20:00:00Z' },
+      lastKnownGood: { presence: 'present', workMode: 'active_build', spinRisk: 'low' },
+      now
+    });
+
+    expect(fresh).toEqual(expect.objectContaining({ state: 'info', value: 'present / active_build', hidden: false, ignored: false }));
+    expect(fresh.firstScreenEligible).toBe(false);
+    expect(stale).toEqual(expect.objectContaining({ state: 'warn', value: 'stale', hidden: true, ignored: true }));
+    expect(stale.lastKnownGood).toEqual({ presence: 'present', workMode: 'active_build', spinRisk: 'low' });
+
+    const incompletePrivacy = teddyHouseInternals.androidDeskSignalFrom({
+      artifact: { ...artifact, privacy: { ...artifact.privacy, serials_omitted: undefined } },
+      now
+    });
+    expect(incompletePrivacy).toEqual(expect.objectContaining({ state: 'warn', hidden: true, ignored: true }));
+    expect(incompletePrivacy.privacy.serialsOmitted).toBe(false);
+  });
+
   it.each(replayFixtureNames)('replays the %s house state without live service probes', (fixtureName) => {
     const fixture = loadReplayFixture(fixtureName);
     const result = replayHouseState(fixture);
@@ -302,7 +339,7 @@ describe('Teddy Homebase page', () => {
       expect.objectContaining({ name: 'Homebase', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
       expect.objectContaining({ name: 'Homebridge', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
       expect.objectContaining({ name: 'Eufy plugin', ignored: true, source: expect.any(String), detail: expect.stringContaining('ignored') }),
-      expect.objectContaining({ name: 'OpenClaw', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
+      expect.objectContaining({ name: 'Hermes', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
       expect.objectContaining({ name: 'AdGuard', source: expect.any(String), detail: expect.any(String), examples: expect.any(Array) }),
       expect.objectContaining({ name: 'Tailscale', source: 'tailscale status --json', detail: expect.any(String), examples: expect.any(Array) })
     ]));
@@ -481,7 +518,7 @@ describe('Teddy Homebase page', () => {
                 { id: 'smart-home', title: 'Automations', state: 'bad', value: 'Issue', detail: 'Homebridge did not answer.', evidence: ['Homebridge'] },
                 { id: 'outside-access', title: 'Public access', state: 'info', value: 'Known', detail: 'Expected public routes are accounted for.', evidence: ['Tailscale Funnel'] },
                 { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet, DNS, and Tailscale are responding.', evidence: ['Internet', 'DNS'] },
-                { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks are quiet.', evidence: ['OpenClaw'] }
+                { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks are quiet.', evidence: ['Hermes'] }
               ],
               recentChanges: []
             },
@@ -490,7 +527,7 @@ describe('Teddy Homebase page', () => {
               homebridge: { state: 'bad', metric: 'down', check: 'Port', detail: 'Homebridge did not answer.' },
               tailscale: { state: 'warn', metric: '10000', check: 'Funnel', detail: 'Extra exposure.' },
               internet: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'Internet is fine.' },
-              openclaw: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' }
+              hermes: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' }
             },
             vitals: {
               cpu: '10.0',
@@ -851,7 +888,7 @@ describe('Teddy Homebase page', () => {
               state: 'bad',
               detail: 'Grouped evidence ready.',
               items: [
-                { name: 'OpenClaw', state: 'bad', issues: 7, source: 'gateway.log', detail: 'Gateway issue.', examples: [] },
+                { name: 'Hermes', state: 'bad', issues: 7, source: 'gateway.log', detail: 'Gateway issue.', examples: [] },
                 { name: 'Homebridge', state: 'warn', issues: 3, source: 'homebridge.log', detail: 'Govee connection degraded.', examples: [] }
               ]
             },
@@ -967,15 +1004,15 @@ describe('Teddy Homebase page', () => {
           json: async () => ({
             checkedAt: '2026-05-16T23:00:00.000Z',
             score: 84,
-            needsDan: ['OpenClaw: bridge degraded'],
+            needsDan: ['Hermes: bridge degraded'],
             reviewEvidence: [],
             houseState: {
               headline: 'Something needs a look.',
-              summary: 'Start with OpenClaw. Everything else is responding.',
+              summary: 'Start with Hermes. Everything else is responding.',
               tone: 'review',
-              primaryAction: 'Check OpenClaw first.',
+              primaryAction: 'Check Hermes first.',
               zones: [
-                { id: 'mac-mini', title: 'Mac mini', state: 'warn', value: 'Review', detail: 'Bridge degraded.', evidence: ['OpenClaw'] },
+                { id: 'mac-mini', title: 'Mac mini', state: 'warn', value: 'Review', detail: 'Bridge degraded.', evidence: ['Hermes'] },
                 { id: 'outside-access', title: 'Public access', state: 'info', value: 'Known', detail: 'Expected public routes are accounted for.', evidence: ['Tailscale Funnel'] },
                 { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet is responding.', evidence: ['Internet'] },
                 { id: 'smart-home', title: 'Automations', state: 'ok', value: 'Responding', detail: 'Homebridge is responding.', evidence: ['Homebridge'] }
@@ -984,7 +1021,7 @@ describe('Teddy Homebase page', () => {
             },
             dailyDecision: {
               slots: [
-                { key: 'now', label: 'Now', text: 'Check OpenClaw first.', state: 'warn', source: 'OpenClaw' },
+                { key: 'now', label: 'Now', text: 'Check Hermes first.', state: 'warn', source: 'Hermes' },
                 { key: 'watch', label: 'Watch', text: 'Public access is known and passworded.', state: 'info', source: 'Tailscale Funnel' },
                 { key: 'later', label: 'Later', text: 'No maintenance needed.', state: 'ok', source: 'maintenance' }
               ]
@@ -1119,7 +1156,7 @@ describe('Teddy Homebase health API', () => {
         homebridge: { state: 'ok', metric: '8581' },
         tailscale: { state: 'ok', metric: '100.84.76.23' },
         internet: { state: 'ok', metric: '19 ms' },
-        openclaw: { state: 'ok', metric: '127.0.0.1' }
+        hermes: { state: 'ok', metric: '127.0.0.1' }
       },
       intelligence: {
         tailscaleFunnel: { state: 'warn', metric: '8443, 10000', label: 'Accepted access', detail: 'Known public routes. '.repeat(80) },
@@ -1168,7 +1205,7 @@ describe('Teddy Homebase health API', () => {
             homebridge: { state: 'ok', metric: '8581' },
             tailscale: { state: 'ok', metric: '100.64.0.1' },
             internet: { state: 'warn', metric: '120 ms' },
-            openclaw: { state: 'ok', metric: '18789' }
+            hermes: { state: 'ok', metric: '18789' }
           },
           intelligence: {
             wanQuality: { state: 'warn', metric: '120 ms', detail: 'Latency is high.' },
@@ -1248,7 +1285,7 @@ describe('Teddy Homebase health API', () => {
     expect(data.dryRun).toBe(true);
     expect(data.promptPreview).toContain('Action: prepare-fix');
     expect(data.promptPreview).toContain('dry-run plan only');
-    expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.');
+    expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.');
     expect(data.promptPreview).toContain('exact approval needed');
     expect(data.promptPreview).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
@@ -1285,7 +1322,7 @@ describe('Teddy Homebase health API', () => {
     expect(data.promptPreview).toContain('Dashboard readiness: 45');
     expect(data.promptPreview).toContain('dry-run plan only');
     expect(data.promptPreview).toContain('exact approval needed');
-    expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.');
+    expect(data.promptPreview).toContain('Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.');
     expect(data.promptPreview).not.toMatch(/launchctl|tailscale serve|hb-service restart|npm install|sudo\s+/);
   });
 
@@ -1413,7 +1450,7 @@ describe('Teddy Homebase health API', () => {
               homebridge: { state: 'ok', metric: '8581' },
               tailscale: { state: 'ok', metric: '100.64.0.1' },
               internet: { state: 'ok', metric: '18 ms' },
-              openclaw: { state: 'ok', metric: '18789' }
+              hermes: { state: 'ok', metric: '18789' }
             },
             intelligence: {
               tailscaleFunnel: { state: 'warn', metric: '8443, 10000', detail: '8443 is BlueBubbles exposed through Funnel.' }
@@ -1534,21 +1571,21 @@ describe('Teddy Homebase health API', () => {
     }
   });
 
-  it('routes Ask Teddy through a fresh OpenClaw Teddy session when explicitly enabled', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'ask-openclaw-stub-'));
-    const stubPath = join(tmp, 'openclaw-stub.js');
+  it('routes Ask Teddy through a fresh Hermes Teddy session when explicitly enabled', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'ask-hermes-stub-'));
+    const stubPath = join(tmp, 'hermes-stub.js');
     const argsPath = join(tmp, 'args.json');
     writeFileSync(stubPath, `#!/usr/bin/env node
 const fs = require('fs');
 fs.writeFileSync(process.env.TEDDY_STUB_ARGS_PATH, JSON.stringify(process.argv.slice(2), null, 2));
-console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy bridge live.' }] } }));
+console.log('\\nsession_id: teddy-test-session\\nTeddy bridge live.');
 `);
     chmodSync(stubPath, 0o755);
 
     const bridgeAsk = await startServer({
       env: {
         TEDDY_HOMEBASE_ASK_AGENT: '1',
-        TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
+        TEDDY_HOMEBASE_HERMES_BIN: stubPath,
         TEDDY_STUB_ARGS_PATH: argsPath,
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '8000'
       }
@@ -1573,7 +1610,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy b
             },
             needsDan: ['External access: 8443, 10000'],
             services: {
-              openclaw: { state: 'ok', metric: '127.0.0.1' }
+              hermes: { state: 'ok', metric: '127.0.0.1' }
             }
           }
         })
@@ -1586,15 +1623,20 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy b
       }));
       expect(data.answer).toContain('Readiness 100/100');
       expect(data.answer).toContain('Teddy bridge live.');
+      expect(data.run).toBe('teddy-test-session');
+      expect(data.answer).not.toContain('session_id');
 
       const args = JSON.parse(readFileSync(argsPath, 'utf8'));
-      expect(args).toContain('agent');
-      expect(args).toContain('--agent');
-      expect(args).toContain('main');
-      expect(args).toContain('--session-id');
-      expect(args[args.indexOf('--session-id') + 1]).toMatch(/^teddy-homebase-ask-/);
-      expect(args).toContain('--json');
-      expect(args.join(' ')).toContain('Use available OpenClaw MCP context');
+      expect(args[0]).toBe('chat');
+      expect(args).toContain('--query');
+      expect(args).toContain('--quiet');
+      expect(args).toContain('--source');
+      expect(args[args.indexOf('--source') + 1]).toBe('homebase');
+      expect(args).toContain('--toolsets');
+      expect(args[args.indexOf('--toolsets') + 1]).toBe('session_search');
+      expect(args).toContain('--max-turns');
+      expect(args).toContain('--pass-session-id');
+      expect(args.join(' ')).toContain('Use available Hermes tools and memory');
       expect(args.join(' ')).toContain('Dashboard context');
       expect(args.join(' ')).toContain('source of truth');
       expect(args.join(' ')).toContain("Dan's house is steady.");
@@ -1604,8 +1646,8 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Teddy b
   });
 
   it('falls back when Ask Teddy leaves the Homebase context', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'ask-openclaw-escape-'));
-    const stubPath = join(tmp, 'openclaw-stub.js');
+    const tmp = mkdtempSync(join(tmpdir(), 'ask-hermes-escape-'));
+    const stubPath = join(tmp, 'hermes-stub.js');
     writeFileSync(stubPath, `#!/usr/bin/env node
 console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check Axon pipeline and Maria birthday.' }] } }));
 `);
@@ -1614,7 +1656,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     const bridgeAsk = await startServer({
       env: {
         TEDDY_HOMEBASE_ASK_AGENT: '1',
-        TEDDY_HOMEBASE_OPENCLAW_BIN: stubPath,
+        TEDDY_HOMEBASE_HERMES_BIN: stubPath,
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '8000'
       }
     });
@@ -1715,7 +1757,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(data.services).toHaveProperty('homebridge');
     expect(data.services).toHaveProperty('tailscale');
     expect(data.services).toHaveProperty('internet');
-    expect(data.services).toHaveProperty('openclaw');
+    expect(data.services).toHaveProperty('hermes');
     expect(data.services).toHaveProperty('backups');
     expect(data.insights).toHaveProperty('teddySays');
     expect(Array.isArray(data.insights.cards)).toBe(true);
@@ -1812,7 +1854,26 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       expect(zoneIds[0]).toBe('mac-mini');
       expect(data.houseState.headline).toMatch(/Mac mini restarted/i);
     }
-    expect(data.intelligence).not.toHaveProperty('androidDesk');
+    expect(data.intelligence).toHaveProperty('androidDesk');
+    expect(data.intelligence.androidDesk).toEqual(expect.objectContaining({
+      check: 'Android desk',
+      firstScreenEligible: false,
+      privacy: expect.objectContaining({
+        privateTextOmitted: true,
+        notificationsOmitted: true,
+        clipboardOmitted: true,
+        accountsOmitted: true,
+        networkIdentifiersOmitted: true,
+        serialsOmitted: true
+      })
+    }));
+    const androidContract = data.sourceContracts.contracts.find(contract => contract.id === 'android-desk');
+    expect(androidContract).toEqual(expect.objectContaining({
+      firstScreenEligible: false,
+      usedBy: ['evidence']
+    }));
+    expect(androidContract.trust).toBe(data.intelligence.androidDesk.hidden ? 'ignored' : 'trusted');
+    expect(data.intelligence.androidDesk.hidden).toBe(data.intelligence.androidDesk.freshness === 'stale');
     expect(JSON.stringify(data.houseState.zones)).not.toMatch(/Android desk|Front Door|Side Door|Door locks/i);
     expect(data.visualEvidence).toHaveProperty('latest');
     expect(data.visualEvidence.latest.visuals.readinessScore.type).toBe('computed-ring');
@@ -1855,7 +1916,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       firstScreenEligible: false
     }));
     expect(data).toHaveProperty('presentation');
-    expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw', 'teddycam']);
+    expect(data.presentation.defaultServiceKeys).toEqual(['adguard', 'homebridge', 'tailscale', 'internet', 'hermes', 'teddycam']);
     expect(data.presentation.defaultZoneKeys).toEqual(['outside-access', 'network', 'smart-home', 'mac-mini']);
     expect(data.presentation.hiddenByDefault.services).toContain('backups');
     expect(data.presentation.hiddenByDefault.signals).toContain('weirdThings');
@@ -2075,7 +2136,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       homebridge: { state: 'ok', metric: '8581', detail: 'Homebridge responded.' },
       tailscale: { state: 'ok', metric: 'online', detail: 'Tailscale is online.' },
       internet: { state: 'ok', metric: 'ok', detail: 'Internet is responding.' },
-      openclaw: { state: 'ok', metric: 'ok', detail: 'OpenClaw is responding.' },
+      hermes: { state: 'ok', metric: 'ok', detail: 'Hermes is responding.' },
       backups: { state: 'info', metric: 'ignored', detail: 'Backups are not part of daily state.' }
     };
     const serviceLogs = {
@@ -2102,10 +2163,10 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
           detail: 'Homebase log is quiet.'
         },
         {
-          name: 'OpenClaw',
+          name: 'Hermes',
           state: 'ok',
           issues: 0,
-          detail: 'OpenClaw log is quiet.'
+          detail: 'Hermes log is quiet.'
         },
         {
           name: 'Tailscale',
@@ -3184,12 +3245,12 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
     expect(api).not.toContain("updatesAvailable > 0 || gitState.state === 'warn' ? 'warn' : 'ok'");
   });
 
-  it('reads the active OpenClaw log before older fallback logs', () => {
+  it('reads the active Hermes log before older fallback logs', () => {
     const api = readFileSync(join(process.cwd(), 'pages/teddy-house/api.cjs'), 'utf8');
 
-    expect(api).toContain('function openClawLogCandidates');
-    expect(api).toContain('/tmp/openclaw/openclaw-${localDateStamp(0)}.log');
-    expect(api).toContain('logFileSummary(\'OpenClaw\', openClawLogCandidates()');
+    expect(api).toContain('function hermesLogCandidates');
+    expect(api).toContain("path.join(HERMES_HOME, 'logs', 'gateway.log')");
+    expect(api).toContain("logFileSummary('Hermes', hermesLogCandidates()");
     expect(api).toContain('JSON.parse(text)');
     expect(api).toContain('function logLineMessage');
     expect(api).toContain('payload.message || payload[1] || payload[0]');

@@ -3,7 +3,7 @@ const SERVICES = [
   ["homebridge", "Homebridge"],
   ["tailscale", "Tailscale"],
   ["internet", "Internet"],
-  ["openclaw", "OpenClaw"],
+  ["hermes", "Hermes"],
   ["teddycam", "TeddyCam"]
 ];
 
@@ -334,7 +334,7 @@ function logFocusForReview(item, evidence) {
   const text = `${item || ""} ${evidence && evidence.source || ""}`.toLowerCase();
   if (/govee|automation|homebridge|accessor|smart-home/.test(text)) return "homebridge";
   if (/system logs|watchdog|panic|restart|mac system/.test(text)) return "system";
-  if (/openclaw|gateway|mac mini service/.test(text)) return "openclaw";
+  if (/hermes|openclaw|gateway|mac mini service/.test(text)) return "hermes";
   if (/dns|adguard|internet|wan|tailscale|network/.test(text)) return "network";
   if (/public access|external access|funnel|route/.test(text)) return "tailscale";
   return "service";
@@ -590,6 +590,7 @@ function renderSignals(intelligence, reviewItems = []) {
     ["Homebridge version", homebridge.version, homebridge.version && homebridge.version.label],
     ["What's exposed", data.tailscaleFunnel, data.tailscaleFunnel && data.tailscaleFunnel.check],
     ["TeddyCam", data.teddyCam, data.teddyCam && data.teddyCam.check],
+    ["Android desk", data.androidDesk, data.androidDesk && data.androidDesk.check],
     ["Internet", data.wanQuality, data.wanQuality && data.wanQuality.check],
     ["Service logs", data.serviceLogs, data.serviceLogs && data.serviceLogs.label],
     ["App versions", data.softwareUpdates, data.softwareUpdates && data.softwareUpdates.label],
@@ -606,7 +607,7 @@ function renderSignals(intelligence, reviewItems = []) {
     cards.push(["Changes", { state: weirdState, value: weirdFindings.length }, "Change detection", weirdDetail]);
   }
   rankItems(cards, ([, signal]) => signalState(signal))
-    .filter(([, signal]) => !signal || signal.hidden !== true)
+    .filter(([, signal]) => signal && signal.hidden !== true)
     .forEach(([title, signal, label, detailOverride]) => renderSignalCard(
       grid,
       title,
@@ -969,8 +970,8 @@ function contextForAsk(health, { action = "ask", clicked = null } = {}) {
     ? ["adguard", "tailscale", "internet"]
     : focus === "homebridge"
       ? ["homebridge"]
-      : focus === "openclaw" || focus === "system"
-        ? ["openclaw"]
+      : focus === "hermes" || focus === "system"
+        ? ["hermes"]
         : [];
   const zoneIds = focus === "network" ? ["network"]
     : focus === "homebridge" ? ["smart-home"]

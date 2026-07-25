@@ -1,11 +1,26 @@
 # Teddy Homebase Handoff
 
 Recorded: 2026-05-17 05:38:53 PDT
-Updated: 2026-06-01
+Updated: 2026-07-25
+
+## 2026-07-25 Hermes Runtime Port
+
+- Teddy remains the agent; Hermes now owns his runtime.
+- Homebase service health checks `ai.hermes.gateway`, service-log evidence reads Hermes gateway logs, and the service/source model now uses `hermes`.
+- Production Ask Teddy now runs a restricted Hermes `homebase` session with `session_search` only and preserves the local fallback. The loaded LaunchAgent uses `TEDDY_HOMEBASE_ASK_AGENT=1` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=0`.
+- The `openclaw-mac-mini` Tailscale hostname is unchanged; it is network identity, not the agent runtime.
+- Codex token preflight is now vendored under this repo and reads Hermes memory roots, so the development gate no longer executes code from the retired OpenClaw workspace.
+
+## 2026-07-25 Android Route Repair
+
+- Root cause: the Android device-lab launcher omitted Homebase's approved `:10000` Funnel port, so Chrome reached the tailnet root service and rendered `Not found`.
+- The shared Android route helper now owns the canonical `https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/` URL and normalizes the known portless legacy URL.
+- Physical-device proof on Dan's A15 confirmed the trusted login persisted, Homebase rendered score 100, and the Tailscale Serve/Funnel map stayed unchanged.
+- Fresh release proof: live Hermes Ask returned `source: teddy`; `npm run check:homebase` passed 212 tests, 24 replay stories, six responsive screenshots, and enforced public auth.
 
 ## 2026-07-18 Ask And First-Screen Update
 
-- Ask Teddy is back on its documented fast local dashboard-context path. The installed LaunchAgent now uses `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1`; live OpenClaw/Teddy proof remains opt-in.
+- Ask Teddy is back on its documented fast local dashboard-context path. The installed LaunchAgent now uses `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1`; live Hermes/Teddy proof remains opt-in.
 - The first-screen order is now readiness, `Now / Watch / Later`, then House State and Ask Teddy. Home Stats and Mac mini vitals are supporting context below the action surface.
 - Desktop uses a readable House State and Ask Teddy split; phone and tablet layouts stack without horizontal overflow.
 - Fresh rendered proof: Ask Teddy answered in about 0.36 seconds at 1280x720, and the layout passed direct 1280x720 and 390x844 browser checks.
@@ -45,9 +60,9 @@ Dan said "Tell Teddy" after fixing the Homebase health-check issues.
 
 ## Ask Teddy
 
-- Ask Teddy should answer from dashboard context by default.
-- The live OpenClaw/Teddy bridge is opt-in only with `TEDDY_HOMEBASE_ASK_AGENT=1`.
-- If Ask reports timeout or fallback, first check whether the bridge was explicitly enabled and slow. Local dashboard-context answers are the expected normal path.
+- Ask Teddy should answer through Teddy on Hermes using the supplied dashboard context.
+- Production uses `TEDDY_HOMEBASE_ASK_AGENT=1` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=0`.
+- If Hermes times out or leaves the Homebase scope, the response must be labeled `local-fallback`; local dashboard-context answers remain the recovery path.
 
 ## Verification Notes
 

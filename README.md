@@ -8,6 +8,10 @@ A self-hosted, drag-and-drop dashboard builder with 60+ widgets, a template gall
 
 This checkout also carries Teddy Homebase: Dan's private Mac mini and home-stack cockpit.
 
+Teddy remains the Homebase agent; Hermes is his runtime. Homebase health and logs now read Hermes, and live Ask Teddy invokes a restricted Hermes `homebase` session with a labeled local fallback. The existing `openclaw-mac-mini` Tailscale hostname is retained as network identity only.
+
+Teddy Homebase can consume the Android desk body's privacy-safe `androidDesk` artifact as secondary evidence. Presence, work mode, and spin risk are coarse context hints, not authoritative user-state detection. Receipts older than 10 minutes or missing required privacy fields stay hidden/ignored and cannot change the first-screen story, score, review lane, daily decision, or House State zones. See the Android lab's customer and business briefs for the product boundary.
+
 Homebase is intentionally quieter than a generic dashboard. The first screen answers:
 
 - Is the house stack steady?
@@ -28,7 +32,7 @@ Approved remote route:
 https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/
 ```
 
-Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, OpenClaw, Homebridge/accessory log state, service logs, macOS/system logs, public route exposure and route changes, WAN latency, Mac mini boot sessions, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
+Homebase uses real local probes and persisted evidence for DNS, Homebridge, Tailscale, Hermes, Homebridge/accessory log state, service logs, macOS/system logs, public route exposure and route changes, WAN latency, Mac mini boot sessions, and Mac mini vitals. Eufy lock state is currently ignored because the Homebridge plugin source is not trusted for lock truth.
 
 Homebase is now incident-led. Raw services feed an incident ledger and story engine; the first screen shows one house story, one first action, the affected zone, and quiet evidence below. Recurring issues stay named instead of rediscovered, resolved issues leave `Now` but remain in evidence, source labels appear only when trust changes, and phone copy is budgeted so the daily surface stays readable.
 

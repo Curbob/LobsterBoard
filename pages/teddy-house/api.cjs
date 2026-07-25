@@ -3,12 +3,13 @@ const fs = require('fs').promises;
 const net = require('net');
 const os = require('os');
 const path = require('path');
-const { randomUUID } = require('crypto');
 const { execFile } = require('child_process');
 
 const TIMEOUT_MS = 2200;
 const TAILSCALE_BIN = process.env.TAILSCALE_BIN || '/usr/local/bin/tailscale';
 const TAILSCALE_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_TAILSCALE_TIMEOUT_MS || 8000);
+const HERMES_BIN = process.env.TEDDY_HOMEBASE_HERMES_BIN || '/Users/teddyclaw/.local/bin/hermes';
+const HERMES_HOME = process.env.TEDDY_HOMEBASE_HERMES_HOME || '/Volumes/MacMiniWork/Hermes';
 const TEDDY_ASK_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_ASK_TIMEOUT_MS || 60000);
 const TEDDY_ASK_MAX_PROMPT = 600;
 const TEDDY_ASK_CONTEXT_MAX_CHARS = Number(process.env.TEDDY_HOMEBASE_ASK_CONTEXT_MAX_CHARS || 5000);
@@ -31,7 +32,7 @@ const WAN_HISTORY_WINDOW_MS = 24 * HOUR_MS;
 const PUBLIC_ACCESS_HISTORY_LIMIT = 120;
 const AUTOMATION_LOG_HISTORY_LIMIT = 120;
 const INCIDENT_LEDGER_LIMIT = 80;
-const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'openclaw', 'teddycam'];
+const DEFAULT_SERVICE_KEYS = ['adguard', 'homebridge', 'tailscale', 'internet', 'hermes', 'teddycam'];
 const DEFAULT_ZONE_KEYS = ['outside-access', 'network', 'smart-home', 'mac-mini'];
 const DEFAULT_SIGNAL_KEYS = [
   'adguardBlocks',
@@ -51,7 +52,7 @@ const SERVICE_NAMES = {
   homebridge: 'Homebridge',
   tailscale: 'Tailscale',
   internet: 'Internet',
-  openclaw: 'OpenClaw',
+  hermes: 'Hermes',
   teddycam: 'TeddyCam',
   backups: 'Backups'
 };
@@ -71,6 +72,11 @@ const TEDDYCAM_APP_PORT = Number(process.env.HOMEBASE_TEDDYCAM_APP_PORT || 18116
 const TEDDYCAM_HLS_PORT = Number(process.env.HOMEBASE_TEDDYCAM_HLS_PORT || 8888);
 const TEDDYCAM_FRESH_MS = Number(process.env.HOMEBASE_TEDDYCAM_FRESH_MS || 2 * HOUR_MS);
 const TEDDYCAM_ARTIFACT_TIMEOUT_MS = Number(process.env.HOMEBASE_TEDDYCAM_ARTIFACT_TIMEOUT_MS || 500);
+const ANDROID_DESK_ARTIFACT_PATH = process.env.HOMEBASE_ANDROID_DESK_ARTIFACT
+  || path.join(HERMES_HOME, 'state', 'android', 'desk-state', 'latest.json');
+const ANDROID_DESK_FALLBACK_PATH = '/Users/teddyclaw/Documents/Codex/2026-05-17/hey-i-added-my-android-phone/artifacts/android/desk-state/latest.json';
+const ANDROID_DESK_FRESH_MS = Number(process.env.HOMEBASE_ANDROID_DESK_FRESH_MS || 10 * 60 * 1000);
+const ANDROID_DESK_ARTIFACT_TIMEOUT_MS = Number(process.env.HOMEBASE_ANDROID_DESK_ARTIFACT_TIMEOUT_MS || 500);
 const ADGUARD_LOGIN_FAIL_BACKOFF_MS = Number(process.env.HOMEBASE_ADGUARD_LOGIN_FAIL_BACKOFF_MS || 6 * HOUR_MS);
 let adGuardSessionCookie = '';
 let adGuardLoginBlockedUntil = 0;
@@ -413,11 +419,16 @@ function extractAgentText(stdout) {
     if (firstText) return firstText;
     if (parsed.summary) return parsed.summary;
   } catch (_) {}
-  return stdout.trim();
+  return stdout
+    .split('\n')
+    .filter(line => !/^session_id:\s+/i.test(line.trim()))
+    .join('\n')
+    .trim();
 }
 
-function askSessionId() {
-  return `teddy-homebase-ask-${Date.now()}-${randomUUID().slice(0, 8)}`;
+function extractHermesSessionId(stdout) {
+  const match = String(stdout || '').match(/^session_id:\s*(\S+)/im);
+  return match ? match[1] : null;
 }
 
 async function askTeddy(ctx, body) {
@@ -435,9 +446,9 @@ async function askTeddy(ctx, body) {
     ? context.memory.map(item => `${item.title || item.id || 'Memory'}=${item.value || item.window || 'recorded'} (${item.source || 'source unknown'})`).join('; ')
     : 'none';
   const task = [
-    'You are Teddy inside OpenClaw answering a Teddy Homebase action request.',
-    'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or OpenClaw state.',
-    'Use available OpenClaw MCP context if it helps, but keep this turn read-only.',
+    'You are Teddy running through Hermes and answering a Teddy Homebase action request.',
+    'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.',
+    'Use available Hermes tools and memory only if they help, and keep this turn read-only.',
     'Treat the supplied Dashboard context as the source of truth.',
     'Stay inside Teddy Homebase: house status, services, logs, network, Mac mini, and the current dashboard.',
     'Never mention Axon, work pipeline, family, birthdays, email, calendar, or other personal context unless the user explicitly asks for that topic.',
@@ -480,18 +491,19 @@ async function askTeddy(ctx, body) {
   }
 
   const result = await tryRunFull(
-    process.env.TEDDY_HOMEBASE_OPENCLAW_BIN || 'openclaw',
+    HERMES_BIN,
     [
-      'agent',
-      '--agent',
-      process.env.TEDDY_HOMEBASE_ASK_AGENT_ID || 'main',
-      '--session-id',
-      askSessionId(),
-      '--json',
-      '--timeout',
-      String(Math.ceil(TEDDY_ASK_TIMEOUT_MS / 1000)),
-      '--message',
-      task
+      'chat',
+      '--query',
+      task,
+      '--quiet',
+      '--source',
+      'homebase',
+      '--toolsets',
+      process.env.TEDDY_HOMEBASE_HERMES_TOOLSETS || 'session_search',
+      '--max-turns',
+      process.env.TEDDY_HOMEBASE_HERMES_MAX_TURNS || '4',
+      '--pass-session-id'
     ],
     TEDDY_ASK_TIMEOUT_MS
   );
@@ -507,14 +519,7 @@ async function askTeddy(ctx, body) {
     status: 'complete',
     source: useAgentAnswer ? 'teddy' : 'local-fallback',
     answer: withReadinessContext(useAgentAnswer ? agentAnswer : fallbackAnswer, context),
-    run: result.ok ? (() => {
-      try {
-        const parsed = JSON.parse(result.stdout);
-        return parsed.runId || null;
-      } catch (_) {
-        return null;
-      }
-    })() : null
+    run: result.ok ? extractHermesSessionId(`${result.stdout}\n${result.stderr}`) : null
   });
 }
 
@@ -603,7 +608,7 @@ function answerFromDashboardContext(action, prompt, clicked, context, fallbackRe
   }
   if (clicked && action !== 'prepare-fix') lines.push(`You clicked: ${clicked.label || clicked.type || 'dashboard signal'}.`);
   if (action === 'prepare-fix') {
-    lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, OpenClaw, macOS, or files.');
+    lines.push('Dry-run fix plan only: confirm the source, inspect read-only evidence, then ask Dan before changing Homebridge, Tailscale, AdGuard, Hermes, macOS, or files.');
   }
   if (memoryLine && action !== 'explain' && (hasReview || action === 'status' || /chang|history|memory|trend|recent/i.test(prompt || ''))) lines.push(memoryLine);
   if (wan && wan.state !== 'ok' && wan.detail) lines.push(`Internet: ${wan.detail}`);
@@ -900,7 +905,7 @@ function buildVisualEvidence(services, insights, intelligence, vitalsData, timel
         type: 'static-topology',
         defaultVisible: false,
         source: 'declared Teddy Homebase architecture',
-        inputs: ['Internet', 'Tailscale', 'Mac mini', 'AdGuard DNS', 'Homebridge', 'OpenClaw / Teddy']
+        inputs: ['Internet', 'Tailscale', 'Mac mini', 'AdGuard DNS', 'Homebridge', 'Hermes / Teddy']
       },
       timeline: {
         type: 'persistent-events',
@@ -985,7 +990,7 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
     sourceContract('homebridge', 'Homebridge', services.homebridge, { trust: 'trusted', source: 'Homebridge port probe', usedBy: ['smart-home', 'service-grid'] }),
     sourceContract('tailscale', 'Tailscale', services.tailscale, { trust: 'trusted', source: 'Tailscale status probe', usedBy: ['network', 'service-grid'] }),
     sourceContract('internet', 'Internet', services.internet, { trust: 'trusted', source: 'WAN ping probe', usedBy: ['network', 'service-grid'] }),
-    sourceContract('openclaw', 'OpenClaw', services.openclaw, { trust: 'trusted', source: 'OpenClaw gateway probe', usedBy: ['mac-mini', 'service-grid'] }),
+    sourceContract('hermes', 'Hermes', services.hermes, { trust: 'trusted', source: 'Hermes gateway probe', usedBy: ['mac-mini', 'service-grid'] }),
     sourceContract('teddycam', 'TeddyCam', services.teddycam, { trust: 'trusted', source: 'TeddyCam private video-lane receipt', usedBy: ['mac-mini', 'service-grid', 'evidence'], firstScreenEligible: false }),
     sourceContract('public-access', 'Public access', publicAccess, { source: 'Tailscale Funnel route check', usedBy: ['outside-access', 'house-state'] }),
     sourceContract('wan-quality', 'WAN latency', intelligence.wanQuality, { source: 'WAN quality probe', usedBy: ['network', 'evidence'] }),
@@ -998,6 +1003,7 @@ function buildSourceContracts(services, intelligence, systemVitals, houseState, 
     sourceContract('mac-mini-service-logs', 'Mac mini service logs', intelligence.macMiniLogs, { source: 'Grouped service logs', usedBy: ['mac-mini', 'house-state'] }),
     sourceContract('network-service-logs', 'Network service logs', intelligence.networkLogs, { source: 'Grouped service logs', usedBy: ['network', 'evidence'] }),
     sourceContract('teddycam-video-lane', 'TeddyCam video lane', intelligence.teddyCam, { source: 'TeddyCam private video-lane receipt', usedBy: ['evidence'], firstScreenEligible: false }),
+    sourceContract('android-desk', 'Android desk', intelligence.androidDesk, { source: 'Android desk-state artifact', usedBy: ['evidence'], firstScreenEligible: false }),
     sourceContract('adguard-blocks', 'DNS blocks', intelligence.adguard, { source: 'AdGuard stats API', usedBy: ['evidence'], firstScreenEligible: false }),
     sourceContract('door-locks', 'Door locks', homebridge.doorLocks, { source: 'Homebridge cached accessories', usedBy: ['hidden-evidence'], firstScreenEligible: false }),
     sourceContract('cpu-vitals', 'CPU load', health.cpu, { source: 'Mac mini vitals', usedBy: ['mac-mini', 'vitals'] }),
@@ -1297,57 +1303,17 @@ async function checkWanQuality() {
   };
 }
 
-async function checkOpenClaw() {
-  const gateway = await tryRun('launchctl', ['list', 'ai.openclaw.gateway']);
+async function checkHermes() {
+  const gateway = await tryRun('launchctl', ['list', 'ai.hermes.gateway']);
   const pidMatch = gateway.stdout.match(/"PID"\s*=\s*(\d+)/);
   const pid = pidMatch ? pidMatch[1] : null;
-
-  async function tailnetIp() {
-    const status = await tryRun(TAILSCALE_BIN, ['status', '--json'], TAILSCALE_TIMEOUT_MS);
-    if (!status.ok) return null;
-    try {
-      const data = JSON.parse(status.stdout);
-      return data.Self && data.Self.TailscaleIPs && data.Self.TailscaleIPs[0];
-    } catch (_) {
-      return null;
-    }
+  if (pid) return ok('Hermes gateway is supervised and running.', pid, 'Gateway');
+  if (gateway.ok) return bad('Hermes gateway is loaded but not running.', 'not running', 'Gateway');
+  const status = await tryRun(HERMES_BIN, ['gateway', 'status'], TIMEOUT_MS);
+  if (status.ok && /gateway is supervised|gateway is running|status:\s+running/i.test(status.stdout)) {
+    return ok('Hermes gateway is running.', 'running', 'Gateway');
   }
-
-  const targets = ['127.0.0.1'];
-  const tailIp = await tailnetIp();
-  if (tailIp) targets.push(tailIp);
-
-  for (const host of targets) {
-    try {
-      await tcpCheck(host, 18789);
-      return ok(
-        pid ? `OpenClaw gateway is running and reachable.` : `OpenClaw gateway is reachable.`,
-        host,
-        'Gateway'
-      );
-    } catch (_) {}
-  }
-
-  try {
-    await tcpCheck('127.0.0.1', 18789);
-    return ok(
-      pid ? `OpenClaw gateway is running and reachable.` : 'OpenClaw gateway is reachable.',
-      pid || '18789',
-      'Gateway'
-    );
-  } catch (err) {
-    if (pid) {
-      return bad(
-        `OpenClaw is running, but the gateway port is closed: ${err.message}.`,
-        'closed',
-        'Gateway'
-      );
-    }
-    if (gateway.ok) {
-      return bad('OpenClaw is loaded but not running.', 'not running', 'Gateway');
-    }
-    return warn('Could not read OpenClaw service status.', 'unknown', 'Gateway');
-  }
+  return warn('Could not read Hermes gateway status.', 'unknown', 'Gateway');
 }
 
 async function checkTeddyCam() {
@@ -1434,6 +1400,91 @@ function teddyCamSignalFrom({ artifact, stat = null, app = false, hls = false, n
   return result;
 }
 
+function androidDeskSignalFrom({ artifact, stat = null, lastKnownGood = null, now = Date.now(), freshMs = ANDROID_DESK_FRESH_MS }) {
+  const capturedAt = artifact && (artifact.captured_at || artifact.checked_at)
+    || stat && stat.mtime && stat.mtime.toISOString()
+    || null;
+  const capturedMs = capturedAt ? new Date(capturedAt).getTime() : NaN;
+  const ageMs = Number.isFinite(capturedMs) ? Math.max(0, now - capturedMs) : null;
+  const fresh = ageMs !== null && ageMs <= freshMs;
+  const verdict = artifact && artifact.verdict && typeof artifact.verdict === 'object' ? artifact.verdict : {};
+  const readiness = Array.isArray(artifact && artifact.readiness) ? artifact.readiness : [];
+  const deskReadiness = readiness.find(item => item && item.name === 'android_desk');
+  const privacy = artifact && artifact.privacy && typeof artifact.privacy === 'object' ? artifact.privacy : {};
+  const safe = privacy.private_text_omitted === true
+    && privacy.notifications_omitted === true
+    && privacy.clipboard_omitted === true
+    && privacy.accounts_omitted === true
+    && privacy.ssid_omitted === true
+    && privacy.ip_addresses_omitted === true
+    && privacy.serials_omitted === true;
+  const hasDeskState = Boolean(artifact && verdict.presence && verdict.work_mode && verdict.spin_risk);
+  const trusted = fresh && safe && hasDeskState;
+  const status = trusted
+    ? deskReadiness && deskReadiness.status !== 'ready' ? 'warn' : 'info'
+    : 'warn';
+  const summary = trusted ? {
+    capturedAt,
+    presence: verdict.presence,
+    workMode: verdict.work_mode,
+    spinRisk: verdict.spin_risk,
+    readiness: deskReadiness && deskReadiness.status || 'unknown',
+    recommendedAction: shortText(artifact.recommended_teddy_action, 180),
+    confidence: verdict.confidence ?? null
+  } : lastKnownGood || null;
+  return {
+    state: status,
+    value: trusted ? `${verdict.presence} / ${verdict.work_mode}` : 'stale',
+    metric: ageMs === null ? 'unknown age' : formatAgeFromDate(new Date(capturedMs)),
+    check: 'Android desk',
+    label: trusted ? `${verdict.presence}, ${verdict.work_mode}` : 'Evidence only',
+    detail: trusted
+      ? `${verdict.presence} desk context; ${verdict.spin_risk} spin risk. ${shortText(artifact.recommended_teddy_action, 160) || 'No action recommended.'}`
+      : 'Android desk proof is stale or incomplete and stays evidence-only.',
+    source: 'Android desk-state artifact',
+    checkedAt: capturedAt,
+    freshness: fresh ? (ageMs === 0 ? 'live' : formatAgeFromDate(new Date(capturedMs))) : 'stale',
+    confidence: trusted ? 'derived' : 'degraded',
+    hidden: !trusted,
+    ignored: !trusted,
+    firstScreenEligible: false,
+    lastKnownGood: trusted ? null : summary,
+    privacy: {
+      privateTextOmitted: privacy.private_text_omitted === true,
+      notificationsOmitted: privacy.notifications_omitted === true,
+      clipboardOmitted: privacy.clipboard_omitted === true,
+      accountsOmitted: privacy.accounts_omitted === true,
+      networkIdentifiersOmitted: privacy.ssid_omitted === true && privacy.ip_addresses_omitted === true,
+      serialsOmitted: privacy.serials_omitted === true
+    }
+  };
+}
+
+async function checkAndroidDesk(ctx) {
+  const [artifact, stat, fallbackArtifact, fallbackStat] = await Promise.all([
+    readJsonFileSafe(ANDROID_DESK_ARTIFACT_PATH, null, ANDROID_DESK_ARTIFACT_TIMEOUT_MS),
+    fs.stat(ANDROID_DESK_ARTIFACT_PATH).catch(() => null),
+    readJsonFileSafe(ANDROID_DESK_FALLBACK_PATH, null, ANDROID_DESK_ARTIFACT_TIMEOUT_MS),
+    fs.stat(ANDROID_DESK_FALLBACK_PATH).catch(() => null)
+  ]);
+  const selectedArtifact = artifact || fallbackArtifact;
+  const selectedStat = artifact ? stat : fallbackStat;
+  const previous = readDataSafe(ctx, 'android-desk-last-known-good.json', null);
+  const signal = androidDeskSignalFrom({ artifact: selectedArtifact, stat: selectedStat, lastKnownGood: previous });
+  if (!signal.hidden && selectedArtifact && selectedArtifact.verdict) {
+    writeDataSafe(ctx, 'android-desk-last-known-good.json', {
+      capturedAt: signal.checkedAt,
+      presence: selectedArtifact.verdict.presence,
+      workMode: selectedArtifact.verdict.work_mode,
+      spinRisk: selectedArtifact.verdict.spin_risk,
+      readiness: signal.lastKnownGood && signal.lastKnownGood.readiness || 'unknown',
+      recommendedAction: shortText(selectedArtifact.recommended_teddy_action, 180),
+      confidence: selectedArtifact.verdict.confidence ?? null
+    });
+  }
+  return signal;
+}
+
 async function checkBackups() {
   return info('Backups are parked for now.', 'paused', 'Dan setting');
 }
@@ -1447,13 +1498,13 @@ async function npmLatestVersion(packageName) {
   }
 }
 
-async function openClawVersion() {
-  const result = await tryRun('openclaw', ['--version']);
+async function hermesVersion() {
+  const result = await tryRun(HERMES_BIN, ['--version']);
   if (!result.ok) {
-    return { name: 'OpenClaw', installed: 'unknown', latest: null, state: 'info', detail: 'OpenClaw version command was not readable.' };
+    return { name: 'Hermes', installed: 'unknown', latest: null, state: 'info', detail: 'Hermes version command was not readable.' };
   }
-  const match = result.stdout.match(/OpenClaw\s+([^\s]+)/);
-  return { name: 'OpenClaw', installed: match ? match[1] : result.stdout.trim(), latest: null };
+  const match = result.stdout.match(/Hermes Agent v?([^\s]+)/);
+  return { name: 'Hermes', installed: match ? match[1] : result.stdout.trim(), latest: null };
 }
 
 async function lobsterBoardVersion() {
@@ -1558,8 +1609,8 @@ function normalizeSoftwareUpdateCopy(result) {
     next.detail = next.detail
       .replace('software update', 'update')
       .replace('software updates', 'updates')
-      .replace('OpenClaw and Teddy House package checks are current.', 'OpenClaw and Teddy Homebase are current.')
-      .replace('OpenClaw and Teddy House are current.', 'OpenClaw and Teddy Homebase are current.')
+      .replace('Hermes and Teddy House package checks are current.', 'Hermes and Teddy Homebase are current.')
+      .replace('Hermes and Teddy House are current.', 'Hermes and Teddy Homebase are current.')
       .replace(/Git branch is behind origin by (\d+ commit[s]?)\./, 'Code is $1 behind origin.')
       .replace(/Git branch has (\d+ local commit[s]?) not pushed\./, '$1 not pushed.')
       .replace(/Git branch has (\d+ local change[s]?)\./, '$1.')
@@ -1610,16 +1661,19 @@ function updateItemFromInstalled(cachedItem, installedItem) {
 async function reconcileCachedSoftwareItems(cached) {
   const items = Array.isArray(cached && cached.items) ? cached.items : [];
   if (!items.length) return items;
-  const [openclaw, lobsterboard] = await Promise.all([
-    openClawVersion(),
+  const [hermes, lobsterboard] = await Promise.all([
+    hermesVersion(),
     lobsterBoardVersion()
   ]);
   const installedByName = new Map([
-    [openclaw.name, openclaw],
+    [hermes.name, hermes],
     [lobsterboard.name, lobsterboard],
     ['Teddy House', lobsterboard]
   ]);
-  return items.map(item => updateItemFromInstalled(item, installedByName.get(item.name)));
+  return items
+    .filter(item => item.name !== 'OpenClaw')
+    .map(item => updateItemFromInstalled(item, installedByName.get(item.name)))
+    .concat(items.some(item => item.name === 'Hermes') ? [] : [hermes]);
 }
 
 async function checkSoftwareUpdates(ctx) {
@@ -1640,26 +1694,25 @@ async function checkSoftwareUpdates(ctx) {
       confidence: 'cached',
       detail: cachedUpdates > 0
         ? `${cachedUpdates} update${cachedUpdates === 1 ? '' : 's'} available. ${gitState.detail}`
-        : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
+        : `Hermes and Teddy Homebase are current. ${gitState.detail}`,
       git: gitState
     });
     writeDataSafe(ctx, 'software-updates.json', normalized);
     return normalized;
   }
 
-  const [openclaw, lobsterboard] = await Promise.all([
-    openClawVersion(),
+  const [hermes, lobsterboard] = await Promise.all([
+    hermesVersion(),
     lobsterBoardVersion()
   ]);
 
-  const [openclawLatest, lobsterLatest, gitState] = await Promise.all([
-    npmLatestVersion('openclaw').catch(() => null),
+  const [lobsterLatest, gitState] = await Promise.all([
     npmLatestVersion('lobsterboard').catch(() => null),
     gitFreshness(path.resolve(__dirname, '..', '..'))
   ]);
 
   const items = [
-    { ...openclaw, latest: openclawLatest },
+    hermes,
     { ...lobsterboard, latest: lobsterLatest }
   ].map(item => {
     if (item.state) return item;
@@ -1689,7 +1742,7 @@ async function checkSoftwareUpdates(ctx) {
     confidence: 'live',
     detail: updatesAvailable > 0
       ? `${updatesAvailable} update${updatesAvailable === 1 ? '' : 's'} available. ${gitState.detail}`
-      : `OpenClaw and Teddy Homebase are current. ${gitState.detail}`,
+      : `Hermes and Teddy Homebase are current. ${gitState.detail}`,
     items,
     git: gitState
   };
@@ -2503,7 +2556,7 @@ function unifiedLoggingFramework() {
     architecture: [
       {
         layer: 'Collect',
-        detail: 'Read local service logs and status probes for Homebase, Homebridge, Eufy plugin, OpenClaw, AdGuard, and Tailscale.'
+        detail: 'Read local service logs and status probes for Homebase, Homebridge, Eufy plugin, Hermes, AdGuard, and Tailscale.'
       },
       {
         layer: 'Redact',
@@ -2583,14 +2636,11 @@ function localDateStamp(offsetDays = 0) {
   return `${year}-${month}-${day}`;
 }
 
-function openClawLogCandidates() {
+function hermesLogCandidates() {
   return [
-    `/tmp/openclaw/openclaw-${localDateStamp(0)}.log`,
-    `/tmp/openclaw/openclaw-${localDateStamp(1)}.log`,
-    '/Users/teddyclaw/.openclaw/logs/gateway.err.log',
-    '/Users/teddyclaw/.openclaw/logs/gateway.log',
-    '/Users/teddyclaw/.openclaw/logs/gateway-watchdog.err.log',
-    '/Users/teddyclaw/.openclaw/logs/gateway-health.log'
+    path.join(HERMES_HOME, 'logs', 'gateway.log'),
+    '/Users/teddyclaw/Library/Logs/HermesGateway/ai.hermes.gateway/gateway.log',
+    '/Users/teddyclaw/Library/Logs/HermesGateway/ai.hermes.gateway/gateway.error.log'
   ];
 }
 
@@ -2671,7 +2721,7 @@ function serviceLogDomain(item) {
   const haystack = `${name} ${issue}`;
   if (/homebridge|govee|tp-link|tplink|eufy|accessor|plugin/i.test(haystack)) return 'automation';
   if (/tailscale|adguard|dns|wan|network/i.test(haystack)) return 'network';
-  if (/homebase|openclaw|gateway|macos|launchagent|node|system/i.test(haystack)) return 'mac-mini';
+  if (/homebase|hermes|gateway|macos|launchagent|node|system/i.test(haystack)) return 'mac-mini';
   return 'mac-mini';
 }
 
@@ -2713,7 +2763,7 @@ function domainServiceLogs(serviceLogs) {
       serviceLogs,
       'mac-mini',
       'Mac mini service logs',
-      'Homebase and OpenClaw service logs are quiet.'
+      'Homebase and Hermes service logs are quiet.'
     ),
     networkLogs: serviceLogRollup(
       serviceLogs,
@@ -2830,7 +2880,7 @@ async function serviceLogOverview(ctx) {
     logFileSummary('Eufy plugin', [
       '/Users/teddyclaw/.homebridge/eufysecurity/eufy-security.log'
     ], { warnAt: 3, badAt: 10 }),
-    logFileSummary('OpenClaw', openClawLogCandidates(), { warnAt: 10, badAt: 40, issuePattern: /\b(ERROR|WARN|FATAL|uncaught|exception|EADDRINUSE|ETIMEDOUT|ECONNRESET|handshake timeout|invalid config)\b/ }),
+    logFileSummary('Hermes', hermesLogCandidates(), { warnAt: 10, badAt: 40, issuePattern: /\b(ERROR|WARN|FATAL|uncaught|exception|EADDRINUSE|ETIMEDOUT|ECONNRESET|handshake timeout|invalid config)\b/ }),
     logFileSummary('AdGuard', [
       '/var/log/AdGuardHome.stderr.log',
       '/var/log/AdGuardHome.stdout.log'
@@ -3490,27 +3540,27 @@ async function homebridgeLogHealth() {
   }
 }
 
-async function openClawReadyAge() {
+async function hermesReadyAge() {
   try {
-    const latest = await freshestFile(openClawLogCandidates());
-    if (!latest) return { age: 'unknown', detail: 'Could not read OpenClaw log.' };
+    const latest = await freshestFile(hermesLogCandidates());
+    if (!latest) return { age: 'unknown', detail: 'Could not read Hermes log.' };
     const log = await fs.readFile(latest.filePath, 'utf8');
     const ready = log
       .split('\n')
-      .filter(line => line.includes('[gateway] ready') || line.includes('Gateway Health') || line.includes('CODEx_BOOT_OK'))
+      .filter(line => line.includes('Gateway running with') || line.includes('Gateway housekeeping started'))
       .pop();
     if (!ready) return { age: 'unknown', detail: 'No recent ready signal found.' };
     const stamp = logLineDate(ready);
     return { age: formatAgeFromDate(stamp), detail: `Last ready signal was ${formatAgeFromDate(stamp)}.` };
   } catch (_) {
-    return { age: 'unknown', detail: 'Could not read OpenClaw log.' };
+    return { age: 'unknown', detail: 'Could not read Hermes log.' };
   }
 }
 
 async function buildInsights(services, systemVitals, intelligence) {
-  const [plugins, openclawReady] = await Promise.all([
+  const [plugins, hermesReady] = await Promise.all([
     homebridgePlugins(),
-    openClawReadyAge()
+    hermesReadyAge()
   ]);
 
   const blockers = Object.values(services).filter(service => service.state === 'bad').length;
@@ -3544,11 +3594,11 @@ async function buildInsights(services, systemVitals, intelligence) {
         detail: `${intelligence.homebridge.accessories.detail} ${plugins.detail}`
       },
       {
-        title: 'OpenClaw',
-        value: openclawReady.age,
+        title: 'Hermes',
+        value: hermesReady.age,
         label: 'ready',
-        state: services.openclaw.state,
-        detail: openclawReady.detail
+        state: services.hermes.state,
+        detail: hermesReady.detail
       },
       {
         title: 'TeddyCam',
@@ -3569,7 +3619,7 @@ async function buildInsights(services, systemVitals, intelligence) {
 }
 
 async function buildIntelligence(ctx) {
-  const [adguard, accessories, doorLocks, logHealth, homebridgeVersion, funnel, rawWanQuality, serviceLogs, softwareUpdates, macUpdates, systemLogs] = await Promise.all([
+  const [adguard, accessories, doorLocks, logHealth, homebridgeVersion, funnel, rawWanQuality, serviceLogs, softwareUpdates, macUpdates, systemLogs, androidDesk] = await Promise.all([
     adGuardStats(),
     homebridgeAccessorySummary(),
     homebridgeDoorLockStatus(ctx),
@@ -3580,7 +3630,8 @@ async function buildIntelligence(ctx) {
     serviceLogOverview(ctx),
     checkSoftwareUpdates(ctx),
     checkMacUpdates(ctx),
-    checkSystemLogs(ctx)
+    checkSystemLogs(ctx),
+    checkAndroidDesk(ctx)
   ]);
   const wanHistory = updateWanHistory(ctx, rawWanQuality);
   const wanQuality = wanHistory ? { ...rawWanQuality, wanHistory } : rawWanQuality;
@@ -3603,6 +3654,7 @@ async function buildIntelligence(ctx) {
     softwareUpdates,
     macUpdates,
     systemLogs,
+    androidDesk,
     weirdThings: []
   };
 }
@@ -3863,7 +3915,7 @@ function translatePrimaryAction(needs) {
   if (/external|public|funnel|access/.test(first)) return 'Start with public access.';
   if (/internet|wan|dns|network/.test(first)) return 'Start with internet.';
   if (/homebridge|automation|accessor|service logs|homebridge log/.test(first)) return 'Start with automations.';
-  if (/openclaw/.test(first)) return 'Start with OpenClaw.';
+  if (/hermes/.test(first)) return 'Start with Hermes.';
   if (/mac restart|watchdog|panic/.test(first)) return 'Start with the Mac mini restart.';
   if (/macos|mac os/.test(first)) return 'Start with macOS update.';
   if (/system logs/.test(first)) return 'Start with system logs.';
@@ -3876,7 +3928,7 @@ function zoneKeyForReviewItem(item) {
   if (/external|public|funnel|access/.test(text)) return 'outside-access';
   if (/internet|wan|dns|tailscale|network/.test(text)) return 'network';
   if (/homebridge|automation|accessor|homebridge log/.test(text)) return 'smart-home';
-  if (/mac restart|watchdog|panic|openclaw|macos|mac os|system logs|cpu|memory|disk|updates|app versions|service logs|teddycam|private camera/.test(text)) return 'mac-mini';
+  if (/mac restart|watchdog|panic|hermes|macos|mac os|system logs|cpu|memory|disk|updates|app versions|service logs|teddycam|private camera/.test(text)) return 'mac-mini';
   return null;
 }
 
@@ -4040,12 +4092,12 @@ function incidentCandidates(services, intelligence, systemVitals) {
       { evidence: ['Homebridge logs', 'Service logs'] }
     ),
     incidentCandidate(
-      'openclaw-bridge',
+      'hermes-bridge',
       'Teddy bridge needs attention',
       'mac-mini',
-      services.openclaw,
-      'Check OpenClaw first.',
-      { evidence: ['OpenClaw'] }
+      services.hermes,
+      'Check Hermes first.',
+      { evidence: ['Hermes'] }
     ),
     incidentCandidate(
       'mac-mini-service-logs',
@@ -4302,7 +4354,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
     actionSignal(intelligence.automationLogs)
   ]);
   const macMiniState = worstState([
-    services.openclaw,
+    services.hermes,
     reviewVital(health.cpu),
     reviewVital(health.memory),
     reviewVital(health.disk),
@@ -4313,7 +4365,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
   const networkSignals = [services.internet, intelligence.wanQuality, services.adguard, services.tailscale, intelligence.networkLogs];
   const smartHomeSignals = [services.homebridge, intelligence.automationLogs, homebridge.logHealth, homebridge.accessories];
   const macMiniSignals = [
-    services.openclaw,
+    services.hermes,
     health.cpu,
     health.memory,
     health.disk,
@@ -4362,9 +4414,9 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
       detail: macIncident
         ? macIncidentDetail(intelligence.systemLogs, systemVitals)
         : macMiniState === 'ok'
-        ? 'OpenClaw, macOS, and service checks are responding.'
+        ? 'Hermes, macOS, and service checks are responding.'
         : firstReviewDetail(macMiniSignals, 'Mac mini checks need review.'),
-      evidence: ['OpenClaw', 'macOS', 'System logs', 'Service logs']
+      evidence: ['Hermes', 'macOS', 'System logs', 'Service logs']
     }
   ];
   zones.sort((a, b) => {
@@ -4596,7 +4648,7 @@ function activeDecisionSignal(services, intelligence, systemVitals, reviewItems 
     ['Tailscale', services.tailscale, 'Check Tailscale first.', 25],
     ['DNS', services.adguard, 'Check DNS first.', 30],
     ['Homebridge', services.homebridge, 'Check Homebridge first.', 40],
-    ['OpenClaw', services.openclaw, 'Check OpenClaw first.', 50],
+    ['Hermes', services.hermes, 'Check Hermes first.', 50],
     ['Automation logs', intelligence.automationLogs, 'Check automations first.', 60],
     ['Mac mini service logs', intelligence.macMiniLogs, 'Check Mac mini service logs first.', 65],
     ['macOS', intelligence.macUpdates, 'Review macOS update.', 66],
@@ -4661,12 +4713,12 @@ function eventsFromServices(services) {
 }
 
 async function buildHealthPayload(ctx) {
-  const [adguard, homebridge, tailscale, internet, openclaw, teddycam, backups, systemVitals, intelligence, homeStatsData] = await Promise.all([
+  const [adguard, homebridge, tailscale, internet, hermes, teddycam, backups, systemVitals, intelligence, homeStatsData] = await Promise.all([
     checkAdGuard(),
     checkHomebridge(),
     checkTailscale(),
     checkInternet(),
-    checkOpenClaw(),
+    checkHermes(),
     checkTeddyCam(),
     checkBackups(),
     vitals(ctx),
@@ -4674,7 +4726,7 @@ async function buildHealthPayload(ctx) {
     homeStats(ctx)
   ]);
 
-  const services = { adguard, homebridge, tailscale, internet, openclaw, teddycam, backups };
+  const services = { adguard, homebridge, tailscale, internet, hermes, teddycam, backups };
   intelligence.teddyCam = teddycam;
   const score = scoreServices(services, intelligence, systemVitals);
   const timeline = updateTimeline(ctx, services, intelligence, score);
@@ -4762,7 +4814,7 @@ function teddyHouseApi(ctx = {}) {
               homebridge: ok('Fast health probe.', 'fast', 'Port'),
               tailscale: ok('Fast health probe.', 'fast', 'Tailscale'),
               internet: ok('Fast health probe.', 'fast', 'WAN'),
-              openclaw: ok('Fast health probe.', 'fast', 'Gateway'),
+              hermes: ok('Fast health probe.', 'fast', 'Gateway'),
               teddycam: ok('Fast health probe.', 'fast', 'Private camera')
             }
           };
@@ -4810,6 +4862,8 @@ teddyHouseApi._internals = {
   fetchAdGuardStats,
   normalizeMacUpdateSignal,
   teddyCamSignalFrom,
+  androidDeskSignalFrom,
+  checkAndroidDesk,
   checkTeddyCam
 };
 

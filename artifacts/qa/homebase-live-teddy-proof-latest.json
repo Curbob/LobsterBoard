@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "capturedAt": "2026-06-14T14:54:14.009Z",
+  "capturedAt": "2026-07-25T23:46:37.474Z",
   "publicUrl": "https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/",
   "localProbeUrl": "http://127.0.0.1:18085/pages/teddy-house/",
   "agentMode": "enabled",
   "status": "complete",
   "source": "teddy",
-  "firstAction": "Check public access first.",
-  "answer": "- Readiness 78/100. First action: Check public access first.\n- House state is **review**, score **78**: the main issue is recurring public route drift.\n\n- Check **public access first**: ports **443, 8443, and 10000** are exposed. The key question is whether **443 -> local 8081** and **8443 BlueBubbles Funnel** should still be public.\n\n- Network needs watching: AdGuard has **298 notable recent log lines**, even though DNS, WAN, Tailscale, Homebridge, and OpenClaw are responding.\n\n- Mac mini looks steady: CPU peak **28.15**, current boot stable for **9 days**, WAN is **19.1 ms now**, automations are quiet.\n\n- I would inspect route intent and recent AdGuard log patterns first. Closing routes or changing AdGuard would need explicit approval.",
+  "firstAction": "Nothing needs Dan.",
+  "answer": "- House is steady. Dashboard readiness is 100, with no review items and nothing needing Dan right now.\n- Core paths are healthy: internet, DNS, Tailscale, Hermes, Homebridge, and Mac mini checks are responding.\n- Public access is expected and passworded: Teddy Homebase on 10000 and BlueBubbles on 8443.\n- Logs are quiet across network, automation, Mac mini, and service checks; recent system diagnostics show no panic/thermal/disk issues.\n- Only watch item: TeddyCam is not active / not live-verified. No fix needed unless you want that lane checked later.",
   "fallbackVisible": false,
-  "run": "71b30ac0-f935-4897-98fd-b3c46f454d69"
+  "run": "20260725_164631_027258"
 }

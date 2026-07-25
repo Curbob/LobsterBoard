@@ -11,7 +11,7 @@ Keep the curated pack small and high-signal:
 - `post-outage-dns-down`: Dan should check DNS first when the Mac mini is back but local DNS is still down.
 - `post-outage-funnel-missing`: Dan should check public access first when the Mac mini is back but the Homebase public route is still missing.
 - `post-outage-tailscale-offline`: Dan should check Tailscale first when the Mac mini is back locally but missing from the tailnet.
-- `post-outage-openclaw-bridge-degraded`: Dan should check OpenClaw first when Homebase is up but Ask Teddy is degraded after recovery.
+- `post-outage-hermes-bridge-degraded`: Dan should check Hermes first when Homebase is up but Ask Teddy is degraded after recovery.
 - `post-outage-macos-update-required`: Dan should review macOS maintenance first when a critical update remains after recovery.
 - `post-outage-system-logs-warning`: Dan should review system logs when generic log warnings remain after recovery without panic evidence.
 - `post-outage-resource-pressure`: Dan should check Mac mini load first when CPU or memory remains elevated after recovery.

@@ -19,7 +19,7 @@ The replay pack must prove:
 - post-outage recovery with local DNS still down leads with internet, not reboot noise
 - post-outage recovery with the Homebase public route still missing leads with public access
 - post-outage recovery with the Tailscale node offline leads with internet/Tailscale, not public-route or reboot noise
-- post-outage recovery with the OpenClaw/Teddy bridge degraded leads with Mac mini/OpenClaw, not reboot noise
+- post-outage recovery with the Hermes/Teddy bridge degraded leads with Mac mini/Hermes, not reboot noise
 - post-outage recovery with a critical macOS update leads with macOS maintenance, not restart or generic Mac noise
 - post-outage recovery with generic system-log warnings leads with system logs, not restart/panic copy
 - post-outage recovery with elevated CPU or memory leads with Mac mini load, not restart, service, route, or log noise
@@ -48,7 +48,7 @@ The canonical curated fixture pack is:
 - `post-outage-dns-down`
 - `post-outage-funnel-missing`
 - `post-outage-tailscale-offline`
-- `post-outage-openclaw-bridge-degraded`
+- `post-outage-hermes-bridge-degraded`
 - `post-outage-macos-update-required`
 - `post-outage-system-logs-warning`
 - `post-outage-resource-pressure`
@@ -101,8 +101,8 @@ Incident bundles must include:
 - The post-outage-DNS-down scenario fails if low uptime or recovery context outranks the active local DNS outage.
 - The post-outage-Funnel-missing scenario fails if low uptime or recovery context outranks the missing Homebase public route.
 - The post-outage-Tailscale-offline scenario fails if low uptime, public-route copy, or recovery context outranks the Tailscale outage.
-- The post-outage-OpenClaw-bridge-degraded scenario fails if low uptime, public route copy, Tailscale copy, or recovery context outranks the Teddy bridge issue.
-- The post-outage-macOS-update-required scenario fails if low uptime, restart copy, OpenClaw copy, public route copy, or Tailscale copy outranks the macOS update.
+- The post-outage-Hermes-bridge-degraded scenario fails if low uptime, public route copy, Tailscale copy, or recovery context outranks the Teddy bridge issue.
+- The post-outage-macOS-update-required scenario fails if low uptime, restart copy, Hermes copy, public route copy, or Tailscale copy outranks the macOS update.
 - The post-outage-system-logs-warning scenario fails if low uptime or generic system-log warnings become Mac restart, panic, or watchdog copy without matching incident evidence.
 - The post-outage-resource-pressure scenario fails if CPU or memory pressure is hidden under restart, service, public-route, Tailscale, or system-log copy.
 - The post-outage-AdGuard-stats-unavailable scenario fails if blocked-query stats login state creates a review item, DNS warning, or first-screen AdGuard copy while DNS is healthy.
@@ -116,7 +116,7 @@ Incident bundles must include:
 - The Mac restart with noise scenario fails if Govee, Homebridge UI, or optional app update noise outranks the restart incident on the rendered page.
 - The public access scenario fails if known routes are presented as unknown exposure.
 - The Teddy bridge scenario fails if fallback is hidden or presented as live Teddy.
-- The pack is read-only and does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, credentials, or route settings.
+- The pack is read-only and does not mutate Homebridge, Tailscale, AdGuard, macOS, Hermes, credentials, or route settings.
 
 ## Non-Goals
 

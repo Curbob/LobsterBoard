@@ -41,7 +41,7 @@
     const haystack = `${item.name || ''} ${item.source || ''} ${item.detail || ''}`.toLowerCase();
     if (focus === 'homebridge') return /homebridge|govee|eufy|accessor|automation/.test(haystack);
     if (focus === 'system') return /system|diagnostic|panic|watchdog|kernel|windowserver/.test(haystack);
-    if (focus === 'openclaw') return /openclaw|gateway|homebase/.test(haystack);
+    if (focus === 'hermes' || focus === 'openclaw') return /hermes|openclaw|gateway|homebase/.test(haystack);
     if (focus === 'network') return /network|dns|adguard|tailscale|wan|internet/.test(haystack);
     if (focus === 'tailscale') return /tailscale|funnel|public|route/.test(haystack);
     return haystack.includes(focus);
@@ -50,7 +50,7 @@
   function focusLabel() {
     if (currentFocus === 'homebridge') return 'Homebridge evidence is first.';
     if (currentFocus === 'system') return 'Mac system evidence is first.';
-    if (currentFocus === 'openclaw') return 'OpenClaw evidence is first.';
+    if (currentFocus === 'hermes' || currentFocus === 'openclaw') return 'Hermes evidence is first.';
     if (currentFocus === 'network') return 'Network evidence is first.';
     if (currentFocus === 'tailscale') return 'Tailscale evidence is first.';
     return currentFocus ? 'Matching evidence is first.' : '';

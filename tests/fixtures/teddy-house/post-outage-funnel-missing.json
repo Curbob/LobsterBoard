@@ -5,7 +5,7 @@
     "homebridge": { "state": "ok", "metric": "8581", "detail": "Homebridge responded." },
     "tailscale": { "state": "ok", "metric": "online", "detail": "Tailscale is online." },
     "internet": { "state": "ok", "metric": "ok", "detail": "Internet is responding." },
-    "openclaw": { "state": "ok", "metric": "ok", "detail": "OpenClaw is responding." },
+    "hermes": { "state": "ok", "metric": "ok", "detail": "Hermes is responding." },
     "backups": { "state": "info", "metric": "paused", "detail": "Backups are parked for now." }
   },
   "intelligence": {
@@ -41,7 +41,7 @@
       "items": [
         { "name": "Homebridge", "state": "ok", "issues": 0, "detail": "Homebridge log is quiet." },
         { "name": "Homebase", "state": "ok", "issues": 0, "detail": "Homebase log is quiet." },
-        { "name": "OpenClaw", "state": "ok", "issues": 0, "detail": "OpenClaw log is quiet." },
+        { "name": "Hermes", "state": "ok", "issues": 0, "detail": "Hermes log is quiet." },
         { "name": "Tailscale", "state": "ok", "issues": 0, "detail": "Tailscale status has no health warnings." }
       ]
     },

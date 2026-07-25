@@ -7,7 +7,7 @@
 - [x] The pack includes `post-outage-dns-down`.
 - [x] The pack includes `post-outage-funnel-missing`.
 - [x] The pack includes `post-outage-tailscale-offline`.
-- [x] The pack includes `post-outage-openclaw-bridge-degraded`.
+- [x] The pack includes `post-outage-hermes-bridge-degraded`.
 - [x] The pack includes `post-outage-macos-update-required`.
 - [x] The pack includes `post-outage-system-logs-warning`.
 - [x] The pack includes `post-outage-resource-pressure`.

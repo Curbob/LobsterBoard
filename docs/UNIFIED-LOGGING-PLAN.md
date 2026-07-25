@@ -26,7 +26,7 @@ Teddy's live read on 2026-05-17:
 
 ## Architecture
 
-1. Collect local evidence from Homebase, Homebridge, Eufy plugin, OpenClaw, AdGuard, and Tailscale.
+1. Collect local evidence from Homebase, Homebridge, Eufy plugin, Hermes, AdGuard, and Tailscale.
 2. Redact emails, tokens, passwords, pairing codes, QR payloads, ANSI noise, and obvious setup-code patterns.
 3. Classify each source as `ok`, `info`, `warn`, or `bad` with service-specific recent windows and thresholds.
 4. Store the latest normalized snapshot at `data/teddy-house/service-logs.json`.
@@ -39,7 +39,7 @@ Teddy's live read on 2026-05-17:
 - Homebase launch logs
 - Homebridge logs
 - Eufy plugin logs, ignored for daily lock confidence
-- OpenClaw gateway and watchdog logs
+- Hermes gateway and watchdog logs
 - AdGuard stdout and stderr logs
 - Tailscale status health
 
@@ -48,7 +48,7 @@ Teddy's live read on 2026-05-17:
 - Add per-source history so Homebase can show real log drift without fake graphs.
 - Add named suppression rules with expiration dates for known noisy devices.
 - Add source-level Ask Teddy actions once the local agent bridge is stable.
-- Add a durable log analyzer runbook under OpenClaw docs if this view becomes an operator workflow.
+- Add a durable log analyzer runbook under Hermes docs if this view becomes an operator workflow.
 
 ## SDLC Guardrails
 

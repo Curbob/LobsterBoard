@@ -3,7 +3,7 @@
 ## Read-Only Safety
 
 - [x] The suite does not restart services.
-- [x] The suite does not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, or credentials.
+- [x] The suite does not mutate Homebridge, Tailscale, AdGuard, macOS, Hermes, or credentials.
 - [x] The suite does not clear Dan's real browser sessions.
 
 ## Story Truth

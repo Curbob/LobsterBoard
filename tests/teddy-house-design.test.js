@@ -101,7 +101,7 @@ function healthyWithOneWarning() {
         { id: 'outside-access', title: 'Public access', state: 'info', value: 'Known', detail: 'Expected public routes are accounted for.', evidence: ['Tailscale Funnel'] },
         { id: 'network', title: 'Internet', state: 'ok', value: 'Normal', detail: 'Internet, DNS, and Tailscale are responding.', evidence: ['Internet', 'DNS', 'Tailscale'] },
         { id: 'smart-home', title: 'Automations', state: 'ok', value: 'Responding', detail: 'Homebridge and accessories are responding.', evidence: ['Homebridge', 'Accessories'] },
-        { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks, updates, and service logs are quiet.', evidence: ['OpenClaw', 'macOS'] }
+        { id: 'mac-mini', title: 'Mac mini', state: 'ok', value: 'Healthy', detail: 'System checks, updates, and service logs are quiet.', evidence: ['Hermes', 'macOS'] }
       ],
       recentChanges: []
     },
@@ -118,7 +118,7 @@ function healthyWithOneWarning() {
       homebridge: { state: 'ok', metric: '8581', check: 'Port', detail: 'Homebridge answered.' },
       tailscale: { state: 'ok', metric: '100.64.0.1', check: 'Tailscale', detail: 'Tailscale online.' },
       internet: { state: 'ok', metric: '20 ms', check: 'WAN', detail: 'WAN is fine.' },
-      openclaw: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' },
+      hermes: { state: 'ok', metric: '18789', check: 'Gateway', detail: 'Gateway is up.' },
       teddycam: { state: 'ok', metric: 'H264 1280x720', check: 'Private camera', detail: 'Private tailnet camera lane is active.' }
     },
     vitals: {

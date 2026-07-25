@@ -5,7 +5,7 @@
     "homebridge": { "state": "ok", "metric": "8581", "detail": "Homebridge responded." },
     "tailscale": { "state": "ok", "metric": "online", "detail": "Tailscale is online." },
     "internet": { "state": "ok", "metric": "ok", "detail": "Internet is responding." },
-    "openclaw": { "state": "warn", "metric": "bridge degraded", "detail": "Teddy bridge needs attention." },
+    "hermes": { "state": "warn", "metric": "bridge degraded", "detail": "Teddy bridge needs attention." },
     "backups": { "state": "info", "metric": "paused", "detail": "Backups are parked for now." }
   },
   "intelligence": {
@@ -30,7 +30,7 @@
       "items": [
         { "name": "Homebridge", "state": "ok", "issues": 0, "detail": "Homebridge log is quiet." },
         { "name": "Homebase", "state": "ok", "issues": 0, "detail": "Homebase log is quiet." },
-        { "name": "OpenClaw", "state": "ok", "issues": 0, "detail": "OpenClaw log is quiet." },
+        { "name": "Hermes", "state": "ok", "issues": 0, "detail": "Hermes log is quiet." },
         { "name": "Tailscale", "state": "ok", "issues": 0, "detail": "Tailscale status has no health warnings." }
       ]
     },
@@ -50,18 +50,18 @@
   "timeline": [],
   "expected": {
     "headline": "Something needs a look.",
-    "summary": "Start with OpenClaw. Everything else is responding.",
-    "primaryAction": "Start with OpenClaw.",
+    "summary": "Start with Hermes. Everything else is responding.",
+    "primaryAction": "Start with Hermes.",
     "zoneOrder": ["mac-mini", "outside-access", "network", "smart-home"],
     "dailySlots": [
-      { "key": "now", "text": "Check OpenClaw first.", "state": "warn", "source": "OpenClaw" },
+      { "key": "now", "text": "Check Hermes first.", "state": "warn", "source": "Hermes" },
       { "key": "watch", "text": "Public access is known and passworded.", "state": "info", "source": "houseState" },
       { "key": "later", "text": "Logs and route exposure are accounted for.", "state": "info", "source": "maintenance" }
     ],
     "firstZone": "mac-mini",
     "firstZoneState": "warn",
-    "firstReview": "OpenClaw: bridge degraded",
-    "nowSource": "OpenClaw",
-    "nowText": "Check OpenClaw first."
+    "firstReview": "Hermes: bridge degraded",
+    "nowSource": "Hermes",
+    "nowText": "Check Hermes first."
   }
 }

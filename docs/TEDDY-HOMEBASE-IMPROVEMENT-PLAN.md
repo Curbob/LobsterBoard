@@ -87,7 +87,7 @@ Implementation:
 3. Build the context payload from the selected incident or zone; do not pass a
    broad system-state payload and rely on the model to ignore irrelevant fields.
 4. Reserve planning and approval language for a requested action that could
-   mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, credentials, or
+   mutate Homebridge, Tailscale, AdGuard, macOS, Hermes, credentials, or
    routes.
 5. Prevent progress text from truncating on narrow screens.
 6. Add fixtures proving unrelated memory is omitted from warning explanations.
@@ -400,7 +400,7 @@ Rules:
 - Preserve the existing health payload schema during extraction.
 - Avoid a large rewrite or framework migration.
 - Move existing tests with each extraction before changing behavior.
-- Keep external Homebridge, Tailscale, AdGuard, OpenClaw, and camera boundaries
+- Keep external Homebridge, Tailscale, AdGuard, Hermes, and camera boundaries
   unchanged.
 
 Coverage approach:

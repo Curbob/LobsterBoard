@@ -4,7 +4,7 @@
 
 Make live Ask Teddy proof explicit, opt-in, and durable.
 
-Default Homebase can answer quickly from local dashboard context. That is useful, but it is not proof that the OpenClaw Teddy bridge answered. Live bridge proof only passes when a captured artifact shows `source: "teddy"` from an enabled Ask run.
+Default Homebase can answer quickly from local dashboard context. That is useful, but it is not proof that the Hermes Teddy bridge answered. Live bridge proof only passes when a captured artifact shows `source: "teddy"` from an enabled Ask run.
 
 ## User Outcome
 

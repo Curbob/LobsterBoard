@@ -14,13 +14,14 @@ This repo is LobsterBoard with Dan's private Teddy Homebase work layered on top.
 - Eufy lock data is currently unreliable and ignored on the daily dashboard unless a better live source replaces it.
 - CPU peaks and other trend-like signals must be backed by persisted local history, not generated display noise.
 - Home Stats should use trusted indoor climate in this order: Ecobee MCP, fresh Homebridge climate sensors, then weather fallback for outside context only.
+- Android desk context hints are quiet secondary evidence, not a house-health authority. Presence, work mode, and spin risk are coarse inferences. Consume only fresh privacy-safe receipts within 10 minutes; stale/incomplete receipts stay hidden and cannot drive first-screen copy, score, review, or zones.
 
 ## Logging Contract
 
 - Main dashboard gets one compact Service logs signal.
 - Grouped evidence lives at `/pages/teddy-house/logs/`.
 - The logs API is `/api/pages/teddy-house/logs`.
-- Sources currently include Homebase, Homebridge, Eufy plugin, OpenClaw, AdGuard, and Tailscale.
+- Sources currently include Homebase, Homebridge, Eufy plugin, Hermes, AdGuard, and Tailscale.
 - Redact emails, tokens, passwords, pairing codes, QR payloads, and setup-code patterns before browser display.
 - Promote only current counted `warn` or `bad` sources into the Review lane.
 - Store the latest normalized snapshot at `data/teddy-house/service-logs.json`.

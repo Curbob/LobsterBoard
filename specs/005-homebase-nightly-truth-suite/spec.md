@@ -20,7 +20,7 @@ Dan should be able to open Homebase on phone, iPad, or Mac and see a calm, ranke
 
 ## Contract
 
-The nightly suite is read-only. It must not mutate Homebridge, Tailscale, AdGuard, macOS, OpenClaw, or app credentials.
+The nightly suite is read-only. It must not mutate Homebridge, Tailscale, AdGuard, macOS, Hermes, or app credentials.
 
 It should run the same trust path Dan uses:
 
@@ -52,7 +52,7 @@ It should run the same trust path Dan uses:
 ## Non-Goals
 
 - No automatic repair actions.
-- No Homebridge, Tailscale, AdGuard, macOS, or OpenClaw mutations.
+- No Homebridge, Tailscale, AdGuard, macOS, or Hermes mutations.
 - No fake trend generation.
 - No trusted door-lock state until a reliable source exists.
 - No public unauthenticated shortcuts for easier QA.

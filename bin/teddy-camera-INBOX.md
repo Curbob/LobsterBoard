@@ -78,7 +78,7 @@ The Tailscale setup uses two layers:
 - `https://openclaw-mac-mini.tail02a3b6.ts.net/ipad-drop` — ipad drop
 - `https://openclaw-mac-mini.tail02a3b6.ts.net/anniversary` — anniversary site
 - `https://openclaw-mac-mini.tail02a3b6.ts.net/san-diego-trail` — san diego trail
-- `https://openclaw-mac-mini.tail02a3b6.ts.net/pages/teddy-house` — teddy house
+- `https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/` — Teddy Homebase
 - `https://openclaw-mac-mini.tail02a3b6.ts.net/api/pages/teddy-house` — teddy house API
 
 **Public Funnel routes** (work from anywhere, no tailnet required, require Funnel enabled in Tailscale admin):
