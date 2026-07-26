@@ -2429,7 +2429,7 @@ async function memoryPressure(usedPct) {
       metric: `${usedPct}%`,
       displayMetric: '--',
       review: false,
-      detail: 'macOS uses idle RAM for cache; no memory-pressure warning was readable.'
+      detail: 'Memory: macOS uses idle RAM for cache; no memory-pressure warning was readable.'
     };
   }
 
@@ -3502,10 +3502,12 @@ async function homebridgeDoorLockStatus(ctx) {
   } catch (err) {
     return {
       state: 'info',
-      value: '--',
-      label: 'unavailable',
-      detail: `Could not read Homebridge lock state: ${err.message}.`,
+      value: 'ignored',
+      label: 'ignored',
+      detail: `Door lock state is unavailable and ignored because the Homebridge source could not be read: ${err.message}.`,
+      source: 'Homebridge cachedAccessories',
       confidence: 'degraded',
+      hidden: true,
       items: []
     };
   }

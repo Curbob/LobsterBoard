@@ -17,6 +17,10 @@ describe('Homebase runtime assets', () => {
 
   it('normalizes the known broken Android URL to the approved Funnel route', () => {
     const script = join(root, 'scripts', 'homebase-android-open.zsh');
+    const source = readFileSync(script, 'utf8');
+    expect(source).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/');
+    expect(source).toContain('https://openclaw-mac-mini.tail02a3b6.ts.net/pages/teddy-house/');
+    if (process.platform !== 'darwin') return;
     const canonical = execFileSync(script, ['--print-url'], { encoding: 'utf8' }).trim();
     const normalized = execFileSync(script, ['--print-url'], {
       encoding: 'utf8',
