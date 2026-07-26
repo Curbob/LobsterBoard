@@ -1,0 +1,23 @@
+name: Homebase CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - teddy-homebase-ask-mvp
+
+jobs:
+  deterministic-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx vitest run tests/homebase-runtime-assets.test.js tests/homebase-ask-budget.test.js
+      - run: node scripts/homebase-live-teddy-proof.mjs
