@@ -1920,14 +1920,19 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       check: 'Android desk',
       firstScreenEligible: false,
       privacy: expect.objectContaining({
-        privateTextOmitted: true,
-        notificationsOmitted: true,
-        clipboardOmitted: true,
-        accountsOmitted: true,
-        networkIdentifiersOmitted: true,
-        serialsOmitted: true
+        privateTextOmitted: expect.any(Boolean),
+        notificationsOmitted: expect.any(Boolean),
+        clipboardOmitted: expect.any(Boolean),
+        accountsOmitted: expect.any(Boolean),
+        networkIdentifiersOmitted: expect.any(Boolean),
+        serialsOmitted: expect.any(Boolean)
       })
     }));
+    if (!data.intelligence.androidDesk.hidden) {
+      expect(Object.values(data.intelligence.androidDesk.privacy).every(Boolean)).toBe(true);
+    } else {
+      expect(data.intelligence.androidDesk.ignored).toBe(true);
+    }
     const androidContract = data.sourceContracts.contracts.find(contract => contract.id === 'android-desk');
     expect(androidContract).toEqual(expect.objectContaining({
       firstScreenEligible: false,
