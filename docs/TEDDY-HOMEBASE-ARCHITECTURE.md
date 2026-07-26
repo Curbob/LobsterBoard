@@ -160,7 +160,12 @@ TEDDY_HOMEBASE_HERMES_BIN=/Users/teddyclaw/.local/bin/hermes
 HERMES_HOME=/Volumes/MacMiniWork/Hermes
 ```
 
-The bridge runs `hermes chat` with source `homebase`, the restricted `session_search` toolset, four maximum tool turns, and the existing Homebase read-only prompt guard. The browser API remains `POST /api/pages/teddy-house/ask`; Hermes failures return the labeled local fallback. Set `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1` only for deliberate local-only recovery.
+The bridge runs `hermes chat` with source `homebase`, ignored global rules, the
+zero-tool `codex-supervised-none` toolset, one turn, and the Homebase read-only
+prompt guard. The browser API remains
+`POST /api/pages/teddy-house/ask`; Hermes failures return the labeled local
+fallback. Set `TEDDY_HOMEBASE_ASK_AGENT=0` and
+`TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1` only for deliberate local-only recovery.
 
 No write action should run from Ask Teddy without explicit approval, dry-run behavior, and tests.
 
@@ -169,7 +174,7 @@ No write action should run from Ask Teddy without explicit approval, dry-run beh
 Required check:
 
 ```bash
-npm run check -- --runInBand
+npm run check
 npm run check:homebase
 ```
 
@@ -223,7 +228,6 @@ Rollback is git-first:
 
 ## Current Hardening Backlog
 
-1. Add CI for `npm run check -- --runInBand` and `npm run check:homebase`.
-2. Add guarded, dry-run-first action hooks for update tasks.
-3. Add new recorded incident bundles whenever Dan catches a genuinely new failure mode.
-4. Keep the daily screen quiet as new evidence sources arrive.
+1. Add guarded, dry-run-first action hooks for update tasks.
+2. Add new recorded incident bundles whenever Dan catches a genuinely new failure mode.
+3. Keep the daily screen quiet as new evidence sources arrive.

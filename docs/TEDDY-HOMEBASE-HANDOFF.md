@@ -7,7 +7,9 @@ Updated: 2026-07-25
 
 - Teddy remains the agent; Hermes now owns his runtime.
 - Homebase service health checks `ai.hermes.gateway`, service-log evidence reads Hermes gateway logs, and the service/source model now uses `hermes`.
-- Production Ask Teddy now runs a restricted Hermes `homebase` session with `session_search` only and preserves the local fallback. The loaded LaunchAgent uses `TEDDY_HOMEBASE_ASK_AGENT=1` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=0`.
+- Production Ask Teddy now runs an isolated Hermes `homebase` session in safe
+  mode with no tools and preserves the local fallback. The loaded LaunchAgent
+  uses `TEDDY_HOMEBASE_ASK_AGENT=1` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=0`.
 - The `openclaw-mac-mini` Tailscale hostname is unchanged; it is network identity, not the agent runtime.
 - Codex token preflight is now vendored under this repo and reads Hermes memory roots, so the development gate no longer executes code from the retired OpenClaw workspace.
 
@@ -18,9 +20,10 @@ Updated: 2026-07-25
 - Physical-device proof on Dan's A15 confirmed the trusted login persisted, Homebase rendered score 100, and the Tailscale Serve/Funnel map stayed unchanged.
 - Fresh release proof: live Hermes Ask returned `source: teddy`; `npm run check:homebase` passed 212 tests, 24 replay stories, six responsive screenshots, and enforced public auth.
 
-## 2026-07-18 Ask And First-Screen Update
+## 2026-07-18 Ask And First-Screen Update (superseded runtime settings)
 
-- Ask Teddy is back on its documented fast local dashboard-context path. The installed LaunchAgent now uses `TEDDY_HOMEBASE_ASK_AGENT=0` and `TEDDY_HOMEBASE_ASK_LOCAL_ONLY=1`; live Hermes/Teddy proof remains opt-in.
+- At that time Ask Teddy used the local-only path. The current production
+  settings are authoritative in the 2026-07-25 section above.
 - The first-screen order is now readiness, `Now / Watch / Later`, then House State and Ask Teddy. Home Stats and Mac mini vitals are supporting context below the action surface.
 - Desktop uses a readable House State and Ask Teddy split; phone and tablet layouts stack without horizontal overflow.
 - Fresh rendered proof: Ask Teddy answered in about 0.36 seconds at 1280x720, and the layout passed direct 1280x720 and 390x844 browser checks.
