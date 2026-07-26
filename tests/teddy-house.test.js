@@ -1179,8 +1179,8 @@ describe('Teddy Homebase health API', () => {
     });
 
     const serialized = JSON.stringify(summary);
-    expect(serialized.length).toBeLessThanOrEqual(5000);
-    expect(summary.memory).toHaveLength(3);
+    expect(serialized.length).toBeLessThanOrEqual(900);
+    expect((summary.memory || []).length).toBeLessThanOrEqual(2);
     expect(summary.review).not.toContain('sixth item');
     expect(serialized).not.toContain('visualEvidence');
     expect(serialized).not.toContain('Timeline 39');
@@ -1575,9 +1575,12 @@ describe('Teddy Homebase health API', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'ask-hermes-stub-'));
     const stubPath = join(tmp, 'hermes-stub.js');
     const argsPath = join(tmp, 'args.json');
+    const logPath = join(tmp, 'agent.log');
     writeFileSync(stubPath, `#!/usr/bin/env node
 const fs = require('fs');
 fs.writeFileSync(process.env.TEDDY_STUB_ARGS_PATH, JSON.stringify(process.argv.slice(2), null, 2));
+fs.appendFileSync(process.env.TEDDY_STUB_LOG_PATH, '2026-07-25 INFO [teddy-test-session] agent.conversation_loop: API call #1: model=gpt-5.5 provider=openai-codex in=900 out=80 total=980 latency=1.2s\\n');
+fs.appendFileSync(process.env.TEDDY_STUB_LOG_PATH, '2026-07-25 INFO [teddy-test-session] agent.conversation_loop: Turn ended: reason=text_response model=gpt-5.5 api_calls=1/2 budget=1/2 tool_turns=0\\n');
 console.log('\\nsession_id: teddy-test-session\\nTeddy bridge live.');
 `);
     chmodSync(stubPath, 0o755);
@@ -1586,7 +1589,10 @@ console.log('\\nsession_id: teddy-test-session\\nTeddy bridge live.');
       env: {
         TEDDY_HOMEBASE_ASK_AGENT: '1',
         TEDDY_HOMEBASE_HERMES_BIN: stubPath,
+        TEDDY_HOMEBASE_HERMES_LOG: logPath,
+        TEDDY_HOMEBASE_ALLOW_FORCE_AGENT: '1',
         TEDDY_STUB_ARGS_PATH: argsPath,
+        TEDDY_STUB_LOG_PATH: logPath,
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '8000'
       }
     });
@@ -1597,6 +1603,7 @@ console.log('\\nsession_id: teddy-test-session\\nTeddy bridge live.');
         body: JSON.stringify({
           action: 'status',
           prompt: 'What matters right now?',
+          forceAgent: true,
           context: {
             score: 100,
             houseState: {
@@ -1625,23 +1632,72 @@ console.log('\\nsession_id: teddy-test-session\\nTeddy bridge live.');
       expect(data.answer).toContain('Teddy bridge live.');
       expect(data.run).toBe('teddy-test-session');
       expect(data.answer).not.toContain('session_id');
+      expect(data.metrics).toEqual(expect.objectContaining({
+        route: 'hermes',
+        model: 'gpt-5.5',
+        inputTokens: 900,
+        outputTokens: 80,
+        totalTokens: 980,
+        modelCalls: 1,
+        toolCalls: 0,
+        withinBudget: true,
+        usageCaptured: true
+      }));
 
       const args = JSON.parse(readFileSync(argsPath, 'utf8'));
       expect(args[0]).toBe('chat');
       expect(args).toContain('--query');
       expect(args).toContain('--quiet');
+      expect(args).toContain('--ignore-rules');
       expect(args).toContain('--source');
       expect(args[args.indexOf('--source') + 1]).toBe('homebase');
       expect(args).toContain('--toolsets');
-      expect(args[args.indexOf('--toolsets') + 1]).toBe('session_search');
+      expect(args[args.indexOf('--toolsets') + 1]).toBe('codex-supervised-none');
       expect(args).toContain('--max-turns');
+      expect(args[args.indexOf('--max-turns') + 1]).toBe('1');
       expect(args).toContain('--pass-session-id');
-      expect(args.join(' ')).toContain('Use available Hermes tools and memory');
+      expect(args.join(' ')).toContain('Use only the supplied Dashboard context');
       expect(args.join(' ')).toContain('Dashboard context');
-      expect(args.join(' ')).toContain('source of truth');
+      expect(args.join(' ')).toContain('only the supplied Dashboard context');
       expect(args.join(' ')).toContain("Dan's house is steady.");
     } finally {
       await bridgeAsk.kill();
+    }
+  });
+
+  it('answers routine status locally even when the Hermes bridge is enabled', async () => {
+    const localStatus = await startServer({
+      env: {
+        TEDDY_HOMEBASE_ASK_AGENT: '1',
+        TEDDY_HOMEBASE_HERMES_BIN: '/private/tmp/homebase-hermes-must-not-run'
+      }
+    });
+    try {
+      const res = await fetch(`${localStatus.baseUrl}/api/pages/teddy-house/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'status',
+          prompt: 'What matters right now?',
+          context: {
+            score: 100,
+            needsDan: [],
+            houseState: { headline: "Dan's house is steady.", tone: 'steady', primaryAction: 'Nothing needs Dan.' }
+          }
+        })
+      });
+      const data = await res.json();
+      expect(data.source).toBe('local');
+      expect(data.run).toBeNull();
+      expect(data.metrics).toEqual(expect.objectContaining({
+        route: 'local',
+        totalTokens: 0,
+        modelCalls: 0,
+        toolCalls: 0,
+        withinBudget: true
+      }));
+    } finally {
+      await localStatus.kill();
     }
   });
 
@@ -1657,6 +1713,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
       env: {
         TEDDY_HOMEBASE_ASK_AGENT: '1',
         TEDDY_HOMEBASE_HERMES_BIN: stubPath,
+        TEDDY_HOMEBASE_ALLOW_FORCE_AGENT: '1',
         TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '8000'
       }
     });
@@ -1667,6 +1724,7 @@ console.log(JSON.stringify({ status: 'ok', result: { payloads: [{ text: 'Check A
         body: JSON.stringify({
           action: 'ask',
           prompt: 'What should I check first?',
+          forceAgent: true,
           context: {
             score: 100,
             needsDan: [],

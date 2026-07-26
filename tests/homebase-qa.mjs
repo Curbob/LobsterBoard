@@ -540,6 +540,7 @@ async function smokeAskFallback() {
   const srv = await startServer({
     env: {
       TEDDY_HOMEBASE_ASK_AGENT: '1',
+      TEDDY_HOMEBASE_ALLOW_FORCE_AGENT: '1',
       TEDDY_HOMEBASE_HERMES_BIN: '/private/tmp/homebase-missing-hermes-bin',
       TEDDY_HOMEBASE_ASK_TIMEOUT_MS: '1000'
     }
@@ -550,6 +551,7 @@ async function smokeAskFallback() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'status',
+        forceAgent: true,
         prompt: 'What matters right now?',
         context: {
           score: 84,

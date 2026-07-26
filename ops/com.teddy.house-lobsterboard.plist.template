@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.teddy.house-lobsterboard</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO_ROOT__/scripts/run-homebase-service.zsh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/TeddyHouse/lobsterboard.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/TeddyHouse/lobsterboard.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PATH</key>
+    <string>__NODE_DIR__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>NODE_BIN</key>
+    <string>__NODE_BIN__</string>
+    <key>HOST</key>
+    <string>127.0.0.1</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+    <key>HERMES_HOME</key>
+    <string>/Volumes/MacMiniWork/Hermes</string>
+    <key>TEDDY_HOMEBASE_HERMES_BIN</key>
+    <string>__HOME__/.local/bin/hermes</string>
+    <key>TEDDY_HOMEBASE_ASK_AGENT</key>
+    <string>1</string>
+    <key>TEDDY_HOMEBASE_ASK_LOCAL_ONLY</key>
+    <string>0</string>
+    <key>TEDDY_HOMEBASE_ASK_TIMEOUT_MS</key>
+    <string>60000</string>
+    <key>TEDDY_HOMEBASE_ASK_CONTEXT_MAX_CHARS</key>
+    <string>900</string>
+    <key>TEDDY_HOMEBASE_ASK_TOKEN_BUDGET</key>
+    <string>2000</string>
+    <key>TEDDY_HOMEBASE_HERMES_MAX_TURNS</key>
+    <string>1</string>
+    <key>TEDDY_HOMEBASE_HERMES_TOOLSETS</key>
+    <string>codex-supervised-none</string>
+    <key>SESSION_TTL_HOURS</key>
+    <string>720</string>
+    <key>TRUSTED_DEVICE_TTL_DAYS</key>
+    <string>365</string>
+    <key>HOMEBASE_DASHBOARD_KEYCHAIN_SERVICE</key>
+    <string>teddy-homebase-dashboard-password</string>
+    <key>HOMEBASE_DASHBOARD_KEYCHAIN_ACCOUNT</key>
+    <string>dashboard</string>
+  </dict>
+</dict>
+</plist>

@@ -42,6 +42,9 @@ function validateLiveTeddyProof(proof, path = proofPath) {
   if (typeof proof?.answer !== 'string' || proof.answer.length < 20) failures.push('answer missing or too short');
   if (!answerMentionsFirstAction(proof?.answer, proof?.firstAction)) failures.push('answer does not mention the first action');
   if (proof?.fallbackVisible === true) failures.push('fallbackVisible must be false for live Teddy proof');
+  if (proof?.metrics?.usageCaptured !== true) failures.push('Hermes token usage was not captured');
+  if (Number(proof?.metrics?.totalTokens) > Number(proof?.metrics?.tokenBudget || 2000)) failures.push('Hermes token budget exceeded');
+  if (Number(proof?.metrics?.toolCalls || 0) > 0) failures.push('status proof unexpectedly used tools');
   if (/\b(Axon|pipeline|quota|booking|Maria|birthday|calendar|email|inbox)\b/i.test(String(proof?.answer || ''))) {
     failures.push('answer escaped Homebase scope');
   }
@@ -115,6 +118,7 @@ async function runLiveTeddyProof() {
     DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || 'Danno',
     TEDDY_HOMEBASE_ASK_AGENT: '1',
     TEDDY_HOMEBASE_ASK_LOCAL_ONLY: '0',
+    TEDDY_HOMEBASE_ALLOW_FORCE_AGENT: '1',
     TEDDY_HOMEBASE_ASK_TIMEOUT_MS: process.env.TEDDY_HOMEBASE_ASK_TIMEOUT_MS || '60000'
   };
   const server = spawn(process.execPath, [join(repoRoot, 'server.cjs')], {
@@ -142,6 +146,7 @@ async function runLiveTeddyProof() {
       body: JSON.stringify({
         action: 'status',
         prompt: 'What matters right now? Use the current Homebase context.',
+        forceAgent: true,
         context: health.json
       })
     });
@@ -157,7 +162,8 @@ async function runLiveTeddyProof() {
       firstAction,
       answer: String(ask.json.answer || ''),
       fallbackVisible: ask.json.source === 'local-fallback',
-      run: ask.json.run || null
+      run: ask.json.run || null,
+      metrics: ask.json.metrics || null
     };
     mkdirSync(dirname(proofPath), { recursive: true });
     writeFileSync(proofPath, `${JSON.stringify(proof, null, 2)}\n`);

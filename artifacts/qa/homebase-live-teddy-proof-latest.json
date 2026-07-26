@@ -1,13 +1,27 @@
 {
   "version": 1,
-  "capturedAt": "2026-07-25T23:46:37.474Z",
+  "capturedAt": "2026-07-26T00:17:06.926Z",
   "publicUrl": "https://openclaw-mac-mini.tail02a3b6.ts.net:10000/pages/teddy-house/",
   "localProbeUrl": "http://127.0.0.1:18085/pages/teddy-house/",
   "agentMode": "enabled",
   "status": "complete",
   "source": "teddy",
   "firstAction": "Nothing needs Dan.",
-  "answer": "- House is steady. Dashboard readiness is 100, with no review items and nothing needing Dan right now.\n- Core paths are healthy: internet, DNS, Tailscale, Hermes, Homebridge, and Mac mini checks are responding.\n- Public access is expected and passworded: Teddy Homebase on 10000 and BlueBubbles on 8443.\n- Logs are quiet across network, automation, Mac mini, and service checks; recent system diagnostics show no panic/thermal/disk issues.\n- Only watch item: TeddyCam is not active / not live-verified. No fix needed unless you want that lane checked later.",
+  "answer": "- First action: no review needed; approval needed: none.\n- House status is steady: “Nothing needs Dan” and dashboard readiness is 100.\n- Services look normal from the supplied signal: accepted public routes are Teddy Homebase on 10000 and BlueBubbles on 8443.\n- TeddyCam is not confirmed live right now: there is only a saved local receipt, not a verified browser lane.\n- What matters right now: no active incident, no review items, and no action is being asked of Dan.",
   "fallbackVisible": false,
-  "run": "20260725_164631_027258"
+  "run": "20260725_171701_aec3a3",
+  "metrics": {
+    "route": "hermes",
+    "model": "gpt-5.5",
+    "inputTokens": 906,
+    "outputTokens": 111,
+    "totalTokens": 1017,
+    "modelCalls": 1,
+    "toolCalls": 0,
+    "latencyMs": 6306,
+    "tokenBudget": 2000,
+    "withinBudget": true,
+    "usageCaptured": true,
+    "fallbackReason": null
+  }
 }

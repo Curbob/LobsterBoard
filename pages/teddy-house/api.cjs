@@ -10,9 +10,12 @@ const TAILSCALE_BIN = process.env.TAILSCALE_BIN || '/usr/local/bin/tailscale';
 const TAILSCALE_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_TAILSCALE_TIMEOUT_MS || 8000);
 const HERMES_BIN = process.env.TEDDY_HOMEBASE_HERMES_BIN || '/Users/teddyclaw/.local/bin/hermes';
 const HERMES_HOME = process.env.TEDDY_HOMEBASE_HERMES_HOME || '/Volumes/MacMiniWork/Hermes';
+const HERMES_LOG_PATH = process.env.TEDDY_HOMEBASE_HERMES_LOG || path.join(HERMES_HOME, 'logs', 'agent.log');
 const TEDDY_ASK_TIMEOUT_MS = Number(process.env.TEDDY_HOMEBASE_ASK_TIMEOUT_MS || 60000);
 const TEDDY_ASK_MAX_PROMPT = 600;
-const TEDDY_ASK_CONTEXT_MAX_CHARS = Number(process.env.TEDDY_HOMEBASE_ASK_CONTEXT_MAX_CHARS || 5000);
+const TEDDY_ASK_CONTEXT_MAX_CHARS = Number(process.env.TEDDY_HOMEBASE_ASK_CONTEXT_MAX_CHARS || 900);
+const TEDDY_ASK_TOKEN_BUDGET = Number(process.env.TEDDY_HOMEBASE_ASK_TOKEN_BUDGET || 2000);
+const ASK_METRICS_LIMIT = 200;
 const TIMELINE_LIMIT = 80;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -383,29 +386,46 @@ function shortText(value, max = 160) {
 }
 
 function fitTeddyContextBudget(context) {
-  if (JSON.stringify(context).length <= TEDDY_ASK_CONTEXT_MAX_CHARS) return context;
-  return {
-    ...context,
-    memory: Array.isArray(context.memory) ? context.memory.slice(0, 1).map(item => ({
-      title: item.title,
-      window: item.window,
-      value: item.value,
-      source: item.source
-    })) : [],
+  const compact = {
+    checkedAt: context.checkedAt,
+    score: context.score,
     houseState: context.houseState ? {
       headline: context.houseState.headline,
       summary: context.houseState.summary,
       tone: context.houseState.tone,
       primaryAction: context.houseState.primaryAction,
+      incident: context.houseState.incident,
       zones: Array.isArray(context.houseState.zones)
-        ? context.houseState.zones.map(zone => ({
-            id: zone.id,
-            title: zone.title,
-            state: zone.state,
-            value: zone.value
-          }))
+        ? context.houseState.zones.filter(zone => zone && zone.state !== 'ok').slice(0, 2)
         : []
-    } : null
+    } : null,
+    dailyDecision: context.dailyDecision ? { now: context.dailyDecision.now } : null,
+    summary: context.summary,
+    review: context.review,
+    selectedEvidence: context.selectedEvidence,
+    memory: Array.isArray(context.memory) ? context.memory.slice(0, 2).map(item => ({
+      title: item.title,
+      window: item.window,
+      value: item.value,
+      source: item.source
+    })) : [],
+    signals: Object.fromEntries(Object.entries(context.signals || {})
+      .filter(([, signal]) => signal && signal.state !== 'ok' && signal.hidden !== true)
+      .slice(0, 3))
+  };
+  if (JSON.stringify(compact).length <= TEDDY_ASK_CONTEXT_MAX_CHARS) return compact;
+  return {
+    score: compact.score,
+    houseState: compact.houseState ? {
+      headline: shortText(compact.houseState.headline, 100),
+      tone: compact.houseState.tone,
+      primaryAction: shortText(compact.houseState.primaryAction, 120),
+      incident: compact.houseState.incident
+    } : null,
+    dailyDecision: compact.dailyDecision,
+    review: shortText(compact.review, 260),
+    selectedEvidence: compact.selectedEvidence,
+    signals: compact.signals
   };
 }
 
@@ -431,12 +451,60 @@ function extractHermesSessionId(stdout) {
   return match ? match[1] : null;
 }
 
+function shouldAnswerLocally(action, prompt, forceAgent) {
+  if (forceAgent) return false;
+  if (action === 'status' || action === 'summarize') return true;
+  return /^(what matters right now|what should i check first|summari[sz]e(?: current)? status|is (?:the )?house (?:ok|steady)|does anything need (?:my|dan'?s) attention)[?.!]*$/i
+    .test(String(prompt || '').trim());
+}
+
+async function readHermesUsage(sessionId) {
+  if (!sessionId) return null;
+  const result = await tryRunFull('/usr/bin/tail', ['-n', '1200', HERMES_LOG_PATH], 1500);
+  if (!result.ok) return null;
+  const escaped = sessionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const apiPattern = new RegExp(`^.*\\[${escaped}\\].*API call #[^:]+: model=(\\S+).*? in=(\\d+) out=(\\d+) total=(\\d+) latency=([\\d.]+)s`, 'gm');
+  const calls = [...result.stdout.matchAll(apiPattern)];
+  if (calls.length === 0) return null;
+  const turnPattern = new RegExp(`^.*\\[${escaped}\\].*Turn ended:.*tool_turns=(\\d+)`, 'm');
+  const turn = result.stdout.match(turnPattern);
+  return {
+    model: calls.at(-1)[1],
+    inputTokens: calls.reduce((sum, match) => sum + Number(match[2]), 0),
+    outputTokens: calls.reduce((sum, match) => sum + Number(match[3]), 0),
+    totalTokens: calls.reduce((sum, match) => sum + Number(match[4]), 0),
+    modelLatencyMs: Math.round(calls.reduce((sum, match) => sum + Number(match[5]), 0) * 1000),
+    modelCalls: calls.length,
+    toolCalls: turn ? Number(turn[1]) : 0
+  };
+}
+
+function askMetrics({ route, startedAt, usage = null, fallbackReason = null }) {
+  const totalTokens = usage && Number.isFinite(usage.totalTokens) ? usage.totalTokens : route === 'local' ? 0 : null;
+  return {
+    route,
+    model: usage && usage.model || null,
+    inputTokens: usage ? usage.inputTokens : route === 'local' ? 0 : null,
+    outputTokens: usage ? usage.outputTokens : route === 'local' ? 0 : null,
+    totalTokens,
+    modelCalls: usage ? usage.modelCalls : route === 'local' ? 0 : null,
+    toolCalls: usage ? usage.toolCalls : route === 'local' ? 0 : null,
+    latencyMs: Math.max(0, Date.now() - startedAt),
+    tokenBudget: TEDDY_ASK_TOKEN_BUDGET,
+    withinBudget: totalTokens === null ? null : totalTokens <= TEDDY_ASK_TOKEN_BUDGET,
+    usageCaptured: totalTokens !== null,
+    fallbackReason: fallbackReason ? shortText(fallbackReason, 180) : null
+  };
+}
+
 async function askTeddy(ctx, body) {
+  const startedAt = Date.now();
   const prompt = String(body.prompt || '').trim().slice(0, TEDDY_ASK_MAX_PROMPT);
   const action = String(body.action || 'ask');
   const clicked = body.clicked && typeof body.clicked === 'object' ? body.clicked : null;
   const rawContext = await askContext(ctx, body.context);
   const context = summarizeForTeddy(rawContext);
+  const forceAgent = body.forceAgent === true && process.env.TEDDY_HOMEBASE_ALLOW_FORCE_AGENT === '1';
 
   if (!prompt && action !== 'status') {
     return { status: 'error', message: 'Ask Teddy needs a question or status request.' };
@@ -446,16 +514,12 @@ async function askTeddy(ctx, body) {
     ? context.memory.map(item => `${item.title || item.id || 'Memory'}=${item.value || item.window || 'recorded'} (${item.source || 'source unknown'})`).join('; ')
     : 'none';
   const task = [
-    'You are Teddy running through Hermes and answering a Teddy Homebase action request.',
-    'Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.',
-    'Use available Hermes tools and memory only if they help, and keep this turn read-only.',
-    'Treat the supplied Dashboard context as the source of truth.',
-    'Stay inside Teddy Homebase: house status, services, logs, network, Mac mini, and the current dashboard.',
-    'Never mention Axon, work pipeline, family, birthdays, email, calendar, or other personal context unless the user explicitly asks for that topic.',
-    'If the Dashboard context has no review items and the house state is steady, say that clearly and do not invent commands, null fields, logs, or extra checks.',
-    'Answer in 3-5 short bullets. If a fix would require action, say what you would check first and what approval would be needed.',
+    'Answer as Teddy for Teddy Homebase. This is read-only.',
+    'Use only the supplied Dashboard context. Do not invent evidence or use unrelated personal context.',
+    'Stay within house status, services, logs, network, and the Mac mini.',
+    'Answer in 3-5 short bullets; name the first action and any approval needed.',
     action === 'prepare-fix'
-      ? 'For prepare-fix, produce a dry-run plan only: likely cause, read-only checks, exact approval needed, and what must not be touched yet.'
+      ? 'For prepare-fix, produce a dry-run plan only: likely cause, read-only checks, exact approval needed, and what must not be touched yet. Do not change files, services, routes, Tailscale, Homebridge, AdGuard, or Hermes state.'
       : action === 'explain'
         ? 'For explain, answer with one conclusion, one evidence-backed reason, and one next step. Do not include unrelated memory or approval ceremony.'
         : 'For status and questions, diagnose the signal in plain language without proposing any write action as already approved.',
@@ -478,7 +542,9 @@ async function askTeddy(ctx, body) {
     };
   }
 
-  if (process.env.TEDDY_HOMEBASE_ASK_LOCAL_ONLY === '1' || process.env.TEDDY_HOMEBASE_ASK_AGENT !== '1') {
+  if (shouldAnswerLocally(action, prompt, forceAgent)
+    || process.env.TEDDY_HOMEBASE_ASK_LOCAL_ONLY === '1'
+    || process.env.TEDDY_HOMEBASE_ASK_AGENT !== '1') {
     return recordAsk(ctx, {
       action,
       prompt: prompt || 'Summarize current status and review items.',
@@ -486,7 +552,8 @@ async function askTeddy(ctx, body) {
       status: 'complete',
       source: 'local',
       answer: answerFromDashboardContext(action, prompt, clicked, context),
-      run: null
+      run: null,
+      metrics: askMetrics({ route: 'local', startedAt })
     });
   }
 
@@ -497,12 +564,13 @@ async function askTeddy(ctx, body) {
       '--query',
       task,
       '--quiet',
+      '--ignore-rules',
       '--source',
       'homebase',
       '--toolsets',
-      process.env.TEDDY_HOMEBASE_HERMES_TOOLSETS || 'session_search',
+      process.env.TEDDY_HOMEBASE_HERMES_TOOLSETS || 'codex-supervised-none',
       '--max-turns',
-      process.env.TEDDY_HOMEBASE_HERMES_MAX_TURNS || '4',
+      process.env.TEDDY_HOMEBASE_HERMES_MAX_TURNS || '1',
       '--pass-session-id'
     ],
     TEDDY_ASK_TIMEOUT_MS
@@ -511,6 +579,9 @@ async function askTeddy(ctx, body) {
   const agentAnswer = result.ok ? extractAgentText(result.stdout) : '';
   const fallbackAnswer = answerFromDashboardContext(action, prompt, clicked, context, result.stderr || 'Teddy did not answer before the local timeout.');
   const useAgentAnswer = result.ok && agentAnswer && !answerEscapesHomebase(agentAnswer, context);
+  const run = result.ok ? extractHermesSessionId(`${result.stdout}\n${result.stderr}`) : null;
+  const usage = await readHermesUsage(run);
+  const fallbackReason = useAgentAnswer ? null : result.stderr || 'Hermes answer failed the Homebase scope check.';
 
   return recordAsk(ctx, {
     action,
@@ -519,7 +590,8 @@ async function askTeddy(ctx, body) {
     status: 'complete',
     source: useAgentAnswer ? 'teddy' : 'local-fallback',
     answer: withReadinessContext(useAgentAnswer ? agentAnswer : fallbackAnswer, context),
-    run: result.ok ? extractHermesSessionId(`${result.stdout}\n${result.stderr}`) : null
+    run,
+    metrics: askMetrics({ route: 'hermes', startedAt, usage, fallbackReason })
   });
 }
 
@@ -560,6 +632,19 @@ function recordAsk(ctx, record) {
   const history = readDataSafe(ctx, 'ask-history.json', { entries: [] });
   const entries = Array.isArray(history.entries) ? history.entries : [];
   writeDataSafe(ctx, 'ask-history.json', { entries: [fullRecord, ...entries].slice(0, 40) });
+  if (record.metrics) {
+    const metricHistory = readDataSafe(ctx, 'ask-metrics.json', { entries: [] });
+    const metricEntries = Array.isArray(metricHistory.entries) ? metricHistory.entries : [];
+    const metricRecord = {
+      at: fullRecord.at,
+      action: record.action,
+      source: record.source,
+      status: record.status,
+      run: record.run || null,
+      ...record.metrics
+    };
+    writeDataSafe(ctx, 'ask-metrics.json', { entries: [metricRecord, ...metricEntries].slice(0, ASK_METRICS_LIMIT) });
+  }
 
   return fullRecord;
 }
