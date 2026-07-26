@@ -4471,7 +4471,7 @@ function deriveHouseState(services, intelligence, systemVitals, reviewItems, tim
         : publicAccess.detail || 'Public access needs review.',
       evidence: publicAccess.acceptedRoutes && publicAccess.acceptedRoutes.length > 0
         ? publicAccess.acceptedRoutes.map(route => route.name)
-        : ['Tailscale Funnel']
+        : []
     },
     {
       id: 'network',
