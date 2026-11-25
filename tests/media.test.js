@@ -221,7 +221,15 @@ describe('media widgets (browser side)', () => {
 
   it('generated scripts only embed a JSON-escaped id, the service and the style', () => {
     const js = W['media-radarr'].generateJs({ id: 'x");alert(1);("', displayStyle: '"><script>', refreshInterval: '1' });
-    expect(js).toBe('window._lbMedia && window._lbMedia.start("x\\");alert(1);(\\"", "radarr", 5, "visual");');
+    expect(js).toBe('window._lbMedia && window._lbMedia.start("x\\");alert(1);(\\"", "radarr", 5, "visual", "1");');
+  });
+
+  it('offers a poster size on the poster widgets only, and passes only known values', () => {
+    for (const s of ['radarr', 'sonarr', 'seerr', 'plex']) expect(W['media-' + s].properties.posterSize, s).toBe('1');
+    for (const s of ['prowlarr', 'sabnzbd']) expect(W['media-' + s].properties.posterSize, s).toBeUndefined();
+    expect(W['media-plex'].generateJs({ id: 'p', posterSize: '2' })).toContain(', "2");');
+    expect(W['media-plex'].generateJs({ id: 'p', posterSize: '1.5' })).toContain(', "1.5");');
+    expect(W['media-plex'].generateJs({ id: 'p', posterSize: '9"' })).toContain(', "1");');
   });
 
   it('escapes titles and messages from the services', () => {

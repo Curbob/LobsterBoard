@@ -26,17 +26,20 @@
     units: ['F', 'C'],
     maxLength: ['0', '50', '100', '150', '200', '300'],
     displayStyle: ['visual', 'numbers'],
+    posterSize: ['1', '1.5', '2'],
   };
 
   var PROP_LABELS = {
     maxLength: { '0': 'No limit', '50': '50 chars', '100': '100 chars', '150': '150 chars', '200': '200 chars', '300': '300 chars' },
     displayStyle: { visual: 'Visual (rings, bars, posters)', numbers: 'Numbers (stat tiles)' },
+    posterSize: { '1': 'Normal', '1.5': 'Large (1.5×)', '2': 'Extra large (2×)' },
   };
 
   // Friendlier labels for some extra properties (default: "camelCase" -> "Camel Case")
   var PROP_TITLES = {
     serviceUrl: 'Service URL',
     displayStyle: 'Style',
+    posterSize: 'Poster size',
   };
 
   window.initProperties = function initProperties() {

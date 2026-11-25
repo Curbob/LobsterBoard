@@ -134,7 +134,8 @@
 
   M.renderers = M.renderers || {};
 
-  M.start = function(id, service, refreshSec, style) {
+  M.start = function(id, service, refreshSec, style, posterScale) {
+    var scale = posterScale === '2' ? 'lbm-p2' : posterScale === '1.5' ? 'lbm-p15' : '';
     var bodyId = id + '-body';
     if (M.timers[id]) clearInterval(M.timers[id]);
     var ctx = M.ctx[id] = M.ctx[id] || {};
@@ -159,7 +160,7 @@
             return;
           }
           var r = M.renderers[service];
-          show('<div class="lbm lbm-' + (style === 'visual' ? 'visual' : 'numbers') + '">' + r(data, style === 'visual' ? 'visual' : 'numbers', ctx) + '</div>');
+          show('<div class="lbm lbm-' + (style === 'visual' ? 'visual' : 'numbers') + (scale ? ' ' + scale : '') + '">' + r(data, style === 'visual' ? 'visual' : 'numbers', ctx) + '</div>');
         })
         .catch(function() { show('<div class="lbm-msg lbm-err">⚠️ Could not reach LobsterBoard server</div>'); })
         .then(function() { inflight = false; });
@@ -221,6 +222,8 @@
       '.lbm-pill{display:inline-block;font-size:0.7em;padding:1px 6px;border-radius:8px;background:var(--bg-tertiary,#21262d);color:var(--text-secondary,#c9d1d9);vertical-align:middle}',
       '.lbm-play{display:flex;gap:8px;align-items:center;min-width:0}',
       '.lbm-play .lbm-poster{width:40px}',
+      '.lbm-p15 .lbm-poster{width:81px}.lbm-p15 .lbm-play .lbm-poster{width:60px}.lbm-p15 .lbm-poster-c{font-size:0.7em}',
+      '.lbm-p2 .lbm-poster{width:108px}.lbm-p2 .lbm-play .lbm-poster{width:80px}.lbm-p2 .lbm-poster-c{font-size:0.78em}',
       '.lbm-play-i{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}',
       '.lbm-play-t{font-size:0.85em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.lbm-play-s{font-size:0.72em;color:var(--text-muted,#8b949e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -375,20 +378,20 @@
       name: o.name,
       icon: o.emoji,
       category: 'large',
-      description: o.description + ' Set the Service URL and API key, save the layout, then choose Numbers or Visual style.',
+      description: o.description + ' Set the Service URL and API key, save the layout, then choose Numbers or Visual style.' + (o.posters ? ' Poster size enlarges the posters in Visual style.' : ''),
       defaultWidth: 360,
       defaultHeight: 260,
       hasApiKey: true,
       hideApiKeyVar: true,
       placeholders: { serviceUrl: o.placeholder },
-      properties: {
+      properties: Object.assign({
         title: o.name,
         serviceUrl: '',
         apiKey: '',
         apiKeyNote: o.keyNote,
         displayStyle: 'visual',
         refreshInterval: o.refresh
-      },
+      }, o.posters ? { posterSize: '1' } : {}),
       preview: '<div style="padding:8px;font-size:11px;color:#8b949e;">' + o.emoji + ' ' + o.name + ' stats</div>',
       generateHtml: function(props) {
         return '<div class="dash-card" id="widget-' + props.id + '" style="height:100%;">' +
@@ -397,31 +400,36 @@
       },
       generateJs: function(props) {
         var style = props.displayStyle === 'numbers' ? 'numbers' : 'visual';
+        var poster = props.posterSize === '2' ? '2' : props.posterSize === '1.5' ? '1.5' : '1';
         var refresh = Math.max(5, parseInt(props.refreshInterval, 10) || o.refresh);
-        return 'window._lbMedia && window._lbMedia.start(' + JSON.stringify(String(props.id)) + ', ' + JSON.stringify(service) + ', ' + refresh + ', ' + JSON.stringify(style) + ');';
+        return 'window._lbMedia && window._lbMedia.start(' + JSON.stringify(String(props.id)) + ', ' + JSON.stringify(service) + ', ' + refresh + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(poster) + ');';
       }
     };
   }
 
   WIDGETS['media-radarr'] = mediaWidget('radarr', {
+    posters: true,
     name: 'Radarr', emoji: '🎬', refresh: 60, placeholder: 'http://192.168.1.20:7878',
     description: 'Movie library from Radarr: movies on disk, missing, queue, recently added and upcoming releases.',
     keyNote: 'Radarr → Settings → General → API Key'
   });
 
   WIDGETS['media-sonarr'] = mediaWidget('sonarr', {
+    posters: true,
     name: 'Sonarr', emoji: '📺', refresh: 60, placeholder: 'http://192.168.1.20:8989',
     description: 'TV library from Sonarr: series, episodes on disk, missing, queue, recently added and airing soon.',
     keyNote: 'Sonarr → Settings → General → API Key'
   });
 
   WIDGETS['media-seerr'] = mediaWidget('seerr', {
+    posters: true,
     name: 'Seerr', emoji: '🙋', refresh: 60, placeholder: 'http://192.168.1.20:5055',
     description: 'Requests from Seerr (also Overseerr / Jellyseerr): pending, approved, available and the latest requests.',
     keyNote: 'Seerr → Settings → General → API Key'
   });
 
   WIDGETS['media-plex'] = mediaWidget('plex', {
+    posters: true,
     name: 'Plex', emoji: '▶️', refresh: 15, placeholder: 'http://192.168.1.20:32400',
     description: 'Plex Media Server: who is watching what, transcodes, library counts and recently added.',
     keyNote: 'Your X-Plex-Token: in Plex Web, open any item → ⋯ → Get Info → View XML, and copy the X-Plex-Token value from the address bar.'
