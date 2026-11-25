@@ -212,7 +212,7 @@ async function radarr(conn) {
     settle(arrGet(conn, 'queue', { pageSize: 1 }, FAST)),
     settle(arrGet(conn, 'rootfolder', null, MEDIUM)),
     settle(arrGet(conn, 'calendar', { start: isoDay(now), end: isoDay(end) }, MEDIUM)),
-    settle(arrGet(conn, 'history', { pageSize: 20, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeMovie: true }, MEDIUM)),
+    settle(arrGet(conn, 'history', { pageSize: 40, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeMovie: true }, MEDIUM)),
   ]);
   const list = Array.isArray(movies) ? movies : [];
   const nowIso = now.toISOString();
@@ -236,7 +236,7 @@ async function radarr(conn) {
     seen.add(key);
     recent.push({ title: m.title || h.sourceTitle, year: m.year, date: h.date, poster: arrPoster(m),
       quality: ((h.quality || {}).quality || {}).name || null });
-    if (recent.length === 8) break;
+    if (recent.length === 12) break;
   }
 
   return {
@@ -268,7 +268,7 @@ async function sonarr(conn) {
     settle(arrGet(conn, 'queue', { pageSize: 1 }, FAST)),
     settle(arrGet(conn, 'rootfolder', null, MEDIUM)),
     settle(arrGet(conn, 'calendar', { start: isoDay(now), end: isoDay(end), includeSeries: true }, MEDIUM)),
-    settle(arrGet(conn, 'history', { pageSize: 20, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeSeries: true, includeEpisode: true }, MEDIUM)),
+    settle(arrGet(conn, 'history', { pageSize: 40, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeSeries: true, includeEpisode: true }, MEDIUM)),
   ]);
   const list = Array.isArray(series) ? series : [];
   const stat = (s, k) => Number((s.statistics || {})[k]) || 0;
@@ -289,7 +289,7 @@ async function sonarr(conn) {
     const e = h.episode || {};
     recent.push({ title: s.title || h.sourceTitle, episode: h.episode ? episodeCode(e) : '', name: e.title || '',
       date: h.date, poster: arrPoster(s), quality: ((h.quality || {}).quality || {}).name || null });
-    if (recent.length === 8) break;
+    if (recent.length === 12) break;
   }
 
   return {
@@ -414,9 +414,9 @@ async function seerr(conn) {
     settle(seerrGet(conn, 'status', null, SLOW)),
     seerrGet(conn, 'request/count', null, MEDIUM),
     settle(seerrGet(conn, 'issue/count', null, MEDIUM)),
-    settle(seerrGet(conn, 'request', { take: 6, skip: 0, sort: 'added', filter: 'all' }, MEDIUM)),
+    settle(seerrGet(conn, 'request', { take: 10, skip: 0, sort: 'added', filter: 'all' }, MEDIUM)),
   ]);
-  const recent = await Promise.all(((requests && requests.results) || []).slice(0, 6).map(async (r) => {
+  const recent = await Promise.all(((requests && requests.results) || []).slice(0, 10).map(async (r) => {
     const media = r.media || {};
     const kind = r.type || media.mediaType;
     let title = null, poster = null, year = null;
@@ -477,7 +477,7 @@ async function plex(conn) {
     settle(plexGet(conn, '/identity', null, SLOW)),
     plexGet(conn, '/status/sessions', null, FAST),
     settle(plexGet(conn, '/library/sections', null, SLOW)),
-    settle(plexGet(conn, '/library/recentlyAdded', { 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 8 }, MEDIUM)),
+    settle(plexGet(conn, '/library/recentlyAdded', { 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 12 }, MEDIUM)),
   ]);
 
   const dirs = (sections && sections.Directory) || [];
@@ -508,7 +508,7 @@ async function plex(conn) {
     };
   });
 
-  const recent = ((recentlyAdded && recentlyAdded.Metadata) || []).slice(0, 8).map((m) => ({
+  const recent = ((recentlyAdded && recentlyAdded.Metadata) || []).slice(0, 12).map((m) => ({
     title: m.type === 'season' ? (m.parentTitle || m.title) : m.type === 'episode' ? (m.grandparentTitle || m.title) : m.title,
     subtitle: m.type === 'season' ? m.title : m.type === 'episode' ? m.title : (m.year ? String(m.year) : ''),
     type: m.type,

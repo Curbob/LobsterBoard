@@ -158,7 +158,9 @@ function plex(path, q) {
       { type: 'movie', title: 'Dune: Part Two', year: 2024, addedAt: Math.floor(Date.now() / 1000) - 3600, thumb: '/library/metadata/400/thumb/1700000003' },
       { type: 'season', title: 'Season 2', parentTitle: 'Andor', addedAt: Math.floor(Date.now() / 1000) - 7200, thumb: '/library/metadata/501/thumb/1700000004', parentThumb: '/library/metadata/500/thumb/1700000005' },
       { type: 'movie', title: 'Sicario', year: 2015, addedAt: Math.floor(Date.now() / 1000) - 86400, thumb: '/library/metadata/600/thumb/1700000006' },
-    ] });
+      ...['Heat', 'Alien', 'Arrival', 'Prisoners', 'Enemy', 'Gattaca', 'Moon', 'Her', 'Drive'].map((title, i) => (
+        { type: 'movie', title, year: 2000 + i, addedAt: Math.floor(Date.now() / 1000) - 86400 * (2 + i), thumb: '/library/metadata/' + (700 + i) + '/thumb/1700000100' })),
+    ].slice(0, Number(q.get('X-Plex-Container-Size')) || 50) });
   }
   return undefined;
 }

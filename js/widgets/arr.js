@@ -134,6 +134,41 @@
 
   M.renderers = M.renderers || {};
 
+  /**
+   * Fit poster grids to the widget: the grids already wrap to the width (CSS),
+   * so here we hide posters from the end, a row at a time, until nothing spills
+   * past the bottom of the widget body. Always keeps at least one row.
+   */
+  M.fit = function(body) {
+    if (!body) return;
+    var grids = Array.prototype.slice.call(body.querySelectorAll('.lbm-posters'));
+    if (!grids.length) return;
+    var sections = grids.map(function(g) { return g.closest('.lbm-sec') || g; });
+    sections.forEach(function(sec) { sec.style.display = ''; });
+    grids.forEach(function(g) { Array.prototype.forEach.call(g.children, function(c) { c.style.display = ''; }); });
+    var visible = function(g) { return Array.prototype.filter.call(g.children, function(c) { return c.style.display !== 'none'; }); };
+    var rows = function(items) {
+      var tops = {};
+      items.forEach(function(c) { tops[c.offsetTop] = true; });
+      return Object.keys(tops).length;
+    };
+    for (var guard = 0; guard < 200 && body.scrollHeight > body.clientHeight + 1; guard++) {
+      var target = null;
+      for (var i = grids.length - 1; i >= 0 && !target; i--) {
+        var vis = visible(grids[i]);
+        if (vis.length && rows(vis) > 1) target = vis[vis.length - 1];
+      }
+      if (!target) break;
+      target.style.display = 'none';
+    }
+    // Still spilling with one row left: drop whole poster sections (last first) instead of cutting posters in half
+    for (var j = sections.length - 1; j >= 0 && body.scrollHeight > body.clientHeight + 1; j--) {
+      sections[j].style.display = 'none';
+    }
+  };
+
+  M.observers = M.observers || {};
+
   M.start = function(id, service, refreshSec, style, posterScale) {
     var scale = posterScale === '2' ? 'lbm-p2' : posterScale === '1.5' ? 'lbm-p15' : '';
     var bodyId = id + '-body';
@@ -143,8 +178,20 @@
 
     function show(html) {
       var el = document.getElementById(bodyId);
-      if (el) el.innerHTML = html;
-      return !!el;
+      if (!el) return false;
+      el.innerHTML = html;
+      M.fit(el);
+      // Re-fit when the widget is resized (also while dragging its corner in the editor)
+      if (typeof ResizeObserver !== 'undefined') {
+        var o = M.observers[id];
+        if (!o || o.el !== el) {
+          if (o) o.ro.disconnect();
+          var ro = new ResizeObserver(function() { M.fit(el); });
+          ro.observe(el);
+          M.observers[id] = { el: el, ro: ro };
+        }
+      }
+      return true;
     }
 
     function tick() {
@@ -199,8 +246,9 @@
       '.lbm-legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:0.75em;color:var(--text-secondary,#c9d1d9)}',
       '.lbm-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}',
       '.lbm-spark{height:34px}.lbm-spark svg{width:100%;height:100%;display:block}',
-      '.lbm-posters{display:flex;gap:6px;overflow:hidden;flex:none}',
-      '.lbm-poster{position:relative;width:54px;flex:none;aspect-ratio:2/3;border-radius:4px;overflow:hidden;background:var(--bg-tertiary,#21262d)}',
+      // Posters wrap to the widget width; --lbm-pw is the smallest a poster may get (set by Poster size)
+      '.lbm-posters{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--lbm-pw,54px),1fr));gap:6px;flex:none}',
+      '.lbm-poster{position:relative;min-width:0;aspect-ratio:2/3;border-radius:4px;overflow:hidden;background:var(--bg-tertiary,#21262d)}',
       '.lbm-poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}',
       '.lbm-poster-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.4em;color:var(--text-muted,#8b949e)}',
       '.lbm-poster-c{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.72);color:#fff;font-size:0.62em;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -221,9 +269,9 @@
       '.lbm-big{font-size:1.6em;font-weight:600;line-height:1.1}',
       '.lbm-pill{display:inline-block;font-size:0.7em;padding:1px 6px;border-radius:8px;background:var(--bg-tertiary,#21262d);color:var(--text-secondary,#c9d1d9);vertical-align:middle}',
       '.lbm-play{display:flex;gap:8px;align-items:center;min-width:0}',
-      '.lbm-play .lbm-poster{width:40px}',
-      '.lbm-p15 .lbm-poster{width:81px}.lbm-p15 .lbm-play .lbm-poster{width:60px}.lbm-p15 .lbm-poster-c{font-size:0.7em}',
-      '.lbm-p2 .lbm-poster{width:108px}.lbm-p2 .lbm-play .lbm-poster{width:80px}.lbm-p2 .lbm-poster-c{font-size:0.78em}',
+      '.lbm-play .lbm-poster{width:40px;flex:none}',
+      '.lbm-p15{--lbm-pw:81px}.lbm-p15 .lbm-play .lbm-poster{width:60px}.lbm-p15 .lbm-poster-c{font-size:0.7em}',
+      '.lbm-p2{--lbm-pw:108px}.lbm-p2 .lbm-play .lbm-poster{width:80px}.lbm-p2 .lbm-poster-c{font-size:0.78em}',
       '.lbm-play-i{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}',
       '.lbm-play-t{font-size:0.85em;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.lbm-play-s{font-size:0.72em;color:var(--text-muted,#8b949e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
