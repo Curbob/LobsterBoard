@@ -188,6 +188,29 @@
     }
   };
 
+  // Re-render a placed widget's content after a property change in the editor.
+  // Restored from the pre-split builder.js; properties.js calls this on every edit.
+  window.renderWidgetPreview = function renderWidgetPreview(widget) {
+    const template = WIDGETS[widget.type];
+    const el = document.getElementById(widget.id);
+    if (!template || !el) return;
+
+    if (widget.type === 'text-header') {
+      el.dataset.showBorder = widget.properties.showBorder ? 'true' : 'false';
+    }
+    if (widget.type === 'pages-menu') {
+      if (widget.properties.showBorder === false) el.dataset.showBorder = 'false';
+      else delete el.dataset.showBorder;
+    }
+
+    const props = { ...widget.properties, id: widget.id };
+    const renderDiv = el.querySelector('.widget-render');
+    if (renderDiv) {
+      renderDiv.innerHTML = window.processWidgetHtml(template.generateHtml(props), widget.properties.showHeader);
+    }
+    window.applyWidgetFontScale(widget);
+  };
+
   window.selectWidget = function selectWidget(id) {
     // Deselect previous
     document.querySelectorAll('.placed-widget.selected').forEach(el => {
