@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.0] - 2026-11-25
+
+### Added
+- **🎬 Media Server widgets** — six new widgets in their own picker section: **Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd** ([#36](https://github.com/Curbob/LobsterBoard/pull/36))
+  - Each widget has its own **Service URL** and **API key**, so you only add the services you run. Keys stay on the server (`secrets.json`) and never reach the browser.
+  - **Style** option: **Visual** (rings, bars, poster strips, live speed graph, now-playing cards) or **Numbers** (stat tiles)
+  - **Poster size** option (Normal, 1.5×, 2×) for Radarr, Sonarr, Seerr and Plex; posters wrap to fit the widget and re-fit when it is resized
+  - Radarr: movies on disk, missing, queue, size and free space, recently added, upcoming releases, health warnings
+  - Sonarr: series and episodes on disk, missing, queue, recently added (one poster per series), airing soon, health warnings
+  - Seerr (also Overseerr / Jellyseerr): requests by status, open issues, latest requests
+  - Plex: now playing (user, player, progress, transcode), library counts, recently added
+  - Prowlarr: enabled indexers, queries, grabs and failure rate per indexer, health
+  - SABnzbd: live speed graph, queue with progress, time left, today / month totals
+  - New endpoint `GET /api/media/:service?widgetId=` (read-only, behind the dashboard login)
+
 ## [0.8.7] - 2026-11-25
 
 ### Added
