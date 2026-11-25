@@ -99,6 +99,12 @@
     document.getElementById('prop-title').value = widget.properties.title || '';
     document.getElementById('prop-show-header').checked = widget.properties.showHeader !== false;
 
+    // "Show" toggles the widget's header bar. Hide it for widgets that have none
+    // (Header/Text, lines, RSS ticker), where it would do nothing.
+    var hasHeaderBar = /class="dash-card-head"/.test(template.generateHtml(Object.assign({}, widget.properties, { id: widget.id })));
+    document.getElementById('prop-show-header').style.display = hasHeaderBar ? '' : 'none';
+    document.getElementById('prop-show-header-label').style.display = hasHeaderBar ? '' : 'none';
+
     updatePropertyInputs();
 
     // Hide all optional groups first
