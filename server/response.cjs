@@ -1,5 +1,25 @@
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    // cdnjs: html2canvas is loaded on demand for template export screenshots
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https: http:",
+    "connect-src 'self' https: http: ws: wss:",
+    // iframe-embed and media widgets load user-chosen external URLs
+    "frame-src 'self' https: http:",
+    "media-src 'self' https: http: data: blob:",
+    "frame-ancestors 'self'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-XSS-Protection': '1; mode=block',
+};
+
 function sendResponse(res, statusCode, contentType, data, extraHeaders = {}) {
-  res.writeHead(statusCode, { 'Content-Type': contentType, ...extraHeaders });
+  res.writeHead(statusCode, { ...SECURITY_HEADERS, 'Content-Type': contentType, ...extraHeaders });
   res.end(data);
 }
 
@@ -81,4 +101,5 @@ module.exports = {
   sendJson,
   sendError,
   parseIcal,
+  SECURITY_HEADERS,
 };
