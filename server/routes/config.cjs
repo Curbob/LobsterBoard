@@ -2,7 +2,7 @@ const fs = require('fs');
 const { sendJson, sendError } = require('../response.cjs');
 const { CONFIG_FILE } = require('../config.cjs');
 const { maskConfig, extractSecrets } = require('../secrets.cjs');
-const { validateConfigSchema, sanitizeConfig } = require('../validation.cjs');
+const { validateConfigSchema } = require('../validation.cjs');
 
 function handle(req, res, pathname) {
   if (req.method === 'OPTIONS' && pathname === '/config') {
@@ -27,7 +27,7 @@ function handle(req, res, pathname) {
       }
       try {
         const config = JSON.parse(data);
-        sendJson(res, 200, sanitizeConfig(maskConfig(config)));
+        sendJson(res, 200, maskConfig(config));
       } catch (parseErr) {
         sendError(res, `Failed to parse config file: ${parseErr.message}`);
       }

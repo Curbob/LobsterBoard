@@ -179,7 +179,9 @@ function validateTemplateExport(body) {
 }
 
 /**
- * Escape HTML special characters to prevent XSS in server-rendered widget output.
+ * Escape HTML special characters for server-rendered HTML.
+ * Do not apply this to config data served to the editor: the client escapes
+ * on render, and escaping here would compound on every load/save round-trip.
  */
 function escapeHtml(str) {
   if (str == null) return '';
@@ -191,46 +193,6 @@ function escapeHtml(str) {
     .replace(/'/g, '&#x27;');
 }
 
-/**
- * Recursively sanitize all string values in widget properties for safe HTML rendering.
- */
-function sanitizeWidgetProperties(properties) {
-  if (properties == null || typeof properties !== 'object') return properties;
-
-  if (Array.isArray(properties)) {
-    return properties.map(item => {
-      if (typeof item === 'string') return escapeHtml(item);
-      if (typeof item === 'object' && item !== null) return sanitizeWidgetProperties(item);
-      return item;
-    });
-  }
-
-  const sanitized = {};
-  for (const [key, value] of Object.entries(properties)) {
-    if (typeof value === 'string') {
-      sanitized[key] = escapeHtml(value);
-    } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeWidgetProperties(value);
-    } else {
-      sanitized[key] = value;
-    }
-  }
-  return sanitized;
-}
-
-/**
- * Sanitize all widgets in a config for safe HTML rendering on GET /config.
- */
-function sanitizeConfig(config) {
-  if (!config || !config.widgets) return config;
-  const sanitized = { ...config };
-  sanitized.widgets = config.widgets.map(w => {
-    if (!w.properties) return w;
-    return { ...w, properties: sanitizeWidgetProperties(w.properties) };
-  });
-  return sanitized;
-}
-
 module.exports = {
   validateConfigSchema,
   validateWidget,
@@ -240,8 +202,6 @@ module.exports = {
   validateTemplateImport,
   validateTemplateExport,
   escapeHtml,
-  sanitizeWidgetProperties,
-  sanitizeConfig,
   MAX_CANVAS_DIMENSION,
   MIN_CANVAS_DIMENSION,
   MAX_WIDGETS,

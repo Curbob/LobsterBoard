@@ -15,8 +15,6 @@ const {
   validateTemplateImport,
   validateTemplateExport,
   escapeHtml,
-  sanitizeWidgetProperties,
-  sanitizeConfig,
 } = await import('./server/validation.cjs');
 
 describe('validateConfigSchema', () => {
@@ -183,47 +181,6 @@ describe('escapeHtml', () => {
   });
 });
 
-describe('sanitizeWidgetProperties', () => {
-  it('escapes string values in properties', () => {
-    const result = sanitizeWidgetProperties({ title: '<b>Bold</b>', count: 5 });
-    expect(result.title).toBe('&lt;b&gt;Bold&lt;/b&gt;');
-    expect(result.count).toBe(5);
-  });
-
-  it('handles nested objects', () => {
-    const result = sanitizeWidgetProperties({
-      links: [{ name: '<script>', url: 'https://example.com' }],
-    });
-    expect(result.links[0].name).toBe('&lt;script&gt;');
-    expect(result.links[0].url).toBe('https://example.com');
-  });
-
-  it('handles null/undefined', () => {
-    expect(sanitizeWidgetProperties(null)).toBe(null);
-    expect(sanitizeWidgetProperties(undefined)).toBe(undefined);
-  });
-});
-
-describe('sanitizeConfig', () => {
-  it('sanitizes all widget properties in config', () => {
-    const config = {
-      canvas: { width: 1920, height: 1080 },
-      widgets: [
-        { id: 'w-1', type: 'text', properties: { title: '<img src=x onerror=alert(1)>' } },
-      ],
-    };
-    const result = sanitizeConfig(config);
-    expect(result.widgets[0].properties.title).toBe('&lt;img src=x onerror=alert(1)&gt;');
-    expect(result.canvas).toEqual(config.canvas);
-  });
-
-  it('passes through widgets without properties', () => {
-    const config = { widgets: [{ id: 'w-1', type: 'test' }] };
-    const result = sanitizeConfig(config);
-    expect(result.widgets[0]).toEqual(config.widgets[0]);
-  });
-});
-
 // Integration tests
 let srv;
 
@@ -271,21 +228,28 @@ describe('POST /config validation (integration)', () => {
   });
 });
 
-describe('GET /config sanitization (integration)', () => {
-  it('returns HTML-escaped widget properties', async () => {
-    // Save config with XSS attempt
-    await postJson(srv.baseUrl, '/config', {
+describe('GET /config round-trip (integration)', () => {
+  it('returns property values unchanged so load/save does not corrupt them', async () => {
+    const original = {
       canvas: { width: 1920, height: 1080 },
+      fontScale: 1,
       widgets: [
-        { id: 'w-xss', type: 'text-header', x: 0, y: 0, width: 200, height: 100, properties: { title: '<script>alert(1)</script>' } },
+        { id: 'w-rt', type: 'text-header', x: 0, y: 0, width: 200, height: 100,
+          properties: { title: 'Tom & Jerry <3 "quotes"', feedUrl: 'https://example.com/?a=1&b=2' } },
       ],
-    });
+    };
+    await postJson(srv.baseUrl, '/config', original);
 
-    const res = await fetch(`${srv.baseUrl}/config`);
-    const data = await res.json();
-    const widget = data.widgets.find(w => w.id === 'w-xss');
-    expect(widget.properties.title).not.toContain('<script>');
-    expect(widget.properties.title).toContain('&lt;script&gt;');
+    // Simulate the editor: load, then save what it loaded, twice
+    for (let i = 0; i < 2; i++) {
+      const loaded = await (await fetch(`${srv.baseUrl}/config`)).json();
+      const res = await postJson(srv.baseUrl, '/config', loaded);
+      expect(res.status).toBe(200);
+    }
+
+    const data = await (await fetch(`${srv.baseUrl}/config`)).json();
+    const widget = data.widgets.find(w => w.id === 'w-rt');
+    expect(widget.properties).toEqual(original.widgets[0].properties);
   });
 });
 
@@ -294,6 +258,13 @@ describe('Security headers (integration)', () => {
     const res = await fetch(`${srv.baseUrl}/`);
     expect(res.headers.get('content-security-policy')).toBeTruthy();
     expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
+  });
+
+  it('allows external iframes, media, and the cdnjs html2canvas script', async () => {
+    const csp = (await fetch(`${srv.baseUrl}/`)).headers.get('content-security-policy');
+    expect(csp).toMatch(/frame-src [^;]*https:/);
+    expect(csp).toMatch(/media-src [^;]*https:/);
+    expect(csp).toMatch(/script-src [^;]*https:\/\/cdnjs\.cloudflare\.com/);
   });
 
   it('includes X-Content-Type-Options', async () => {
