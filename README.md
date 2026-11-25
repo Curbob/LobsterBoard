@@ -188,6 +188,20 @@ Track your AI coding subscriptions in real-time. Inspired by [OpenUsage](https:/
 | Stock Ticker | Live stock prices (requires API key) |
 | Crypto Price | Cryptocurrency tracker |
 
+### 🎬 Media Server
+Each widget has its own **Service URL** and **API key**, so add only the ones you run. Keys stay on the LobsterBoard server (`secrets.json`) and are never sent to the browser. Pick **Style → Visual** (rings, bars, posters, speed graph) or **Numbers** (stat tiles). Save the layout once after entering the URL and key.
+
+| Widget | Description |
+|--------|-------------|
+| Radarr | Movies on disk, missing, queue, library size, recently added, upcoming releases, health warnings |
+| Sonarr | Series, episodes on disk, missing, queue, recently imported episodes, airing soon, health warnings |
+| Seerr | Request counts by status, open issues, latest requests with requester (works with Overseerr / Jellyseerr) |
+| Plex | Who is watching what (progress, player, transcode), library counts, recently added |
+| Prowlarr | Enabled indexers, queries, grabs, failure rates per indexer, health |
+| SABnzbd | Download speed graph, queue with progress, time left, today / month totals |
+
+Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General → API Key*; SABnzbd: *Config → General → API Key*; Plex: your `X-Plex-Token`.
+
 ### 🏠 Smart Home
 | Widget | Description |
 |--------|-------------|
@@ -324,6 +338,7 @@ pm2 startup
 | `/api/calendar?url=` | GET | Proxy iCal feed |
 | `/api/rss?url=` | GET | Proxy RSS/Atom feed |
 | `/api/lb-release` | GET | LobsterBoard version check |
+| `/api/media/:service?widgetId=` | GET | Media server widget data (radarr, sonarr, seerr, plex, prowlarr, sabnzbd) |
 
 ## File Structure
 

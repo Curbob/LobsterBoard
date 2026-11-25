@@ -25,10 +25,18 @@
     period: ['today', 'week', 'month', 'year'],
     units: ['F', 'C'],
     maxLength: ['0', '50', '100', '150', '200', '300'],
+    displayStyle: ['visual', 'numbers'],
   };
 
   var PROP_LABELS = {
     maxLength: { '0': 'No limit', '50': '50 chars', '100': '100 chars', '150': '150 chars', '200': '200 chars', '300': '300 chars' },
+    displayStyle: { visual: 'Visual (rings, bars, posters)', numbers: 'Numbers (stat tiles)' },
+  };
+
+  // Friendlier labels for some extra properties (default: "camelCase" -> "Camel Case")
+  var PROP_TITLES = {
+    serviceUrl: 'Service URL',
+    displayStyle: 'Style',
   };
 
   window.initProperties = function initProperties() {
@@ -383,7 +391,7 @@
       group.className = 'prop-group';
 
       var label = document.createElement('label');
-      label.textContent = key.replace(/([A-Z])/g, ' $1').replace(/^./, function(s) { return s.toUpperCase(); });
+      label.textContent = PROP_TITLES[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, function(s) { return s.toUpperCase(); });
 
       var input;
 
@@ -417,6 +425,7 @@
         input = document.createElement('input');
         input.type = 'text';
         input.value = currentVal;
+        if (template.placeholders && template.placeholders[key]) input.placeholder = template.placeholders[key];
       } else {
         continue;
       }
