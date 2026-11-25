@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.1] - 2026-11-25
+
+### Added
+- **Week progress / pace** — see whether you're ahead of or behind pace for your weekly AI limits ([#38](https://github.com/Curbob/LobsterBoard/pull/38))
+  - **Claude Usage** page and widget: a Week Progress meter showing how far through the 7-day window you are against how much of the weekly limit is used, with a pace label (⚡ Ahead of pace / ✅ On track / ⚠️ Slightly behind / 🔴 Behind pace) and the reset date
+  - **Claude Code** and **Codex CLI** widgets: a compact pace line under the Weekly bar
+  - Idea and pace logic from James Tsetsekas's fork
+
+### Fixed
+- **OpenClaw release check** — if `openclaw --version` prints no version, fall back to the installed package instead of showing a false "Update available" ([#38](https://github.com/Curbob/LobsterBoard/pull/38))
+
+### Docs
+- README and website: media server widgets, 60+ widget count, current file structure; removed widgets that are no longer in the picker (Indoor Climate, Camera Feed, Power Usage, Now Playing) ([#38](https://github.com/Curbob/LobsterBoard/pull/38))
+
 ## [0.9.0] - 2026-11-25
 
 ### Added

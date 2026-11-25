@@ -1,5 +1,5 @@
 /*!
- * LobsterBoard v0.9.0
+ * LobsterBoard v0.9.1
  * Dashboard builder with customizable widgets
  * https://github.com/curbob/LobsterBoard
  * @license MIT
@@ -616,7 +616,34 @@ const WIDGETS = {
       function barColor(pct) { return pct >= 80 ? '#f85149' : pct >= 50 ? '#d29922' : '#3fb950'; }
       function timeLeft(iso) { if (!iso) return ''; const ms = new Date(iso) - Date.now(); if (ms <= 0) return 'now'; const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000); return h > 0 ? h+'h '+m+'m' : m+'m'; }
       function usageBar(label, pct, resetIso) { const p = Math.min(100,Math.max(0,pct||0)), c = barColor(p), reset = resetIso ? '<span style="color:#8b949e;font-size:10px;">resets '+timeLeft(resetIso)+'</span>' : ''; return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">'+label+'</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+p.toFixed(0)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div>'+(reset?'<div style="text-align:right;margin-top:2px;">'+reset+'</div>':'')+'</div>'; }
-      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
+      function weekPace(resetIso, used) {
+        // Week progress (idea from James Tsetsekas's fork): how far through the 7-day window we are vs. how much of the weekly limit is used
+        if (!resetIso) return '';
+        var resetMs = new Date(resetIso).getTime();
+        if (isNaN(resetMs)) return '';
+        var weekMs = 7 * 24 * 3600000;
+        var wp = Math.min(100, Math.max(0, (Date.now() - (resetMs - weekMs)) / weekMs * 100));
+        var u = Math.min(100, Math.max(0, used || 0));
+        var diff = wp - u;
+        var status = diff > 15 ? '⚡ Ahead of pace' : diff >= 0 ? '✅ On track' : diff > -10 ? '⚠️ Slightly behind' : '🔴 Behind pace';
+        var sc = diff >= 0 ? '#3fb950' : diff > -10 ? '#d29922' : '#f85149';
+        var rd = new Date(resetMs);
+        var when = rd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + rd.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        return '<div class="lb-week-pace" style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">' +
+            '<span style="font-weight:600;font-size:12px;">📅 Week</span>' +
+            '<span style="font-size:11px;color:#8b949e;">' + wp.toFixed(0) + '% of week · ' + u.toFixed(0) + '% used</span>' +
+          '</div>' +
+          '<div style="position:relative;background:#21262d;border-radius:4px;height:8px;overflow:hidden;">' +
+            '<div style="width:' + wp + '%;height:100%;background:#58a6ff;opacity:.55;border-radius:4px;"></div>' +
+            '<div title="Weekly limit used" style="position:absolute;top:0;bottom:0;left:calc(' + u + '% - 1px);width:2px;background:' + sc + ';"></div>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;margin-top:2px;font-size:10px;">' +
+            '<span class="lb-week-status" style="color:' + sc + ';">' + status + '</span>' +
+            '<span style="color:#8b949e;">resets ' + when + '</span>' +
+          '</div></div>';
+      }
+      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(d.seven_day&&d.seven_day.resets_at) html+=weekPace(d.seven_day.resets_at,d.seven_day.utilization); if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
       update_${props.id.replace(/-/g,'_')}(); setInterval(update_${props.id.replace(/-/g,'_')}, ${(props.refreshInterval||120)*1000});
     `
   },
