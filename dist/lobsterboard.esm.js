@@ -1,5 +1,5 @@
 /*!
- * LobsterBoard v0.8.7
+ * LobsterBoard v0.9.0
  * Dashboard builder with customizable widgets
  * https://github.com/curbob/LobsterBoard
  * @license MIT
