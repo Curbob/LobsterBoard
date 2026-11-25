@@ -33,6 +33,7 @@ Open **http://localhost:8080** → press **Ctrl+E** to enter edit mode → drag 
 
 - **Drag-and-drop editor** — visual layout with 20px snap grid, resize handles, property panel
 - **60+ widgets** — system monitoring, weather, calendars, RSS, smart home, finance, AI/LLM tracking, notes, and more
+- **Media server widgets** — Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd, each in a Visual or Numbers style
 - **Template Gallery** — export, import, and share dashboard layouts with auto-screenshot previews; import as merge or full replace
 - **Custom pages** — extend your dashboard with full custom pages (notes, kanban boards, anything)
 - **Canvas sizes** — preset resolutions (1920×1080, 2560×1440, etc.) or custom sizes
@@ -165,6 +166,7 @@ Track your AI coding subscriptions in real-time. Inspired by [OpenUsage](https:/
 | Widget | Description | Setup |
 |--------|-------------|-------|
 | AI Usage | Combined view of all providers | — |
+| Claude Usage | 5-hour session, 7-day weekly, Opus and Sonnet limits, plus a **week progress** meter that shows whether you're ahead of or behind pace for the week | Run `claude` once |
 | Claude Code | Session, weekly, Opus limits | Run `claude` once |
 | Codex CLI | Session, weekly, code reviews | Run `codex` once |
 | GitHub Copilot | Premium, chat, completions | Run `gh auth login` |
@@ -344,12 +346,14 @@ pm2 startup
 
 ```
 lobsterboard/
-├── server.cjs          # Node.js server
+├── server.cjs          # Node.js server (routing)
+├── server/             # Server modules: config, auth, secrets, validation, stats
+│   └── routes/         # API routes (config, data, media, system, templates, ...)
 ├── app.html            # Dashboard builder
-├── config.json         # Your saved layout
+├── config.json         # Your saved layout (secrets.json holds API keys)
 ├── js/
-│   ├── builder.js      # Editor: drag-drop, zoom, config I/O
-│   ├── widgets.js      # All 50 widget definitions
+│   ├── widgets/        # Widget definitions, one file per category (arr.js = media server)
+│   ├── editor/         # Editor: canvas, drag-drop, properties panel, config I/O
 │   └── templates.js    # Template gallery & export system
 ├── css/
 │   └── builder.css     # Dark theme styles
