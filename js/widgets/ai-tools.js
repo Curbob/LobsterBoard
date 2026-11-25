@@ -230,6 +230,7 @@
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
@@ -301,6 +302,7 @@
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';

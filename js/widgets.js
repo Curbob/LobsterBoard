@@ -15,6 +15,30 @@ function _escHtmlGlobal(str) {
 }
 window._esc = _escHtmlGlobal;
 
+/**
+ * Compact weekly pace line for usage widgets (Claude Code, Codex CLI).
+ * Compares how far through the 7-day window we are with how much of the weekly
+ * limit is used. Week-progress idea from James Tsetsekas's fork.
+ * Returns '' when there is no usable reset time.
+ */
+function _weekPaceLine(resetsAt, used) {
+  if (!resetsAt) return '';
+  const resetMs = new Date(resetsAt).getTime();
+  if (isNaN(resetMs)) return '';
+  const weekMs = 7 * 24 * 3600000;
+  const wp = Math.min(100, Math.max(0, (Date.now() - (resetMs - weekMs)) / weekMs * 100));
+  const u = Math.min(100, Math.max(0, used || 0));
+  const diff = wp - u;
+  const status = diff > 15 ? '⚡ Ahead of pace' : diff >= 0 ? '✅ On track' : diff > -10 ? '⚠️ Slightly behind' : '🔴 Behind pace';
+  const color = diff >= 0 ? '#3fb950' : diff > -10 ? '#d29922' : '#f85149';
+  const rd = new Date(resetMs);
+  const when = rd.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + rd.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return '<div class="lb-week-pace-line" style="display:flex;justify-content:space-between;gap:6px;font-size:10px;margin:-1px 0 4px;white-space:nowrap;overflow:hidden;">' +
+    '<span style="color:' + color + ';overflow:hidden;text-overflow:ellipsis;">' + status + ' · ' + wp.toFixed(0) + '% of week</span>' +
+    '<span style="color:var(--text-muted,#8b949e);">resets ' + when + '</span></div>';
+}
+window._weekPaceLine = _weekPaceLine;
+
 function _isSafeUrl(url) {
   if (!url) return false;
   try {
@@ -1185,6 +1209,7 @@ const WIDGETS = {
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
@@ -1256,6 +1281,7 @@ const WIDGETS = {
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';

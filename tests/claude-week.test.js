@@ -24,27 +24,29 @@ function usage(daysLeft, used) {
 }
 
 function newDom() {
-  const dom = new JSDOM('<!DOCTYPE html><body><div id="t-sub"></div><div id="t-body"></div></body>', { url: 'http://localhost', runScripts: 'dangerously' });
+  const dom = new JSDOM('<!DOCTYPE html><body><div id="t-sub"></div><div id="t-body"></div><div id="t-badge"></div><div id="t-content"></div></body>', { url: 'http://localhost', runScripts: 'dangerously' });
   dom.window.EventSource = class { close() {} };
   dom.window.setInterval = () => 0;
   return dom;
 }
 
 // Run a widget's generated script against fake /usage data and return the rendered body.
-async function render(dom, js, data) {
+async function render(dom, js, data, root = 't-body') {
   dom.window.fetch = async () => ({ json: async () => data });
   dom.window.eval('(async () => {' + js + '})()');
-  for (let i = 0; i < 20 && !dom.window.document.querySelector('#t-body .lb-week-pace'); i++) {
+  const el = () => dom.window.document.getElementById(root);
+  for (let i = 0; i < 30 && /Loading|^\s*$/.test(el().textContent); i++) {
     await new Promise(r => setTimeout(r, 10));
   }
-  return dom.window.document.getElementById('t-body');
+  await new Promise(r => setTimeout(r, 10));
+  return el();
 }
 
 function loaders() {
   return {
     'app (js/widgets/*)': () => {
       const dom = newDom();
-      for (const f of ['js/widgets/shared/icons.js', 'js/widgets/index.js', 'js/widgets/ai-tools.js']) {
+      for (const f of ['js/widgets/shared/helpers.js', 'js/widgets/shared/icons.js', 'js/widgets/index.js', 'js/widgets/ai-tools.js']) {
         dom.window.eval(readFileSync(join(process.cwd(), f), 'utf8'));
       }
       return { dom, W: dom.window.WIDGETS };
@@ -95,6 +97,45 @@ describe('Claude Usage week progress meter', () => {
         expect(body.textContent).toContain('7d Weekly');
       });
     });
+  }
+});
+
+// /api/ai-usage/claude and /api/ai-usage/codex return a generic list of metrics
+function metrics(daysLeft, weeklyUsed, withReset = true) {
+  return {
+    plan: 'Max',
+    metrics: [
+      { label: 'Session (5h)', used: 12, limit: 100, format: 'percent', resetsAt: new Date(Date.now() + 3600000).toISOString() },
+      { label: 'Weekly', used: weeklyUsed, limit: 100, format: 'percent', resetsAt: withReset ? new Date(Date.now() + daysLeft * DAY).toISOString() : null },
+    ],
+  };
+}
+
+describe('Claude Code and Codex CLI weekly pace line', () => {
+  for (const [name, load] of Object.entries(loaders())) {
+    if (name.startsWith('library')) continue; // the npm library build doesn't include these widgets
+    for (const widget of ['claude-code', 'codex-cli']) {
+      it(`${name} ${widget}: one pace line, under the Weekly bar`, async () => {
+        const { dom, W } = await load();
+        const box = await render(dom, W[widget].generateJs({ id: 't', refreshInterval: 300 }), metrics(3.5, 20), 't-content');
+        const lines = box.querySelectorAll('.lb-week-pace-line');
+        expect(lines.length).toBe(1);
+        expect(lines[0].textContent).toContain('Ahead of pace');
+        expect(lines[0].textContent).toContain('50% of week');
+        expect(lines[0].textContent).toContain('resets ');
+        expect(lines[0].previousElementSibling.textContent).toContain('Weekly');
+      });
+
+      it(`${name} ${widget}: behind pace, and nothing without a reset time`, async () => {
+        let { dom, W } = await load();
+        let box = await render(dom, W[widget].generateJs({ id: 't', refreshInterval: 300 }), metrics(3.5, 80), 't-content');
+        expect(box.querySelector('.lb-week-pace-line').textContent).toContain('Behind pace');
+        ({ dom, W } = await load());
+        box = await render(dom, W[widget].generateJs({ id: 't', refreshInterval: 300 }), metrics(3.5, 20, false), 't-content');
+        expect(box.querySelector('.lb-week-pace-line')).toBeNull();
+        expect(box.textContent).toContain('Weekly');
+      });
+    }
   }
 });
 
