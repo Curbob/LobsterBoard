@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LobsterBoard — Self-Hosted Dashboard Builder</title>
-  <meta name="description" content="A self-hosted, drag-and-drop dashboard builder with live system monitoring, dark theme, and 45 widgets. No cloud dependencies.">
+  <meta name="description" content="A self-hosted, drag-and-drop dashboard builder with live system monitoring, dark theme, and 60+ widgets, including Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd. No cloud dependencies.">
   <link rel="icon" type="image/png" href="site-assets/favicon.png">
   <link rel="apple-touch-icon" href="site-assets/apple-touch-icon.png">
   <link rel="stylesheet" href="site-style.css">
@@ -36,7 +36,7 @@
     <div class="container hero-content">
       <img src="site-assets/lobsterboard-logo-hero.png" alt="LobsterBoard Logo" class="hero-logo fade-in">
       <h1 class="fade-in d1">Your Dashboard. Your Server. Your Rules.</h1>
-      <p class="hero-sub fade-in d2">A self-hosted, drag-and-drop dashboard builder with live system monitoring, dark theme, and <strong>45 widgets</strong>. No cloud. No accounts. No nonsense.</p>
+      <p class="hero-sub fade-in d2">A self-hosted, drag-and-drop dashboard builder with live system monitoring, dark theme, and <strong>60+ widgets</strong>. No cloud. No accounts. No nonsense.</p>
       <div class="hero-actions fade-in d3">
         <a href="#quickstart" class="btn btn-primary btn-lg">Get Started</a>
         <a href="https://github.com/curbob/LobsterBoard" target="_blank" class="btn btn-outline btn-lg">View on GitHub</a>
@@ -44,7 +44,7 @@
       <div class="hero-badges fade-in d4">
         <img src="https://img.shields.io/npm/v/lobsterboard?style=flat-square&color=e74c3c&label=npm" alt="npm version">
         <img src="https://img.shields.io/github/license/curbob/LobsterBoard?style=flat-square&color=555" alt="MIT License">
-        <img src="https://img.shields.io/badge/widgets-45-e74c3c?style=flat-square" alt="45 Widgets">
+        <img src="https://img.shields.io/badge/widgets-60%2B-e74c3c?style=flat-square" alt="60+ Widgets">
         <img src="https://img.shields.io/badge/node-%E2%89%A516-333?style=flat-square&logo=node.js" alt="Node 16+">
       </div>
     </div>
@@ -83,8 +83,8 @@
         </div>
         <div class="feature-card">
           <div class="feature-icon">📦</div>
-          <h3>50+ Widgets</h3>
-          <p>System stats, weather, stocks, crypto, calendars, todos, cameras, Docker, AI usage, and much more.</p>
+          <h3>60+ Widgets</h3>
+          <p>System stats, weather, stocks, crypto, calendars, todos, Docker, AI usage, and your media server: Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📑</div>
@@ -160,8 +160,8 @@
   <!-- Widgets -->
   <section id="widgets" class="section">
     <div class="container">
-      <h2 class="section-title">50+ Widgets & Counting</h2>
-      <p class="section-sub">From system monitoring to smart home — there's a widget for that.</p>
+      <h2 class="section-title">60+ Widgets & Counting</h2>
+      <p class="section-sub">From system monitoring to your media server — there's a widget for that.</p>
       <div class="widget-categories">
         <div class="widget-cat">
           <h3>🖥️ System Monitoring</h3>
@@ -176,11 +176,22 @@
         <div class="widget-cat">
           <h3>🤖 AI / LLM Tracking</h3>
           <ul>
-            <li>Claude Usage</li>
+            <li>Claude Usage (with week pace)</li>
             <li>GPT Usage</li>
             <li>Gemini Usage</li>
             <li>Combined AI View</li>
             <li>AI Cost Tracker</li>
+          </ul>
+        </div>
+        <div class="widget-cat">
+          <h3>🎬 Media Server</h3>
+          <ul>
+            <li>Radarr</li>
+            <li>Sonarr</li>
+            <li>Seerr / Overseerr</li>
+            <li>Plex</li>
+            <li>Prowlarr</li>
+            <li>SABnzbd</li>
           </ul>
         </div>
         <div class="widget-cat">
@@ -204,14 +215,13 @@
           </ul>
         </div>
         <div class="widget-cat">
-          <h3>🏠 Smart Home & Media</h3>
+          <h3>📰 Feeds & Info</h3>
           <ul>
-            <li>Indoor Climate</li>
-            <li>Camera Feed</li>
-            <li>Power Usage</li>
             <li>RSS Ticker</li>
-            <li>Now Playing</li>
             <li>Unread Emails</li>
+            <li>Web Search</li>
+            <li>Quote of the Day</li>
+            <li>Pages Menu</li>
           </ul>
         </div>
         <div class="widget-cat">

@@ -32,7 +32,8 @@ Open **http://localhost:8080** → press **Ctrl+E** to enter edit mode → drag 
 ## Features
 
 - **Drag-and-drop editor** — visual layout with 20px snap grid, resize handles, property panel
-- **60+ widgets** — system monitoring, weather, calendars, RSS, smart home, finance, AI/LLM tracking, notes, and more
+- **60+ widgets** — system monitoring, weather, calendars, RSS, finance, AI/LLM tracking, media server, notes, and more
+- **Media server widgets** — Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd, each in a Visual or Numbers style
 - **Template Gallery** — export, import, and share dashboard layouts with auto-screenshot previews; import as merge or full replace
 - **Custom pages** — extend your dashboard with full custom pages (notes, kanban boards, anything)
 - **Canvas sizes** — preset resolutions (1920×1080, 2560×1440, etc.) or custom sizes
@@ -154,7 +155,6 @@ LobsterBoard includes a built-in template system for sharing and reusing dashboa
 |--------|-------------|
 | RSS Ticker | Scrolling feed from any RSS/Atom URL |
 | Calendar | iCal feed display (Google, Apple, Outlook) |
-| Now Playing | Currently playing media |
 | Quote of Day | Random inspirational quotes |
 | Quick Links | Bookmark grid |
 
@@ -165,8 +165,9 @@ Track your AI coding subscriptions in real-time. Inspired by [OpenUsage](https:/
 | Widget | Description | Setup |
 |--------|-------------|-------|
 | AI Usage | Combined view of all providers | — |
-| Claude Code | Session, weekly, Opus limits | Run `claude` once |
-| Codex CLI | Session, weekly, code reviews | Run `codex` once |
+| Claude Usage | 5-hour session, 7-day weekly, Opus and Sonnet limits, plus a **week progress** meter that shows whether you're ahead of or behind pace for the week | Run `claude` once |
+| Claude Code | Session, weekly, Opus limits, with a weekly pace line | Run `claude` once |
+| Codex CLI | Session, weekly, code reviews, with a weekly pace line | Run `codex` once |
 | GitHub Copilot | Premium, chat, completions | Run `gh auth login` |
 | Cursor | Credits, usage breakdown | Just use Cursor IDE |
 | Gemini CLI | All available Gemini CLI quota buckets | Run `gemini` once |
@@ -201,13 +202,6 @@ Each widget has its own **Service URL** and **API key**, so add only the ones yo
 | SABnzbd | Download speed graph, queue with progress, time left, today / month totals |
 
 Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General → API Key*; SABnzbd: *Config → General → API Key*; Plex: your `X-Plex-Token`.
-
-### 🏠 Smart Home
-| Widget | Description |
-|--------|-------------|
-| Indoor Climate | Temperature/humidity sensors |
-| Camera Feed | IP camera stream |
-| Power Usage | Energy monitoring |
 
 ### 🔗 Embeds & Media
 | Widget | Description |
@@ -344,12 +338,14 @@ pm2 startup
 
 ```
 lobsterboard/
-├── server.cjs          # Node.js server
+├── server.cjs          # Node.js server (routing)
+├── server/             # Server modules: config, auth, secrets, validation, stats
+│   └── routes/         # API routes (config, data, media, system, templates, ...)
 ├── app.html            # Dashboard builder
-├── config.json         # Your saved layout
+├── config.json         # Your saved layout (secrets.json holds API keys)
 ├── js/
-│   ├── builder.js      # Editor: drag-drop, zoom, config I/O
-│   ├── widgets.js      # All 50 widget definitions
+│   ├── widgets/        # Widget definitions, one file per category (arr.js = media server)
+│   ├── editor/         # Editor: canvas, drag-drop, properties panel, config I/O
 │   └── templates.js    # Template gallery & export system
 ├── css/
 │   └── builder.css     # Dark theme styles

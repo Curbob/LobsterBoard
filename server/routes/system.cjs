@@ -107,11 +107,12 @@ function handle(req, res, pathname, parsedUrl, ctx) {
       try {
         let currentVersion = 'unknown';
         try {
+          // Prefer `openclaw --version` (accurate after npm link / in-place updates)
           const { execSync } = require('child_process');
-          const cliOutput = execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
-          const vMatch = cliOutput.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
-          currentVersion = vMatch ? vMatch[1] : cliOutput;
-        } catch (_) {
+          currentVersion = parseOpenclawVersion(execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 })) || 'unknown';
+        } catch (_) {}
+        // Fall back to the installed package.json when the CLI is missing or its output isn't a version
+        if (currentVersion === 'unknown') {
           try {
             const nodeDir = path.dirname(path.dirname(process.execPath));
             const candidates = [
@@ -281,6 +282,17 @@ function handle(req, res, pathname, parsedUrl, ctx) {
   return false;
 }
 
+/**
+ * Pull the version out of `openclaw --version` output, e.g. "OpenClaw 2026.3.23-2 (abc123)" -> "2026.3.23-2".
+ * Returns null when the output doesn't contain a version, so callers fall back instead of
+ * comparing a whole line of text against the latest release.
+ */
+function parseOpenclawVersion(output) {
+  const m = String(output || '').match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
+  return m ? m[1] : null;
+}
+
 module.exports = function(context) {
   return { handle: (req, res, pathname, parsedUrl) => handle(req, res, pathname, parsedUrl, context) };
 };
+module.exports.parseOpenclawVersion = parseOpenclawVersion;

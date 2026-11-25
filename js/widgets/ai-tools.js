@@ -230,6 +230,7 @@
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
@@ -301,6 +302,7 @@
               html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
               html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
               html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
+              if (m.label === 'Weekly' && m.resetsAt && window._weekPaceLine) html += window._weekPaceLine(m.resetsAt, pct);
             }
           }
           content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
@@ -778,6 +780,33 @@
           (reset ? '<div style="text-align:right;margin-top:2px;">' + reset + '</div>' : '') +
         '</div>';
       }
+      function weekPace_${props.id.replace(/-/g, '_')}(resetIso, used) {
+        // Week progress (idea from James Tsetsekas's fork): how far through the 7-day window we are vs. how much of the weekly limit is used
+        if (!resetIso) return '';
+        var resetMs = new Date(resetIso).getTime();
+        if (isNaN(resetMs)) return '';
+        var weekMs = 7 * 24 * 3600000;
+        var wp = Math.min(100, Math.max(0, (Date.now() - (resetMs - weekMs)) / weekMs * 100));
+        var u = Math.min(100, Math.max(0, used || 0));
+        var diff = wp - u;
+        var status = diff > 15 ? '⚡ Ahead of pace' : diff >= 0 ? '✅ On track' : diff > -10 ? '⚠️ Slightly behind' : '🔴 Behind pace';
+        var sc = diff >= 0 ? '#3fb950' : diff > -10 ? '#d29922' : '#f85149';
+        var rd = new Date(resetMs);
+        var when = rd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + rd.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        return '<div class="lb-week-pace" style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">' +
+            '<span style="font-weight:600;font-size:calc(12px * var(--font-scale,1));">📅 Week</span>' +
+            '<span style="font-size:calc(11px * var(--font-scale,1));color:#8b949e;">' + wp.toFixed(0) + '% of week · ' + u.toFixed(0) + '% used</span>' +
+          '</div>' +
+          '<div style="position:relative;background:#21262d;border-radius:4px;height:8px;overflow:hidden;">' +
+            '<div style="width:' + wp + '%;height:100%;background:#58a6ff;opacity:.55;border-radius:4px;"></div>' +
+            '<div title="Weekly limit used" style="position:absolute;top:0;bottom:0;left:calc(' + u + '% - 1px);width:2px;background:' + sc + ';"></div>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;margin-top:2px;font-size:calc(10px * var(--font-scale,1));">' +
+            '<span class="lb-week-status" style="color:' + sc + ';">' + status + '</span>' +
+            '<span style="color:#8b949e;">resets ' + when + '</span>' +
+          '</div></div>';
+      }
       async function update_${props.id.replace(/-/g, '_')}() {
         const body = document.getElementById('${props.id}-body');
         const subEl = document.getElementById('${props.id}-sub');
@@ -803,6 +832,7 @@
                 '<span style="font-weight:600;">$' + used + ' / $' + limit + '</span>' +
               '</div></div>';
           }
+          if (d.seven_day && d.seven_day.resets_at) html += weekPace_${props.id.replace(/-/g, '_')}(d.seven_day.resets_at, d.seven_day.utilization);
           if (!html) html = '<div style="color:#8b949e;">No usage data</div>';
           body.innerHTML = html;
         } catch (e) {
