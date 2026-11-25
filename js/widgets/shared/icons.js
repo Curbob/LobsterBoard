@@ -94,6 +94,14 @@ const WIDGET_ICONS = {
   'embed': { emoji: '🌐', phosphor: 'browser' },
   'rss': { emoji: '📡', phosphor: 'rss' },
 
+  // Media server
+  'radarr': { emoji: '🎬', phosphor: 'film-strip' },
+  'sonarr': { emoji: '📺', phosphor: 'television' },
+  'seerr': { emoji: '🙋', phosphor: 'hand-waving' },
+  'plex': { emoji: '▶️', phosphor: 'play-circle' },
+  'prowlarr': { emoji: '🔎', phosphor: 'magnifying-glass' },
+  'sabnzbd': { emoji: '⬇️', phosphor: 'download-simple' },
+
   // Layout
   'header': { emoji: '🔤', phosphor: 'text-aa' },
   'line-h': { emoji: '➖', phosphor: 'minus' },

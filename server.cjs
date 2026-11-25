@@ -37,6 +37,7 @@ const aiUsageRoutes = require('./server/routes/ai-usage.cjs')();
 const systemRoutes = require('./server/routes/system.cjs')(ctx);
 const proxyRoutes = require('./server/routes/proxy.cjs')();
 const financeRoutes = require('./server/routes/finance.cjs')();
+const mediaRoutes = require('./server/routes/media.cjs')();
 const templateRoutes = require('./server/routes/templates.cjs')(ctx);
 const fileRoutes = require('./server/routes/files.cjs')(ctx);
 
@@ -175,6 +176,9 @@ const server = http.createServer(async (req, res) => {
 
   // Finance routes (stocks via Yahoo Finance, crypto via CoinGecko)
   if (financeRoutes.handle(req, res, pathname, parsedUrl)) return;
+
+  // Media server widgets (Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd)
+  if (mediaRoutes.handle(req, res, pathname, parsedUrl)) return;
 
   // Stats routes
   if (req.method === 'GET' && pathname === '/api/stats') {
