@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.7] - 2026-11-25
+
+### Added
+- **Config validation** — `POST /config` now validates the dashboard config (canvas size, font scale, widget ids/types/positions, property sizes) and rejects malformed configs with a clear error; request bodies for todos, notes, server profiles and template import/export are validated too ([#23](https://github.com/Curbob/LobsterBoard/pull/23))
+- **Security headers** — Content-Security-Policy, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` on all responses; external iframes, media and the html2canvas CDN script remain allowed ([#23](https://github.com/Curbob/LobsterBoard/pull/23))
+
+### Fixed
+- **Widget edits not showing in the editor** — restored the `renderWidgetPreview()` function lost in the module split, so title and other property changes update the canvas as you type ([#31](https://github.com/Curbob/LobsterBoard/pull/31))
+- **Remote Disk Usage ring stuck at 0%** — the remote stats normalizer now passes the agent's disk percent through — fixes [#29](https://github.com/Curbob/LobsterBoard/issues/29) ([#32](https://github.com/Curbob/LobsterBoard/pull/32))
+- **"Show" header toggle that did nothing** — hidden for widgets without a header bar (Header/Text, Horizontal/Vertical Line, RSS Ticker) ([#33](https://github.com/Curbob/LobsterBoard/pull/33))
+
+### Security
+- **`systeminformation` 5.30.8 → 5.33.26** — fixes Linux command-injection, path-traversal and prototype-pollution advisories in the stats backend ([#30](https://github.com/Curbob/LobsterBoard/pull/30))
+- **`@rollup/plugin-terser` 0.4 → 1.x** and other dev tooling updates — `npm audit` now reports 0 vulnerabilities ([#30](https://github.com/Curbob/LobsterBoard/pull/30), [#34](https://github.com/Curbob/LobsterBoard/pull/34))
+
+### Technical
+- `package-lock.json` is back in sync with `package.json`, so `npm ci` works and `npm install` no longer rewrites the lockfile ([#30](https://github.com/Curbob/LobsterBoard/pull/30))
+- Building (`npm run build`) now requires Node 20+; running the dashboard is unchanged
+
 ## [0.8.6] - 2026-05-06
 
 ### Fixed
