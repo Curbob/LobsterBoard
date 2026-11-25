@@ -143,6 +143,10 @@ function _normalizeRemoteStats(data) {
       mount: data.disk.mount || '/',
       size: data.disk.total || 0,
       used: data.disk.used || 0,
+      // Disk Usage ring reads `use`; the agent sends `percent` (fall back to used/total)
+      use: data.disk.percent != null
+        ? data.disk.percent
+        : (data.disk.total ? 100 * (data.disk.used || 0) / data.disk.total : 0),
     }] : null,
     network: data.network ? [{
       rx_sec: data.network.rxSec || 0,
