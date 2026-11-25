@@ -70,7 +70,10 @@ describe('media summaries', () => {
     const { body } = await media('sonarr', 'w-sonarr');
     expect(body.ok).toBe(true);
     expect(body.stats).toMatchObject({ series: 3, episodes: 81, episodesOnDisk: 79, missing: 2, queue: 1 });
-    expect(body.recent[0]).toMatchObject({ title: 'Andor', episode: 'S02E12' });
+    // one entry per series: Andor's three new episodes (one imported twice) collapse into one
+    expect(body.recent.map(r => r.title)).toEqual(['Andor', 'Severance']);
+    expect(body.recent[0]).toMatchObject({ title: 'Andor', episode: 'S02E12', episodes: 3 });
+    expect(body.recent[1]).toMatchObject({ title: 'Severance', episode: 'S02E10', episodes: 1 });
     expect(body.upcoming.map(u => u.title + ' ' + u.episode)).toEqual(['The Bear S04E01', 'Severance S03E01']);
   });
 
@@ -230,6 +233,26 @@ describe('media widgets (browser side)', () => {
     expect(W['media-plex'].generateJs({ id: 'p', posterSize: '2' })).toContain(', "2");');
     expect(W['media-plex'].generateJs({ id: 'p', posterSize: '1.5' })).toContain(', "1.5");');
     expect(W['media-plex'].generateJs({ id: 'p', posterSize: '9"' })).toContain(', "1");');
+  });
+
+  it('Sonarr captions a series with several new episodes by count', () => {
+    const html = M.renderers.sonarr({ stats: {}, recent: [{ title: 'Andor', episode: 'S02E12', episodes: 3 }, { title: 'Severance', episode: 'S02E10', episodes: 1 }] }, 'visual', {});
+    expect(html).toContain('>3 episodes<');
+    expect(html).toContain('>S02E10<');
+  });
+
+  it('Seerr shows status under posters when one person makes all requests, names when several do', () => {
+    const one = [{ title: 'A', requestedBy: 'Curbob', status: 'approved', mediaStatus: 'processing' },
+      { title: 'B', requestedBy: 'Curbob', status: 'completed', mediaStatus: 'available' },
+      { title: 'C', requestedBy: 'Curbob', status: 'pending', mediaStatus: 'pending' }];
+    const solo = M.renderers.seerr({ stats: {}, recent: one }, 'visual', {});
+    expect(solo).not.toContain('>Curbob<');
+    expect(solo).toContain('>Processing<');
+    expect(solo).toContain('>Available<');
+    expect(solo).toContain('>Pending<');
+    const many = M.renderers.seerr({ stats: {}, recent: [one[0], { ...one[1], requestedBy: 'Sam' }] }, 'visual', {});
+    expect(many).toContain('>Curbob<');
+    expect(many).toContain('>Sam<');
   });
 
   it('escapes titles and messages from the services', () => {

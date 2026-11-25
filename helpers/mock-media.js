@@ -83,6 +83,9 @@ function sonarr(path) {
     ];
     case '/api/v3/history': return { page: 1, totalRecords: 2, records: [
       { seriesId: 3, date: day(-0.2), quality: { quality: { name: 'WEBDL-2160p' } }, series: SERIES[2], episode: { seasonNumber: 2, episodeNumber: 12, title: 'Jedha, Kyber, Erso' } },
+      { seriesId: 3, date: day(-0.3), quality: { quality: { name: 'WEBDL-2160p' } }, series: SERIES[2], episode: { seasonNumber: 2, episodeNumber: 11, title: 'Who Else Knows?' } },
+      { seriesId: 3, date: day(-0.3), quality: { quality: { name: 'WEBDL-2160p' } }, series: SERIES[2], episode: { seasonNumber: 2, episodeNumber: 11, title: 'Who Else Knows?' } }, // re-import: counted once
+      { seriesId: 3, date: day(-0.4), quality: { quality: { name: 'WEBDL-2160p' } }, series: SERIES[2], episode: { seasonNumber: 2, episodeNumber: 10, title: 'Make It Stop' } },
       { seriesId: 1, date: day(-1.5), quality: { quality: { name: 'WEBDL-1080p' } }, series: SERIES[0], episode: { seasonNumber: 2, episodeNumber: 10, title: 'Cold Harbor' } },
     ] };
   }

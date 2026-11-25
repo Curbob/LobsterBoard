@@ -324,7 +324,7 @@
       '<div>' + M.num(s.missing) + ' missing · ' + M.num(s.queue) + ' in queue</div>' +
       '<div class="lbm-muted">' + M.bytes(s.sizeOnDisk) + (s.freeSpace != null ? ' · ' + M.bytes(s.freeSpace) + ' free' : '') + '</div></div></div>' +
       M.health(d.health) +
-      M.section('Recently added', M.posters(d.recent, function(e) { return e.episode || ''; })) +
+      M.section('Recently added', M.posters(d.recent, function(e) { return e.episodes > 1 ? e.episodes + ' episodes' : (e.episode || ''); })) +
       M.section('Airing soon', (d.upcoming || []).length ? M.list(d.upcoming.slice(0, 3).map(function(e) { return [e.title + ' ' + e.episode, M.when(e.date)]; })) : '');
   };
 
@@ -337,16 +337,27 @@
         ['Requests', M.num(s.total)], s.openIssues != null && ['Open issues', M.num(s.openIssues), s.openIssues ? C.red : null]
       ]) + M.health(d.health);
     }
-    var dot = { pending: C.orange, approved: C.blue, declined: C.red, failed: C.red, completed: C.green };
+    var dot = { Pending: C.orange, Approved: C.blue, Processing: C.purple, 'Partly available': C.green, Available: C.green, Declined: C.red, Failed: C.red, Completed: C.green };
+    // Where the media is (available / processing) says more than the request state once it is approved
+    var label = function(r) {
+      if (r.mediaStatus === 'available') return 'Available';
+      if (r.mediaStatus === 'partial') return 'Partly available';
+      if (r.status === 'approved' && r.mediaStatus === 'processing') return 'Processing';
+      return r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : 'Unknown';
+    };
+    // Name the requester only when more than one person makes requests
+    var people = {};
+    (d.recent || []).forEach(function(r) { if (r.requestedBy) people[r.requestedBy] = true; });
+    var showPeople = Object.keys(people).length > 1;
     return M.stacked([
       ['Pending', s.pending, C.orange], ['Approved', s.approved, C.blue], ['Processing', s.processing, C.purple],
       ['Available', s.available, C.green], ['Declined', s.declined, C.red]
     ]) +
       (s.openIssues ? '<div class="lbm-muted">' + M.num(s.openIssues) + ' open issue' + (s.openIssues === 1 ? '' : 's') + '</div>' : '') +
-      M.section('Latest requests', M.posters(d.recent, function(r) { return r.requestedBy || r.status; })) +
+      M.section('Latest requests', M.posters(d.recent, function(r) { return showPeople ? (r.requestedBy || label(r)) : label(r); })) +
       ((d.recent || []).length ? '<div class="lbm-list">' + d.recent.slice(0, 3).map(function(r) {
-        return '<div class="lbm-row"><span class="lbm-row-t"><span style="color:' + (dot[r.status] || C.muted) + '">●</span> ' + esc(r.title) +
-          '</span><span class="lbm-row-m">' + esc(r.status) + ' · ' + esc(M.when(r.date)) + '</span></div>';
+        return '<div class="lbm-row"><span class="lbm-row-t"><span style="color:' + (dot[label(r)] || C.muted) + '">●</span> ' + esc(r.title) +
+          '</span><span class="lbm-row-m">' + esc(label(r)) + (showPeople && r.requestedBy ? ' · ' + esc(r.requestedBy) : '') + ' · ' + esc(M.when(r.date)) + '</span></div>';
       }).join('') + '</div>' : '');
   };
 

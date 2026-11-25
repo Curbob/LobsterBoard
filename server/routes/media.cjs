@@ -268,7 +268,7 @@ async function sonarr(conn) {
     settle(arrGet(conn, 'queue', { pageSize: 1 }, FAST)),
     settle(arrGet(conn, 'rootfolder', null, MEDIUM)),
     settle(arrGet(conn, 'calendar', { start: isoDay(now), end: isoDay(end), includeSeries: true }, MEDIUM)),
-    settle(arrGet(conn, 'history', { pageSize: 40, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeSeries: true, includeEpisode: true }, MEDIUM)),
+    settle(arrGet(conn, 'history', { pageSize: 100, sortKey: 'date', sortDirection: 'descending', eventType: 3, includeSeries: true, includeEpisode: true }, MEDIUM)),
   ]);
   const list = Array.isArray(series) ? series : [];
   const stat = (s, k) => Number((s.statistics || {})[k]) || 0;
@@ -283,13 +283,24 @@ async function sonarr(conn) {
       return { title: s.title || '', episode: episodeCode(e), name: e.title || '', date: e.airDateUtc, poster: arrPoster(s) };
     });
 
+  // One entry per series (a season landing at once would otherwise fill the strip with one poster)
   const recent = [];
+  const bySeries = new Map();
   for (const h of (history && history.records) || []) {
     const s = h.series || byId.get(h.seriesId) || {};
     const e = h.episode || {};
-    recent.push({ title: s.title || h.sourceTitle, episode: h.episode ? episodeCode(e) : '', name: e.title || '',
-      date: h.date, poster: arrPoster(s), quality: ((h.quality || {}).quality || {}).name || null });
-    if (recent.length === 12) break;
+    const key = h.seriesId || s.title || h.sourceTitle;
+    const code = h.episode ? episodeCode(e) : '';
+    const seen = bySeries.get(key);
+    if (seen) {
+      if (code && !seen.codes.has(code)) { seen.codes.add(code); seen.item.episodes += 1; }
+      continue;
+    }
+    if (recent.length === 12) continue;
+    const item = { title: s.title || h.sourceTitle, episode: code, name: e.title || '', episodes: 1,
+      date: h.date, poster: arrPoster(s), quality: ((h.quality || {}).quality || {}).name || null };
+    bySeries.set(key, { item, codes: new Set(code ? [code] : []) });
+    recent.push(item);
   }
 
   return {
