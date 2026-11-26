@@ -74,7 +74,7 @@ body.snow .snowcap { opacity: .95; }
 .room.ph .phnote { position: absolute; right: 6px; bottom: 4px; font: 500 9px var(--f-mono); color: rgba(43, 38, 32, .6); }
 .room.hall { background: linear-gradient(180deg, #8d7a6a 0%, #7b6a5c 70%, #5e4f44 70%, #6b5a4d 100%); cursor: default; }
 .room.agentwall { background: radial-gradient(ellipse at 50% 30%, #2b2f4a, #12121e 75%); }
-.room.basement { background-size: auto 100%; background-repeat: repeat-x; }
+.room.tile { background-size: auto 100%; background-repeat: repeat-x; background-position: left center; }
 .room.alerting::after { content: ""; position: absolute; inset: 0; background: rgba(255, 60, 50, .28); animation: alarm 1s steps(2) infinite; pointer-events: none; z-index: 7; }
 @keyframes alarm { 50% { opacity: 0; } }
 .plate { position: absolute; left: 5px; top: 5px; z-index: 8; padding: 1px 7px; border-radius: 5px; background: rgba(20, 16, 28, .74);
@@ -187,14 +187,14 @@ const A = p => `assets/${p}`;
    ============================================================ */
 const CATALOG = {
   // media server
-  'plex':      { label: 'Plex',     room: 'cinema',  avatar: true, cast: 'plex',     icon: '▶️', read: () => `${rnd(0, 3)} streams · ${rnd(0, 1)} transcoding` },
-  'radarr':    { label: 'Radarr',   room: 'library', avatar: true, cast: 'radarr',   icon: '🎬', read: () => `${rnd(300, 420)} movies · ${rnd(0, 4)} queued` },
-  'sonarr':    { label: 'Sonarr',   room: 'library', avatar: true, cast: 'sonarr',   icon: '📺', read: () => `${rnd(1300, 1500)} episodes · ${rnd(0, 6)} queued` },
-  'seerr':     { label: 'Seerr',    room: 'desk',    avatar: true, cast: 'seerr',    icon: '🙋', read: () => `${rnd(0, 5)} pending · ${rnd(5, 20)} approved` },
-  'prowlarr':  { label: 'Prowlarr', room: 'radio',   avatar: true, cast: 'prowlarr', icon: '🔎', read: () => `${rnd(3, 6)} indexers · ${rnd(200, 900)} grabs` },
+  'plex':      { label: 'Plex',     room: 'cinema',  avatar: true, cast: 'plex', walk: true,     icon: '▶️', read: () => `${rnd(0, 3)} streams · ${rnd(0, 1)} transcoding` },
+  'radarr':    { label: 'Radarr',   room: 'library', avatar: true, cast: 'radarr', walk: true,   icon: '🎬', read: () => `${rnd(300, 420)} movies · ${rnd(0, 4)} queued` },
+  'sonarr':    { label: 'Sonarr',   room: 'library', avatar: true, cast: 'sonarr', walk: true,   icon: '📺', read: () => `${rnd(1300, 1500)} episodes · ${rnd(0, 6)} queued` },
+  'seerr':     { label: 'Seerr',    room: 'desk',    avatar: true, cast: 'seerr', walk: true,    icon: '🙋', read: () => `${rnd(0, 5)} pending · ${rnd(5, 20)} approved` },
+  'prowlarr':  { label: 'Prowlarr', room: 'radio',   avatar: true, cast: 'prowlarr', walk: true, icon: '🔎', read: () => `${rnd(3, 6)} indexers · ${rnd(200, 900)} grabs` },
   'sabnzbd':   { label: 'SABnzbd',  room: 'dock',    avatar: true, cast: 'sab', frames: true, icon: '⬇️', read: () => `${(Math.random() * 40).toFixed(1)} MB/s · ${rnd(0, 7)} in queue` },
   // system
-  'cpu-memory':        { label: 'CPU',      room: 'servers',  avatar: true, cast: 'servers', gym: false, icon: '💻', read: () => `CPU ${rnd(2, 70)}% · RAM ${rnd(30, 80)}%` },
+  'cpu-memory':        { label: 'CPU',      room: 'servers',  avatar: true, cast: 'servers', walk: true, gym: false, icon: '💻', read: () => `CPU ${rnd(2, 70)}% · RAM ${rnd(30, 80)}%` },
   'disk-usage':        { label: 'Disk',     room: 'servers',  avatar: true, gym: false, icon: '💾', read: () => `${rnd(40, 93)}% used` },
   'uptime-monitor':    { label: 'Uptime',   room: 'servers',  piece: 'board', icon: '📡', text: () => `UP ${rnd(1, 40)}d`, read: () => `up ${rnd(1, 40)}d ${rnd(0, 23)}h` },
   'api-status':        { label: 'API Status', room: 'servers', piece: 'lamps', icon: '🔄', read: () => '4 of 4 endpoints answering' },
@@ -222,15 +222,15 @@ const CATALOG = {
   'stock-ticker': { label: 'Stocks', room: 'trading', avatar: true, gym: false, icon: '📈', read: () => `AAPL ${(180 + Math.random() * 20).toFixed(2)} · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 2).toFixed(1)}%` },
   'crypto-price': { label: 'Crypto', room: 'trading', avatar: true, gym: false, icon: '₿', read: () => `BTC ${rnd(60, 110)}k · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 5).toFixed(1)}%` },
   // content
-  'rss-ticker':   { label: 'RSS',         room: 'newsroom', avatar: true, cast: 'rss', gym: false, icon: '📡', read: () => 'Understanding positional embeddings…' },
-  'now-playing':  { label: 'Now Playing', room: 'music',    avatar: true, gym: false, icon: '🎵', read: () => 'Lo-fi beats · 2:14 / 3:40' },
+  'rss-ticker':   { label: 'RSS',         room: 'newsroom', avatar: true, cast: 'rss', walk: true, gym: false, icon: '📡', read: () => 'Understanding positional embeddings…' },
+  'now-playing':  { label: 'Now Playing', room: 'music',    avatar: true, cast: 'dj', walk: true, gym: false, icon: '🎵', read: () => 'Lo-fi beats · 2:14 / 3:40' },
   'quote-of-day': { label: 'Quote',       room: 'lobby',    piece: 'chalk', icon: '💭', text: () => '“Ship it, then polish it.”', read: () => '“Ship it, then polish it.”' },
   'image-local':  { label: 'Image',        room: 'gallery', piece: 'frame', icon: '🖼️', read: () => 'beach.jpg' },
   'image-random': { label: 'Random Image', room: 'gallery', piece: 'frame', rotate: true, icon: '🎲', read: () => '12 images in rotation' },
   'image-latest': { label: 'Latest Image', room: 'gallery', piece: 'frame', spot: true, icon: '🆕', read: () => 'Newest: IMG_2041.jpg' },
   'image-embed':  { label: 'Web Image',    room: 'gallery', piece: 'frame', icon: '🖼️', read: () => 'from a web URL' },
   // releases
-  'lobsterboard-release': { label: 'LobsterBoard', room: 'headoffice', avatar: true, cast: 'lb', gym: false, alertStays: true, icon: '🦞', read: () => 'v0.9.1 · up to date' },
+  'lobsterboard-release': { label: 'LobsterBoard', room: 'headoffice', avatar: true, cast: 'lb', walk: true, gym: false, alertStays: true, icon: '🦞', read: () => 'v0.9.1 · up to date' },
   'openclaw-release':     { label: 'OpenClaw',     room: 'headoffice', piece: 'plaque', icon: '📦', text: () => 'OpenClaw 2026.3', read: () => '2026.3.23 · up to date' },
   'release':              { label: 'Release',      room: 'headoffice', piece: 'plaque', icon: '📦', text: () => 'Jellyfin 10.9', read: () => '10.9.2 · update available' },
   // the outside of the building
@@ -253,8 +253,8 @@ const ROOMS = {
   desk:       { name: 'Front Desk', group: 'media', art: 'desk', ar: 1.61, props: [{ n: 'counter', x: 50, w: 74, b: 5, z: 'front' }], spots: [{ x: 46, b: .13, h: .56 }] },
   radio:      { name: 'Radio Room', group: 'media', art: 'radio', ar: 2.33, spots: [{ x: 63 }] },
   newsroom:   { name: 'Newsroom', group: 'content', art: 'newsroom', ar: 1.63, props: [{ n: 'newsdesk', x: 50, w: 62, b: 5, z: 'front' }], spots: [{ x: 50, pose: 'sitting', h: .46, b: .15 }] },
-  music:      { name: 'Music Booth', group: 'content', icon: '🎵' },
-  gallery:    { name: 'Gallery', group: 'content', icon: '🖼️', minUnits: 1.6 },
+  music:      { name: 'Music Booth', group: 'content', art: 'music', ar: 2.08, spots: [{ x: 54, flip: true }] },
+  gallery:    { name: 'Gallery', group: 'content', art: 'gallery', ar: 2.61, pieceSpread: 17, frameScale: 1.1 },
   office:     { name: 'Office', group: 'work', icon: '🗂️' },
   mail:       { name: 'Mail Room', group: 'work', icon: '📬' },
   workshop:   { name: 'Workshop', group: 'work', icon: '🔧' },
@@ -348,6 +348,7 @@ function newAvatar(w, c) {
    LAYOUT: pack rooms into floors, choose the room width that makes the building biggest
    ============================================================ */
 const SH = .62, SLAB = .07, ROOF = 1.05, STRETCH = 1.3;
+const TILED = new Set(['basement', 'dorm', 'cafe', 'gym']);   // shared rooms that grow: their art repeats sideways
 let G = null;
 function packFloors(C) {
   const rooms = M.rooms, floors = [];
@@ -381,7 +382,7 @@ function layout() {
     // Fill the floor: placeholder and tiled rooms widen freely, art rooms stretch at most STRETCH,
     // and whatever is left becomes a hallway.
     const units = keys.map(k => M.rooms[k].units), sum = units.reduce((a, b) => a + b, 0);
-    const flexible = keys.map(k => !ROOMS[k].art || k === 'basement');
+    const flexible = keys.map(k => !ROOMS[k].art || TILED.has(k));
     let spare = Math.max(0, C - sum);
     const widths = units.slice();
     const flexSum = units.reduce((a, u, j) => a + (flexible[j] ? u : 0), 0);
@@ -409,7 +410,7 @@ function stationSpot(a) {
   const room = M.rooms[a.c.room], g = G.rooms[a.c.room], i = room.stations.indexOf(a);
   const spots = room.R.spots || [];
   const s = spots[i] || { x: stationSpotPct(room, i) };
-  return { floor: g.floor, x: g.x + g.w * s.x / 100, pose: a.c.cast ? (s.pose || 'working') : 'working', h: s.h, b: s.b, desk: !room.R.art };
+  return { floor: g.floor, x: g.x + g.w * s.x / 100, pose: a.c.cast ? (s.pose || 'working') : 'working', h: s.h, b: s.b, flip: s.flip, desk: !room.R.art };
 }
 function sharedSlots() {
   const S = { idle: [], sleep: [], bags: [], gym: [], alert: [] };
@@ -627,7 +628,7 @@ function roofHtml() {
 
 function roomHtml(key) {
   const room = M.rooms[key], R = room.R, g = G.rooms[key], H = G.H;
-  const cls = ['room', R.art ? '' : R.agentwall ? 'agentwall' : 'ph', key === 'basement' ? 'basement' : ''].join(' ');
+  const cls = ['room', R.art ? '' : R.agentwall ? 'agentwall' : 'ph', TILED.has(key) ? 'tile' : ''].join(' ');
   const bg = R.art ? `background-image:url('${A(`room-${R.art}.webp`)}');` : '';
   let inner = (R.props || []).map(p => `<div class="prop${p.z === 'front' ? ' front' : ''}" style="left:${p.x}%;bottom:${p.b}%;width:${p.w * (R.ar || 2) * H / g.w}%"><img alt="" src="${A(`props/${p.n}.webp`)}"></div>`).join('');
   if (key === 'cafe') inner += room.tableX.map(x => `<div class="prop" style="left:${x}%;bottom:5%;width:${.5 * H / g.w * 100}%"><img alt="" src="${A('props/cafetable.webp')}"></div>`).join('');
@@ -650,7 +651,7 @@ function stationSpotPct(room, i) {
   return 14 + (i + .5) * 72 / room.stations.length;
 }
 function pieceHtml(p, i, room, g) {
-  const H = G.H, n = room.pieces.length, x = room.stations.length ? 20 + (i + .5) * 60 / n : 12 + (i + .5) * 76 / n;
+  const H = G.H, n = room.pieces.length, x = room.R.pieceSpread ? 50 + (i - (n - 1) / 2) * room.R.pieceSpread * 2.61 * H / g.w : room.stations.length ? 20 + (i + .5) * 60 / n : 12 + (i + .5) * 76 / n;
   const top = `top:${Math.max(H * .26, 22)}px;left:${x}%`;
   switch (p.c.piece) {
     case 'board': return `<div class="piece board" style="${top}">${esc(p.c.text())}</div>`;
@@ -661,7 +662,8 @@ function pieceHtml(p, i, room, g) {
     case 'clocks': return `<div class="piece clocks" style="${top}">${['LON', 'TYO', 'NYC'].map((c, k) => `<div><span class="cf" style="width:${H * .17}px;height:${H * .17}px"><i data-tz="${[0, 9, -5][k]}" style="height:42%"></i></span>${c}</div>`).join('')}</div>`;
     case 'frame': {
       const hue = (i * 67 + 20) % 360;
-      return `<div class="piece frame${p.c.spot ? ' spot' : ''}" data-rotate="${p.c.rotate ? 1 : ''}" style="top:${Math.max(H * .26, 22)}px;left:${x}%;width:${H * .36}px;height:${H * .27}px;background:linear-gradient(${hue}deg, hsl(${hue} 60% 60%), hsl(${(hue + 60) % 360} 55% 35%))"></div>`;
+      const fs = room.R.frameScale || 1;
+      return `<div class="piece frame${p.c.spot ? ' spot' : ''}" data-rotate="${p.c.rotate ? 1 : ''}" style="top:${Math.max(H * .3, 22)}px;left:${x}%;width:${H * .36 * fs}px;height:${H * .27 * fs}px;background:linear-gradient(${hue}deg, hsl(${hue} 60% 60%), hsl(${(hue + 60) % 360} 55% 35%))"></div>`;
     }
   }
   return '';
