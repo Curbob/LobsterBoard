@@ -73,7 +73,7 @@ body.snow .snowcap { opacity: .95; }
 .room.ph { background: linear-gradient(180deg, #d9c3a0 0%, #caa97c 70%, #8a6a48 70%, #a07c55 100%); }
 .room.ph::before { content: attr(data-icon); position: absolute; right: 8%; top: 12%; font-size: 2.2em; opacity: .25; }
 .room.ph .phnote { position: absolute; right: 6px; bottom: 4px; font: 500 9px var(--f-mono); color: rgba(43, 38, 32, .6); }
-.room.hall { background: linear-gradient(180deg, #8d7a6a 0%, #7b6a5c 70%, #5e4f44 70%, #6b5a4d 100%); cursor: default; }
+.room.hall { background: #6b5a4d url(assets/room-hall.webp) left center / auto 100% repeat-x; cursor: default; }   /* a hallway that repeats to fill any gap */
 .room.agentwall { background: radial-gradient(ellipse at 50% 30%, #2b2f4a, #12121e 75%); }
 .room.tile { background-size: auto 100%; background-repeat: repeat-x; background-position: left center; }
 .room.alerting::after { content: ""; position: absolute; inset: 0; background: rgba(255, 60, 50, .28); animation: alarm 1s steps(2) infinite; pointer-events: none; z-index: 7; }
