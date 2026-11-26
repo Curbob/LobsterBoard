@@ -101,6 +101,7 @@ const WIDGET_ICONS = {
   'plex': { emoji: '▶️', phosphor: 'play-circle' },
   'prowlarr': { emoji: '🔎', phosphor: 'magnifying-glass' },
   'sabnzbd': { emoji: '⬇️', phosphor: 'download-simple' },
+  'youtarr': { emoji: '📹', phosphor: 'youtube-logo' },
 
   // Layout
   'header': { emoji: '🔤', phosphor: 'text-aa' },

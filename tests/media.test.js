@@ -1,6 +1,6 @@
 /**
  * Media server widgets: /api/media/:service against mock Radarr, Sonarr,
- * Seerr, Plex, Prowlarr and SABnzbd, plus the widget renderers.
+ * Seerr, Plex, Prowlarr, SABnzbd and Youtarr, plus the widget renderers.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -8,9 +8,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { startServer } from '../helpers/server.js';
-import { startMockMedia, MOCK_KEYS } from '../helpers/mock-media.js';
+import { startMockMedia, MOCK_KEYS, YOUTARR_DOWNLOAD_KEY } from '../helpers/mock-media.js';
 
-const SERVICES = ['radarr', 'sonarr', 'seerr', 'plex', 'prowlarr', 'sabnzbd'];
+const SERVICES = ['radarr', 'sonarr', 'seerr', 'plex', 'prowlarr', 'sabnzbd', 'youtarr'];
 const ALL_KEYS = Object.values(MOCK_KEYS);
 
 let mock, srv;
@@ -37,11 +37,17 @@ beforeAll(async () => {
     widget('w-ftp', 'sonarr', { serviceUrl: 'ftp://127.0.0.1/sonarr', apiKey: '__SECRET__' }),
     widget('w-down', 'radarr', { serviceUrl: 'http://127.0.0.1:1/radarr', apiKey: '__SECRET__' }),
     widget('w-wrongtype', 'radarr', { serviceUrl: mock.url('radarr'), apiKey: '__SECRET__' }),
+    widget('w-yt-paused', 'youtarr', { serviceUrl: mock.url('youtarr-paused'), apiKey: '__SECRET__' }),
+    widget('w-yt-badkey', 'youtarr', { serviceUrl: mock.url('youtarr'), apiKey: '__SECRET__' }),
+    widget('w-yt-downloadkey', 'youtarr', { serviceUrl: mock.url('youtarr'), apiKey: '__SECRET__' }),
+    widget('w-yt-old', 'youtarr', { serviceUrl: mock.url('youtarr-old'), apiKey: '__SECRET__' }),
   );
   const secrets = Object.fromEntries(SERVICES.map(s => ['w-' + s, { apiKey: MOCK_KEYS[s] }]));
   Object.assign(secrets, {
     'w-badkey': { apiKey: 'wrong-key' }, 'w-sab-badkey': { apiKey: 'wrong-key' }, 'w-nourl': { apiKey: 'x' },
     'w-ftp': { apiKey: 'x' }, 'w-down': { apiKey: 'down-secret-key' }, 'w-wrongtype': { apiKey: MOCK_KEYS.radarr },
+    'w-yt-paused': { apiKey: MOCK_KEYS.youtarr }, 'w-yt-badkey': { apiKey: 'wrong-key' },
+    'w-yt-downloadkey': { apiKey: YOUTARR_DOWNLOAD_KEY }, 'w-yt-old': { apiKey: MOCK_KEYS.youtarr },
   });
   srv = await startServer({ config: { canvas: { width: 1920, height: 1080 }, widgets }, secrets });
 });
@@ -113,7 +119,31 @@ describe('media summaries', () => {
     expect(body.items[0]).toMatchObject({ name: 'Andor.S02E12.2160p.WEB.H265', percent: 64 });
   });
 
+  it('Youtarr: library, what is downloading, the last run and recent downloads', async () => {
+    const { body } = await media('youtarr', 'w-youtarr');
+    expect(body.ok).toBe(true);
+    expect(body).toMatchObject({ version: '1.94.0', ytDlpVersion: '2026.11.10', health: [] });
+    expect(body.stats).toEqual({ channels: 42, videos: 1873, storageBytes: 512 * 1024 ** 3,
+      paused: false, active: true, downloading: 2, queued: 5, queuedJobs: 1 });
+    expect(body.lastRun).toMatchObject({ status: 'warning', downloaded: 7, failed: 1 });
+    expect(body.lastRun.date).toBeTruthy();
+    expect(body.recent.map(r => r.title)).toEqual(['How a Mechanical Watch Works', 'Sourdough From Scratch', 'A video with an odd id']);
+    expect(body.recent[0]).toMatchObject({ channel: 'Clockwork', poster: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' });
+    expect(body.recent[2].poster).toBeNull(); // only a well-formed video id becomes a thumbnail URL
+  });
+
+  it('Youtarr: a storage pause is a health warning, and an empty library is fine', async () => {
+    const { body } = await media('youtarr', 'w-yt-paused');
+    expect(body.ok).toBe(true);
+    expect(body.stats).toMatchObject({ paused: true, active: false, videos: 0 });
+    expect(body.health).toEqual([{ level: 'warning', message: 'Downloads are paused by the storage limit' }]);
+    expect(body.lastRun).toBeNull();
+    expect(body.recent).toEqual([]);
+  });
+
   it('keeps reverse-proxy sub-paths and sends keys the right way', () => {
+    const youtarr = mock.requests.find(r => r.service === 'youtarr' && r.path === '/api/status/summary');
+    expect(youtarr.headers['x-api-key']).toBe(MOCK_KEYS.youtarr);
     const radarr = mock.requests.find(r => r.service === 'radarr' && r.path === '/api/v3/movie');
     expect(radarr.headers['x-api-key']).toBe(MOCK_KEYS.radarr);
     const plex = mock.requests.find(r => r.service === 'plex' && r.path === '/status/sessions');
@@ -132,6 +162,21 @@ describe('media errors and setup messages', () => {
   it('understands SABnzbd\'s own bad-key reply', async () => {
     const { body } = await media('sabnzbd', 'w-sab-badkey');
     expect(body).toMatchObject({ ok: false, code: 'auth', error: 'SABnzbd rejected the API key' });
+  });
+
+  it('tells a Youtarr user which key it needs, for a wrong key and for a download key', async () => {
+    for (const id of ['w-yt-badkey', 'w-yt-downloadkey']) {
+      const { body, text } = await media('youtarr', id);
+      expect(body, id).toMatchObject({ ok: false, code: 'auth', error: 'Youtarr rejected the API key (it needs a read-only status key)' });
+      expect(text).not.toContain('wrong-key');
+      expect(text).not.toContain(YOUTARR_DOWNLOAD_KEY);
+    }
+  });
+
+  it('names the version needed when Youtarr has no status API', async () => {
+    const { body } = await media('youtarr', 'w-yt-old');
+    expect(body).toMatchObject({ ok: false, code: 'bad_response' });
+    expect(body.error).toContain('Youtarr 1.94.0 or newer');
   });
 
   it('asks for a URL, a key, or a valid scheme', async () => {
@@ -213,7 +258,7 @@ describe('media widgets (browser side)', () => {
     M = dom.window._lbMedia;
   });
 
-  it('registers all six widgets with URL, key and style settings', () => {
+  it('registers every widget with URL, key and style settings', () => {
     for (const s of SERVICES) {
       const w = W['media-' + s];
       expect(w, s).toBeDefined();
@@ -228,7 +273,7 @@ describe('media widgets (browser side)', () => {
   });
 
   it('offers a poster size on the poster widgets only, and passes only known values', () => {
-    for (const s of ['radarr', 'sonarr', 'seerr', 'plex']) expect(W['media-' + s].properties.posterSize, s).toBe('1');
+    for (const s of ['radarr', 'sonarr', 'seerr', 'plex', 'youtarr']) expect(W['media-' + s].properties.posterSize, s).toBe('1');
     for (const s of ['prowlarr', 'sabnzbd']) expect(W['media-' + s].properties.posterSize, s).toBeUndefined();
     expect(W['media-plex'].generateJs({ id: 'p', posterSize: '2' })).toContain(', "2");');
     expect(W['media-plex'].generateJs({ id: 'p', posterSize: '1.5' })).toContain(', "1.5");');
@@ -253,6 +298,43 @@ describe('media widgets (browser side)', () => {
     const many = M.renderers.seerr({ stats: {}, recent: [one[0], { ...one[1], requestedBy: 'Sam' }] }, 'visual', {});
     expect(many).toContain('>Curbob<');
     expect(many).toContain('>Sam<');
+  });
+
+  it('Youtarr says what it is doing and shows the last run and recent downloads as wide thumbnails', () => {
+    const recent = [{ title: 'How a Mechanical Watch Works', channel: 'Clockwork', date: new Date().toISOString(), poster: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }];
+    const stats = { channels: 42, videos: 1873, storageBytes: 512 * 1024 ** 3, downloading: 2, queued: 5, queuedJobs: 1, active: true };
+    const busy = M.renderers.youtarr({ stats, lastRun: { status: 'warning', downloaded: 7, failed: 1 }, recent }, 'visual', {});
+    expect(busy).toContain('>Downloading<');
+    expect(busy).toContain('2 downloading · 5 queued · 1 job waiting');
+    expect(busy).toContain('Last run: 7 downloaded, 1 failed');
+    expect(busy).toContain('class="lbm-posters lbm-wide"');
+    expect(busy).toContain('>Clockwork<');
+    expect(busy).toContain('42 channels · 1,873 videos · 512 GB');
+
+    const idle = M.renderers.youtarr({ stats: { channels: 1 }, lastRun: null, recent: [] }, 'visual', {});
+    expect(idle).toContain('>Idle<');
+    expect(idle).toContain('Nothing in the queue');
+    expect(idle).toContain('No downloads yet');
+    expect(idle).not.toContain('Last run');
+
+    const paused = M.renderers.youtarr({ stats: { paused: true }, health: [{ level: 'warning', message: 'Downloads are paused by the storage limit' }] }, 'visual', {});
+    expect(paused).toContain('>Paused<');
+    expect(paused).toContain('Downloads are paused by the storage limit');
+
+    const numbers = M.renderers.youtarr({ version: '1.94.0', ytDlpVersion: '2026.11.10', stats, lastRun: { status: 'error', downloaded: 0, failed: 3 }, recent }, 'numbers', {});
+    expect(numbers).toContain('>Error<');
+    expect(numbers).toContain('Latest: How a Mechanical Watch Works');
+    expect(numbers).toContain('Youtarr 1.94.0 · yt-dlp 2026.11.10');
+  });
+
+  it('escapes Youtarr video titles and channel names', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    for (const style of ['visual', 'numbers']) {
+      const html = M.renderers.youtarr({ version: evil, stats: {}, lastRun: { status: 'success', downloaded: 1, failed: 0 },
+        recent: [{ title: evil, channel: evil, poster: 'https://x/"onerror="alert(1)' }] }, style, {});
+      expect(html, style).not.toContain('<img src=x');
+      expect(html, style).not.toContain('"onerror="alert');
+    }
   });
 
   it('escapes titles and messages from the services', () => {

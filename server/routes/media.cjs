@@ -1,5 +1,5 @@
 /**
- * Media server widgets: Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd.
+ * Media server widgets: Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd, Youtarr.
  *
  * GET /api/media/:service?widgetId=ID
  *   Looks up the saved widget by id, takes its Service URL from the config and
@@ -33,6 +33,7 @@ const SERVICES = {
   plex: { type: 'media-plex', name: 'Plex' },
   prowlarr: { type: 'media-prowlarr', name: 'Prowlarr' },
   sabnzbd: { type: 'media-sabnzbd', name: 'SABnzbd' },
+  youtarr: { type: 'media-youtarr', name: 'Youtarr' },
 };
 
 const TIMEOUT_MS = 10000;
@@ -560,9 +561,66 @@ async function plexImageProxy(res, conn, path) {
   }
 }
 
+// ── Youtarr ──
+
+const YOUTUBE_ID = /^[\w-]{11}$/;
+const YOUTARR_RUN_STATUS = ['success', 'warning', 'error'];
+const YOUTARR_BAD_KEY = 'Youtarr rejected the API key (it needs a read-only status key)';
+const YOUTARR_NO_STATUS_API = 'Unexpected response from Youtarr (is the URL right? The status API needs Youtarr 1.94.0 or newer)';
+
+// One call: Youtarr's read-only status summary. It answers a wrong key with
+// 401 and a download key with 403; an older Youtarr has no such endpoint and
+// answers with its web page instead of JSON.
+function youtarrSummary(conn) {
+  return cached(conn, 'status/summary', FAST, () =>
+    request(conn, serviceUrl(conn.base, '/api/status/summary'), { 'X-Api-Key': conn.apiKey, Accept: 'application/json' }, 1024 * 1024)
+      .catch((e) => {
+        if (e instanceof MediaError && e.code === 'auth') throw new MediaError(YOUTARR_BAD_KEY, 'auth');
+        if (e instanceof MediaError && e.code === 'bad_response') throw new MediaError(YOUTARR_NO_STATUS_API, 'bad_response');
+        throw e;
+      }));
+}
+
+async function youtarr(conn) {
+  const d = await youtarrSummary(conn);
+  if (!d || !d.library || typeof d.library !== 'object') throw new MediaError(YOUTARR_NO_STATUS_API, 'bad_response');
+  const lib = d.library;
+  const dl = d.downloads || {};
+  const run = d.lastRun;
+  const paused = dl.paused === true;
+  return {
+    version: d.version || null,
+    ytDlpVersion: (d.ytDlp && d.ytDlp.version) || null,
+    health: paused ? [{ level: 'warning', message: 'Downloads are paused by the storage limit' }] : [],
+    stats: {
+      channels: Number(lib.channels) || 0,
+      videos: Number(lib.videos) || 0,
+      storageBytes: Number(lib.storageBytes) || 0,
+      paused,
+      active: !!dl.activeJob,
+      downloading: Number(dl.videosDownloading) || 0,
+      queued: Number(dl.videosQueued) || 0,
+      queuedJobs: Number(dl.queuedJobs) || 0,
+    },
+    lastRun: run ? {
+      status: YOUTARR_RUN_STATUS.includes(run.status) ? run.status : 'unknown',
+      downloaded: Number(run.downloaded) || 0,
+      failed: Number(run.failed) || 0,
+      date: run.finishedAt || null,
+      checkedAt: run.lastCheckedAt || null,
+    } : null,
+    recent: (Array.isArray(d.recentDownloads) ? d.recentDownloads : []).slice(0, 10).map(v => ({
+      title: String((v && v.title) || 'Untitled').slice(0, 200),
+      channel: String((v && v.channel) || '').slice(0, 100) || null,
+      date: (v && v.downloadedAt) || null,
+      poster: v && YOUTUBE_ID.test(v.youtubeId) ? 'https://i.ytimg.com/vi/' + v.youtubeId + '/mqdefault.jpg' : null,
+    })),
+  };
+}
+
 // ── Route ──
 
-const HANDLERS = { radarr, sonarr, seerr, plex, prowlarr, sabnzbd };
+const HANDLERS = { radarr, sonarr, seerr, plex, prowlarr, sabnzbd, youtarr };
 
 function handle(req, res, pathname, parsedUrl) {
   if (req.method !== 'GET' || !pathname.startsWith('/api/media/')) return false;

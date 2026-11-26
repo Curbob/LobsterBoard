@@ -1,7 +1,9 @@
 /**
  * Test helper: one HTTP server that imitates Radarr, Sonarr, Prowlarr, SABnzbd,
- * Seerr and Plex under sub-paths (/radarr, /sonarr, ...), using the response
- * shapes of their real APIs. Each service only answers with its own key.
+ * Seerr, Plex and Youtarr under sub-paths (/radarr, /sonarr, ...), using the
+ * response shapes of their real APIs. Each service only answers with its own key.
+ * /youtarr-paused is a Youtarr paused by its storage limit with nothing
+ * downloaded yet; /youtarr-old is one from before the status API.
  *
  *   const mock = await startMockMedia();
  *   mock.url('radarr')  // -> http://127.0.0.1:PORT/radarr
@@ -21,7 +23,11 @@ export const MOCK_KEYS = {
   sabnzbd: 'sabnzbd-test-key',
   seerr: 'seerr-test-key',
   plex: 'plex-test-token',
+  youtarr: 'youtarr-status-key',
 };
+
+// A valid Youtarr key of the wrong kind: it can start downloads but not read the status
+export const YOUTARR_DOWNLOAD_KEY = 'youtarr-download-key';
 
 const GB = 1024 ** 3;
 const day = (n) => new Date(Date.now() + n * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -168,6 +174,28 @@ function plex(path, q) {
   return undefined;
 }
 
+function youtarr(path, paused) {
+  if (path !== '/api/status/summary') return undefined;
+  if (paused) return {
+    version: '1.94.0', ytDlp: { version: null },
+    library: { channels: 2, videos: 0, storageBytes: 0 },
+    downloads: { paused: true, activeJob: null, queuedJobs: 0, videosDownloading: 0, videosQueued: 0 },
+    lastRun: null,
+    recentDownloads: [],
+  };
+  return {
+    version: '1.94.0', ytDlp: { version: '2026.11.10' },
+    library: { channels: 42, videos: 1873, storageBytes: 512 * GB },
+    downloads: { paused: false, activeJob: { type: 'Channel Downloads', createdAt: day(-0.01) }, queuedJobs: 1, videosDownloading: 2, videosQueued: 5 },
+    lastRun: { status: 'warning', finishedAt: day(-0.1), lastCheckedAt: day(-0.02), downloaded: 7, failed: 1 },
+    recentDownloads: [
+      { youtubeId: 'dQw4w9WgXcQ', title: 'How a Mechanical Watch Works', channel: 'Clockwork', downloadedAt: day(-0.1) },
+      { youtubeId: 'M7lc1UVf-VE', title: 'Sourdough From Scratch', channel: 'Proof & Bake', downloadedAt: day(-0.2) },
+      { youtubeId: '../../evil', title: 'A video with an odd id', channel: 'Clockwork', downloadedAt: day(-1) },
+    ],
+  };
+}
+
 // A 1x1 PNG, for the Plex photo transcoder
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
@@ -185,7 +213,16 @@ export function startMockMedia(port = 0) {
       if (path !== '/api') return json(404, { error: 'not found' });
       return json(200, sabnzbd(u.searchParams));
     }
-    if (service === 'plex') {
+    if (service === 'youtarr-old') {
+      // No status API: the request falls through to the web app's page
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end('<!doctype html><html><body><div id="root"></div></body></html>');
+    }
+    if (service === 'youtarr' || service === 'youtarr-paused') {
+      if (req.headers['x-api-key'] === YOUTARR_DOWNLOAD_KEY) return json(403, { error: 'API keys can only access the download endpoint' });
+      if (req.headers['x-api-key'] !== MOCK_KEYS.youtarr) return json(401, { error: 'Invalid API key' });
+      body = youtarr(path, service === 'youtarr-paused');
+    } else if (service === 'plex') {
       if (path !== '/identity' && req.headers['x-plex-token'] !== MOCK_KEYS.plex) return json(401, { error: 'Unauthorized' });
       if (path === '/photo/:/transcode') { res.writeHead(200, { 'Content-Type': 'image/png' }); return res.end(PNG); }
       body = plex(path, u.searchParams);
