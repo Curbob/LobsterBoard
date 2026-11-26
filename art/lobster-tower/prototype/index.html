@@ -75,23 +75,6 @@ main { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px
 .prop.front { z-index: 6; }
 .wall { position: absolute; background: linear-gradient(90deg, #2c2729, #4d4548 50%, #2c2729); z-index: 2; }
 
-/* Doors between rooms sit in the cut side wall, so we see them edge-on.
-   Closed: a thin slab filling the doorway. Open: the slab swings away from us on its hinge
-   and lies against the back wall of the room being entered, behind whoever walks through. */
-.door { position: absolute; width: 0; z-index: 3; perspective: 900px; }
-.door .edge { position: absolute; bottom: 0; left: 50%; height: 100%; transform: translateX(-50%);
-  background: linear-gradient(90deg, #6d3d17, #b8692c 45%, #7a431a); border-radius: 1px;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.35); transition: opacity .2s .1s; }
-.door .leaf { position: absolute; bottom: 4%; height: 94%; left: 0; transform-origin: left center;
-  transform: rotateY(90deg); transition: transform .45s cubic-bezier(.3,.7,.3,1), filter .45s;
-  filter: brightness(.7); backface-visibility: hidden; }
-.door .leaf img { display: block; height: 100%; width: 100%; }
-.door.open-r .leaf { transform: rotateY(28deg); filter: brightness(.9); }
-.door.open-l .leaf { left: auto; right: 0; transform-origin: right center; transform: rotateY(-28deg); filter: brightness(.9); }
-.door.open-l .leaf img { transform: scaleX(-1); }
-.door.left-hinge .leaf { left: auto; right: 0; transform-origin: right center; transform: rotateY(-90deg); }
-.door.left-hinge .leaf img { transform: scaleX(-1); }
-.door.open-r .edge, .door.open-l .edge { opacity: 0; transition-delay: 0s; }
 .lintel { position: absolute; z-index: 4; background: linear-gradient(180deg, #c99a5a, #8b6233); }
 
 /* elevators */
@@ -130,8 +113,8 @@ main { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px
 <body>
 <header>
   <h1>Lobster <span>Tower</span></h1>
-  <div class="controls" role="group" aria-label="Send Big Tony somewhere">
-    <span class="lbl">Send Big Tony to:</span>
+  <div class="controls" role="group" aria-label="Send the SABnzbd avatar somewhere">
+    <span class="lbl">Send SABnzbd to:</span>
     <button data-go="dock" aria-pressed="true">Dock (working)</button>
     <button data-go="gym">Gym (housekeeping)</button>
     <button data-go="cafe">Cafeteria (break)</button>
@@ -239,16 +222,13 @@ function render() {
     }
   });
   h += `<div class="slab" style="left:0;width:${G.W}px;top:${G.floors.at(-1).bottom}px;height:${G.slab}px"></div>`;
-  // walls between rooms, cut through: a doorway near the floor holds an edge-on door
-  const dh = H * 0.72, wt = H * 0.07, leafW = dh * .94 * 292 / 642 * .9;
+  // walls between rooms, cut through, with an open doorway near the floor
+  const dh = H * 0.72, wt = H * 0.07;
   for (const d of G.doors) {
     const f = G.floors[d.floor], doorTop = G.walkY(d.floor) - dh;
     h += `<div class="wall" style="left:${d.x - wt / 2}px;top:${f.top}px;width:${wt}px;height:${doorTop - f.top}px"></div>`;
     h += `<div class="wall" style="left:${d.x - wt / 2}px;top:${G.walkY(d.floor)}px;width:${wt}px;height:${f.bottom - G.walkY(d.floor)}px"></div>`;
     h += `<div class="lintel" style="left:${d.x - wt / 2 - 2}px;top:${doorTop - 3}px;width:${wt + 4}px;height:4px"></div>`;
-    h += `<div class="door" id="${d.id}" style="left:${d.x}px;top:${doorTop}px;height:${dh}px">
-      <div class="edge" style="width:${wt * .4}px"></div>
-      <div class="leaf" style="width:${leafW}px"><img alt="" src="${A('door-slab.webp')}"></div></div>`;
   }
   // elevator shafts, cabs, gates, call buttons, floor indicators
   const top0 = G.floors[0].top, bot = G.floors.at(-1).bottom;
@@ -263,7 +243,7 @@ function render() {
       h += `<div class="floor-no" style="left:${x0}px;width:${G.sh}px;top:${f.top + 3}px">${f.n === 'B' ? 'B' : 'F' + f.n}</div>`;
     });
   }
-  h += `<div id="tony"><span class="tag">Big Tony</span><img alt="Big Tony, the SABnzbd dock worker" src="${TONY.work[0]}"></div>`;
+  h += `<div id="tony"><span class="tag">SABnzbd</span><img alt="Big Tony, the SABnzbd dock worker" src="${TONY.work[0]}"></div>`;
   tower.innerHTML = h;   // also clears boxes left on the belt
   for (const side of ['L', 'R']) placeCab(side, cabY(lifts[side].floor));
   placeTony();
@@ -316,29 +296,12 @@ function tween(ms, token, step) {
     requestAnimationFrame(tick);
   });
 }
-const say = t => { T.label = t; statusEl.innerHTML = `<b>Big Tony</b> · ${t}`; };
+const say = t => { T.label = t; statusEl.innerHTML = `<b>SABnzbd</b> · ${t}`; };
 
-/* Walk on the current floor to x (fraction of tower width), opening any doors on the way. */
+/* Walk on the current floor to x (fraction of tower width), through the open doorways. */
 async function walkTo(xTarget, token) {
   const dir = Math.sign(xTarget - T.x); if (!dir) return;
   T.flip = dir < 0;
-  const doors = G.doors.filter(d => d.floor === T.floor)
-    .map(d => ({ ...d, f: d.x / G.W }))
-    .filter(d => (d.f - T.x) * dir > 0 && (xTarget - d.f) * dir > 0)
-    .sort((a, b) => (a.f - b.f) * dir);
-  const before = .2 * G.H / G.W, after = .36 * G.H / G.W;
-  for (const d of doors) {
-    const el = document.getElementById(d.id);
-    await stride(d.f - dir * before, token);
-    setFrame(TONY.door);                                   // hand up, push the door
-    await sleep(240, token);
-    el.classList.remove('left-hinge');
-    el.classList.add(dir > 0 ? 'open-r' : 'open-l');       // it swings into the room he's entering
-    await sleep(380, token);
-    await stride(d.f + dir * after, token);
-    el.classList.toggle('left-hinge', dir < 0);            // swing shut from the same side
-    el.classList.remove('open-r', 'open-l');
-  }
   await stride(xTarget, token);
 }
 /* Move with the 6-frame walk cycle. Frames advance with distance, so feet don't skate. */
@@ -448,8 +411,7 @@ async function send(key) {
   const token = ++run;
   mark(key);
   // finish any open door or gate instantly so a new route starts clean
-  document.querySelectorAll('.door').forEach(d => d.classList.remove('open-r', 'open-l'));
-  if (T.riding) { T.floor = G.floors.findIndex((f, i) => Math.abs(cabY(i) - lifts[T.riding].y) < G.H / 2); T.riding = null; T.x = G.shaftX(T.x < .5 ? 'L' : 'R') / G.W; }
+    if (T.riding) { T.floor = G.floors.findIndex((f, i) => Math.abs(cabY(i) - lifts[T.riding].y) < G.H / 2); T.riding = null; T.x = G.shaftX(T.x < .5 ? 'L' : 'R') / G.W; }
   try { await goTo(key, token); } catch (e) { if (!(e instanceof Cancelled)) throw e; }
 }
 buttons.forEach(b => b.addEventListener('click', () => { autoTour = false; syncAuto(); send(b.dataset.go); }));
