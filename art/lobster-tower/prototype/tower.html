@@ -196,11 +196,11 @@ const CATALOG = {
   'sabnzbd':   { label: 'SABnzbd',  room: 'dock',    avatar: true, cast: 'sab', frames: true, icon: '⬇️', read: () => `${(Math.random() * 40).toFixed(1)} MB/s · ${rnd(0, 7)} in queue` },
   // system
   'cpu-memory':        { label: 'CPU',      room: 'servers',  avatar: true, cast: 'servers', walk: true, gym: false, icon: '💻', read: () => `CPU ${rnd(2, 70)}% · RAM ${rnd(30, 80)}%` },
-  'disk-usage':        { label: 'Disk',     room: 'servers',  avatar: true, gym: false, icon: '💾', read: () => `${rnd(40, 93)}% used` },
+  'disk-usage':        { label: 'Disk',     room: 'servers',  avatar: true, cast: 'disk', walk: true, gym: false, icon: '💾', read: () => `${rnd(40, 93)}% used` },
   'uptime-monitor':    { label: 'Uptime',   room: 'servers',  piece: 'board', icon: '📡', text: () => `UP ${rnd(1, 40)}d`, read: () => `up ${rnd(1, 40)}d ${rnd(0, 23)}h` },
   'api-status':        { label: 'API Status', room: 'servers', piece: 'lamps', icon: '🔄', read: () => '4 of 4 endpoints answering' },
-  'docker-containers': { label: 'Docker',   room: 'yard',     avatar: true, icon: '🐳', read: () => `${rnd(8, 16)} running · ${rnd(0, 1)} stopped` },
-  'network-speed':     { label: 'Network',  room: 'network',  avatar: true, gym: false, icon: '🌐', read: () => `↓ ${rnd(1, 90)} Mb/s · ↑ ${rnd(1, 20)} Mb/s` },
+  'docker-containers': { label: 'Docker',   room: 'yard',     avatar: true, cast: 'docker', walk: true, icon: '🐳', read: () => `${rnd(8, 16)} running · ${rnd(0, 1)} stopped` },
+  'network-speed':     { label: 'Network',  room: 'network',  avatar: true, cast: 'network', walk: true, gym: false, icon: '🌐', read: () => `↓ ${rnd(1, 90)} Mb/s · ↑ ${rnd(1, 20)} Mb/s` },
   // OpenClaw
   'auth-status':   { label: 'Auth',     room: 'control', avatar: true, cast: 'auth', walk: true, gym: false, icon: '🔐', read: () => 'Max subscription' },
   'session-count': { label: 'Sessions', room: 'control', avatar: true, cast: 'sessions', walk: true, gym: false, icon: '💬', read: () => `${rnd(0, 4)} active sessions` },
@@ -262,12 +262,12 @@ const ROOMS = {
   trading:    { name: 'Trading Floor', group: 'work', art: 'trading', ar: 2.79, spots: [{ x: 40, flip: true }, { x: 60 }] },
   dorm:       { name: 'Dormitory', group: 'rest', art: 'dorm', ar: 2.33, shared: 'sleep' },
   gym:        { name: 'Gym', group: 'rest', art: 'gym', ar: 2.33, shared: 'gym' },
-  lobby:      { name: 'Lobby', group: 'ground', icon: '🛎️', shared: 'lobby' },
+  lobby:      { name: 'Lobby', group: 'ground', art: 'lobby', ar: 2.72, shared: 'lobby', pieceX: [30, 49.5] },
   cafe:       { name: 'Cafeteria', group: 'ground', art: 'cafe', ar: 2.33, shared: 'idle' },
   dock:       { name: 'Loading Dock', group: 'ground', art: 'dock', ar: 2.33, props: [{ n: 'conveyor', x: 52, w: 52, b: 5 }, { n: 'box', x: 91, w: 6.8, b: 6 }, { n: 'box', x: 97.6, w: 6.8, b: 6 }], spots: [{ x: 84 }] },
   servers:    { name: 'Server Room', group: 'system', art: 'servers', ar: 2.33, spots: [{ x: 85 }, { x: 22 }] },
-  network:    { name: 'Network Closet', group: 'system', icon: '🌐' },
-  yard:       { name: 'Container Yard', group: 'system', icon: '🐳' },
+  network:    { name: 'Network Closet', group: 'system', art: 'network', ar: 1.92, spots: [{ x: 60 }] },
+  yard:       { name: 'Container Yard', group: 'system', art: 'yard', ar: 2.54, spots: [{ x: 74, flip: true }] },
   agentwall:  { name: 'Agent Wall', group: 'base', agentwall: true },
   basement:   { name: 'Basement', group: 'base', art: 'basement', ar: 2.33, shared: 'alert' },
 };
@@ -642,7 +642,7 @@ function roomHtml(key) {
   const sub = R.shared ? { sleep: 'idle for hours', gym: 'housekeeping', idle: 'breaks', alert: 'anything broken', lobby: 'welcome' }[R.shared] : names.join(' · ');
   return `<div class="${cls}" tabindex="0" role="button" data-room="${key}" data-icon="${R.icon || ''}" aria-label="${esc(R.name)}: ${esc(sub)}" style="left:${g.x}px;top:${g.top}px;width:${g.w}px;height:${H}px;${bg}">
     ${inner}<span class="plate">${esc(R.name)}${sub ? ` <i style="font:400 9px var(--f-body);color:var(--ink-soft);font-style:normal">· ${esc(sub)}</i>` : ''}</span>
-    ${!R.art && !R.agentwall && !R.shared ? '<span class="phnote">art coming</span>' : ''}${key === 'lobby' && !room.pieces.length ? '<span class="phnote">art coming</span>' : ''}</div>`;
+    ${!R.art && !R.agentwall && !R.shared ? '<span class="phnote">art coming</span>' : ''}</div>`;
 }
 /* hand-placed spots first; extra stations fill the middle of an art room, or spread evenly in a placeholder */
 function stationSpotPct(room, i) {
@@ -660,7 +660,9 @@ function pieceHtml(p, i, room, g) {
     case 'cork': return room.R.art   // pinned to the cork board drawn in the room
       ? `<div class="piece" style="top:${H * .3}px;left:${x}%;width:${H * .34}px"><span style="display:block;background:#fff8c4;color:#2b2620;padding:3px 4px;font:500 9px var(--f-body);transform:rotate(-3deg);box-shadow:0 1px 2px rgba(0,0,0,.3)">${esc(p.c.text())}</span></div>`
       : `<div class="piece cork" style="${top};width:${H * .5}px"><span>${esc(p.c.text())}</span></div>`;
-    case 'chalk': return `<div class="piece chalk" style="${top};width:${H * .75}px">${esc(p.c.text())}</div>`;
+    case 'chalk': return room.R.art
+      ? `<div class="piece chalk" style="top:${H * .36}px;left:${x}%;width:${H * .4}px;font-size:${Math.max(7, H * .06)}px">${esc(p.c.text())}</div>`
+      : `<div class="piece chalk" style="${top};width:${H * .75}px">${esc(p.c.text())}</div>`;
     case 'plaque': return `<div class="piece plaque${/update/.test(p.c.read()) ? ' glow' : ''}" style="top:${Math.max(H * .26, 22) + (i % 2) * H * .16}px;left:${x}%">${esc(p.c.text())}</div>`;
     case 'clocks': return `<div class="piece clocks" style="${top}">${['LON', 'TYO', 'NYC'].map((c, k) => `<div><span class="cf" style="width:${H * .17}px;height:${H * .17}px"><i data-tz="${[0, 9, -5][k]}" style="height:42%"></i></span>${c}</div>`).join('')}</div>`;
     case 'frame': {
