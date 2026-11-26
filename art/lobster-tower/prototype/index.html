@@ -115,7 +115,8 @@ main { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px
 
 /* Big Tony: a frame-animated sprite */
 #tony { position: absolute; z-index: 5; transform-origin: bottom center; pointer-events: none; }
-#tony img { display: block; height: 100%; width: auto; transform: translateX(-50%); position: absolute; left: 0; bottom: 0; }
+/* max-width: none, or a page-level img { max-width: 100% } squeezes him to the zero-width box */
+#tony img { display: block; height: 100%; width: auto; max-width: none; transform: translateX(-50%); position: absolute; left: 0; bottom: 0; }
 #tony.flip img { transform: translateX(-50%) scaleX(-1); }
 #tony .tag { position: absolute; left: 0; transform: translateX(-50%); bottom: 102%; white-space: nowrap;
   font: 600 10px var(--f-display); background: rgba(20, 16, 28, .78); padding: 1px 6px; border-radius: 4px; color: var(--warn); }
