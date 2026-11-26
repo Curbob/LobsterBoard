@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobster Tower</title>
+<link rel="artifact-thumbnail" href="thumb.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -213,14 +214,14 @@ const CATALOG = {
   'countdown':   { label: 'Countdown',   room: 'roof',  piece: 'billboard', icon: '⏳', read: () => `${countdownDays()} days to go` },
   'calendar':    { label: 'Calendar',    room: 'planning', avatar: true, cast: 'calendar', walk: true, gym: false, icon: '📅', read: () => `Next: standup in ${rnd(5, 90)} min` },
   // productivity
-  'todo-list':    { label: 'Todo',      room: 'office',   avatar: true, gym: false, icon: '✅', read: () => `${rnd(1, 9)} open tasks` },
-  'email-count':  { label: 'Email',     room: 'mail',     avatar: true, gym: false, icon: '📧', read: () => `${rnd(0, 60)} unread` },
-  'pomodoro':     { label: 'Pomodoro',  room: 'office',   avatar: true, gym: false, alert: false, pomodoro: true, icon: '🎯', read: () => 'Focus 25:00 / break 5:00' },
-  'github-stats': { label: 'GitHub',    room: 'workshop', avatar: true, gym: false, icon: '🐙', read: () => `${rnd(100, 900)} stars · ${rnd(0, 12)} open PRs` },
+  'todo-list':    { label: 'Todo',      room: 'office',   avatar: true, cast: 'todo', walk: true, gym: false, icon: '✅', read: () => `${rnd(1, 9)} open tasks` },
+  'email-count':  { label: 'Email',     room: 'mail',     avatar: true, cast: 'email', walk: true, gym: false, icon: '📧', read: () => `${rnd(0, 60)} unread` },
+  'pomodoro':     { label: 'Pomodoro',  room: 'office',   avatar: true, cast: 'pomodoro', walk: true, gym: false, alert: false, pomodoro: true, icon: '🎯', read: () => 'Focus 25:00 / break 5:00' },
+  'github-stats': { label: 'GitHub',    room: 'workshop', avatar: true, cast: 'github', walk: true, gym: false, icon: '🐙', read: () => `${rnd(100, 900)} stars · ${rnd(0, 12)} open PRs` },
   'notes':        { label: 'Notes',     room: 'office',   piece: 'cork', icon: '📝', text: () => 'Buy milk · call Sam', read: () => 'Buy milk · call Sam' },
   // finance
-  'stock-ticker': { label: 'Stocks', room: 'trading', avatar: true, gym: false, icon: '📈', read: () => `AAPL ${(180 + Math.random() * 20).toFixed(2)} · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 2).toFixed(1)}%` },
-  'crypto-price': { label: 'Crypto', room: 'trading', avatar: true, gym: false, icon: '₿', read: () => `BTC ${rnd(60, 110)}k · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 5).toFixed(1)}%` },
+  'stock-ticker': { label: 'Stocks', room: 'trading', avatar: true, cast: 'stocks', walk: true, gym: false, icon: '📈', read: () => `AAPL ${(180 + Math.random() * 20).toFixed(2)} · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 2).toFixed(1)}%` },
+  'crypto-price': { label: 'Crypto', room: 'trading', avatar: true, cast: 'crypto', walk: true, gym: false, icon: '₿', read: () => `BTC ${rnd(60, 110)}k · ${Math.random() > .5 ? '▲' : '▼'}${(Math.random() * 5).toFixed(1)}%` },
   // content
   'rss-ticker':   { label: 'RSS',         room: 'newsroom', avatar: true, cast: 'rss', walk: true, gym: false, icon: '📡', read: () => 'Understanding positional embeddings…' },
   'now-playing':  { label: 'Now Playing', room: 'music',    avatar: true, cast: 'dj', walk: true, gym: false, icon: '🎵', read: () => 'Lo-fi beats · 2:14 / 3:40' },
@@ -255,10 +256,10 @@ const ROOMS = {
   newsroom:   { name: 'Newsroom', group: 'content', art: 'newsroom', ar: 1.63, props: [{ n: 'newsdesk', x: 50, w: 62, b: 5, z: 'front' }], spots: [{ x: 50, pose: 'sitting', h: .46, b: .15 }] },
   music:      { name: 'Music Booth', group: 'content', art: 'music', ar: 2.08, spots: [{ x: 54, flip: true }] },
   gallery:    { name: 'Gallery', group: 'content', art: 'gallery', ar: 2.61, pieceSpread: 17, frameScale: 1.1 },
-  office:     { name: 'Office', group: 'work', icon: '🗂️' },
-  mail:       { name: 'Mail Room', group: 'work', icon: '📬' },
-  workshop:   { name: 'Workshop', group: 'work', icon: '🔧' },
-  trading:    { name: 'Trading Floor', group: 'work', icon: '📈' },
+  office:     { name: 'Office', group: 'work', art: 'office', ar: 2.71, spots: [{ x: 33, flip: true }, { x: 66 }], pieceX: [49] },
+  mail:       { name: 'Mail Room', group: 'work', art: 'mail', ar: 1.87, spots: [{ x: 50 }] },
+  workshop:   { name: 'Workshop', group: 'work', art: 'workshop', ar: 1.88, spots: [{ x: 68 }] },
+  trading:    { name: 'Trading Floor', group: 'work', art: 'trading', ar: 2.79, spots: [{ x: 40, flip: true }, { x: 60 }] },
   dorm:       { name: 'Dormitory', group: 'rest', art: 'dorm', ar: 2.33, shared: 'sleep' },
   gym:        { name: 'Gym', group: 'rest', art: 'gym', ar: 2.33, shared: 'gym' },
   lobby:      { name: 'Lobby', group: 'ground', icon: '🛎️', shared: 'lobby' },
@@ -651,12 +652,14 @@ function stationSpotPct(room, i) {
   return 14 + (i + .5) * 72 / room.stations.length;
 }
 function pieceHtml(p, i, room, g) {
-  const H = G.H, n = room.pieces.length, x = room.R.pieceSpread ? 50 + (i - (n - 1) / 2) * room.R.pieceSpread * 2.61 * H / g.w : room.stations.length ? 20 + (i + .5) * 60 / n : 12 + (i + .5) * 76 / n;
+  const H = G.H, n = room.pieces.length, x = room.R.pieceX ? room.R.pieceX[i % room.R.pieceX.length] : room.R.pieceSpread ? 50 + (i - (n - 1) / 2) * room.R.pieceSpread * 2.61 * H / g.w : room.stations.length ? 20 + (i + .5) * 60 / n : 12 + (i + .5) * 76 / n;
   const top = `top:${Math.max(H * .26, 22)}px;left:${x}%`;
   switch (p.c.piece) {
     case 'board': return `<div class="piece board" style="${top}">${esc(p.c.text())}</div>`;
     case 'lamps': return `<div class="piece lamps" style="${top}" id="lamps-${p.w.id}"><i></i><i></i><i></i><i></i></div>`;
-    case 'cork': return `<div class="piece cork" style="${top};width:${H * .5}px"><span>${esc(p.c.text())}</span></div>`;
+    case 'cork': return room.R.art   // pinned to the cork board drawn in the room
+      ? `<div class="piece" style="top:${H * .3}px;left:${x}%;width:${H * .34}px"><span style="display:block;background:#fff8c4;color:#2b2620;padding:3px 4px;font:500 9px var(--f-body);transform:rotate(-3deg);box-shadow:0 1px 2px rgba(0,0,0,.3)">${esc(p.c.text())}</span></div>`
+      : `<div class="piece cork" style="${top};width:${H * .5}px"><span>${esc(p.c.text())}</span></div>`;
     case 'chalk': return `<div class="piece chalk" style="${top};width:${H * .75}px">${esc(p.c.text())}</div>`;
     case 'plaque': return `<div class="piece plaque${/update/.test(p.c.read()) ? ' glow' : ''}" style="top:${Math.max(H * .26, 22) + (i % 2) * H * .16}px;left:${x}%">${esc(p.c.text())}</div>`;
     case 'clocks': return `<div class="piece clocks" style="${top}">${['LON', 'TYO', 'NYC'].map((c, k) => `<div><span class="cf" style="width:${H * .17}px;height:${H * .17}px"><i data-tz="${[0, 9, -5][k]}" style="height:42%"></i></span>${c}</div>`).join('')}</div>`;
