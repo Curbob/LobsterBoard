@@ -87,7 +87,8 @@ function newAvatar(w, c) {
 /* ============================================================
    LAYOUT: pack rooms into floors, choose the room width that makes the building biggest
    ============================================================ */
-const SH = .62, SLAB = .07, ROOF = 1.05, STRETCH = 1.3;
+const SH = .62, SLAB = .07, ROOF = 1.5, STRETCH = 1.3;
+const ROOF_WX = { h: 458, screen: { x: 33.6, y: 42.4, w: 32.2, h: 24 } };   // roof-weather.webp height (600 wide) and its blank screen, in %
 const TILED = new Set(['basement', 'dorm', 'cafe', 'gym']);   // shared rooms that grow: their art repeats sideways
 let G = null;
 function packFloors(C) {
@@ -323,7 +324,7 @@ function liveWeather() {
   if (!sel.querySelector('option[value="live"]')) sel.insertAdjacentHTML('afterbegin', '<option value="live">Live</option>');
   if (sel.value === 'auto') sel.value = 'live';
   const pull = () => { if (sel.value !== 'live') return;
-    window.TowerLive.weather(w).then(r => { wxAuto = false; setWeather(r.kind, r.temp); WX.place = r.place; }).catch(() => {}); };
+    window.TowerLive.weather(w).then(r => { wxAuto = false; WX.place = r.place; WX.unit = r.unit; setWeather(r.kind, r.temp); }).catch(() => {}); };
   pull(); clearInterval(wxTimer); wxTimer = setInterval(pull, 10 * 60 * 1000);
 }
 function startLive() {
@@ -387,18 +388,32 @@ function roofHtml() {
   const { H, W, roof } = G;
   let h = `<div class="roofband" style="height:${roof + G.slab}px">`;
   h += `<div class="parapet" style="height:${G.slab + H * .22}px"></div>`;
-  // the sign sits between the clock tower and the thermometer, shrinking to fit
-  const signL = W * .45 + H * .5, signR = W - G.sh - H * .75, len = M.roof.sign.length;
-  const fs = Math.max(9, Math.min(H * .3, (signR - signL) / (len * .68)));
-  h += `<div class="sign" style="left:${(signL + signR) / 2}px;bottom:${G.slab + H * .27}px;font-size:${fs}px">${esc(M.roof.sign)}</div>`;
+  // Roof art (tower/assets/roof-*.webp): the clock tower has a blank dial and date panel, the weather
+  // station a blank screen; the hands, date and readings are drawn on top. Positions are % of each image.
+  const CLOCK = { ar: 347 / 800, dial: { x: 49.6, y: 59.6, d: 58.8 }, panel: { x: 28, y: 77.3, w: 42.7, h: 7.1 } };
+  const STATION = { ar: 600 / ROOF_WX.h, screen: ROOF_WX.screen };
+  const towerH = roof - H * .08, towerW = towerH * CLOCK.ar, towerX = W * .45;
+  const stH = H * 1.32, stW = stH * STATION.ar;
   if (M.roof.clock) {
-    const cw = H * .62;
-    h += `<div class="clocktower" style="left:${W * .45}px;bottom:${G.slab + H * .2}px;width:${cw * 1.25}px;height:${H * .85}px;padding-top:${H * .06}px">
-      <div class="clockface" style="width:${cw * .62}px;height:${cw * .62}px"><i id="hh" style="width:2.5px;height:28%"></i><i id="mh" style="width:1.5px;height:40%"></i></div>
-      <div class="marquee" id="datemq" style="margin-top:2px;font-size:${Math.max(8, H * .085)}px"></div></div>`;
+    h += `<div class="roofart" style="left:${towerX - towerW / 2}px;bottom:${G.slab + H * .04}px;width:${towerW}px;height:${towerH}px">
+      <img alt="" src="${A('roof-clock.webp')}">
+      <div class="dial" style="left:${CLOCK.dial.x}%;top:${CLOCK.dial.y}%;width:${CLOCK.dial.d}%">
+        <i id="hh" class="hand hour"></i><i id="mh" class="hand minute"></i><b class="pin"></b></div>
+      <div class="lcd date" id="datemq" style="left:${CLOCK.panel.x}%;top:${CLOCK.panel.y}%;width:${CLOCK.panel.w}%;height:${CLOCK.panel.h}%;font-size:${Math.min(towerH * CLOCK.panel.h / 100 * .6, towerW * CLOCK.panel.w / 100 / 4.4)}px"></div></div>`;
   }
+  if (M.roof.sky) {
+    const sc = STATION.screen;
+    h += `<div class="roofart" style="right:${G.sh + H * .12}px;bottom:${G.slab + H * .02}px;width:${stW}px;height:${stH}px">
+      <img alt="" src="${A('roof-weather.webp')}">
+      <div class="lcd wxscreen" style="left:${sc.x}%;top:${sc.y}%;width:${sc.w}%;height:${sc.h}%;font-size:${stH * sc.h / 100 * .18}px">
+        <span class="wx-icon" id="wx-icon"></span><span class="wx-temp" id="thermo-t"></span><span class="wx-kind" id="wx-kind"></span></div></div>`;
+  }
+  // the sign sits between the clock tower and the weather station, shrinking to fit
+  const signL = M.roof.clock ? towerX + towerW / 2 + H * .15 : W * .3;
+  const signR = M.roof.sky ? W - G.sh - H * .12 - stW - H * .15 : W - G.sh - H * .3;
+  const len = M.roof.sign.length, fs = Math.max(9, Math.min(H * .32, (signR - signL) / (len * .68)));
+  h += `<div class="sign" style="left:${(signL + signR) / 2}px;bottom:${G.slab + H * .3}px;font-size:${fs}px">${esc(M.roof.sign)}</div>`;
   if (M.roof.billboard) h += `<div class="billboard" style="left:${G.sh + H * .3}px;bottom:${G.slab + H * .3}px;width:${H * 1.25}px;height:${H * .5}px;font-size:${Math.max(8, H * .09)}px"><div><b>${countdownDays()}</b>days to go</div></div>`;
-  if (M.roof.sky) h += `<div class="thermo" style="right:${G.sh + H * .2}px;bottom:${G.slab + H * .28}px"><div class="tube" style="height:${H * .45}px"><i id="thermo-fill"></i></div><span id="thermo-t"></span></div>`;
   return h + `</div>`;
 }
 
@@ -590,8 +605,12 @@ function setWeather(kind, temp) {
   drops = [];
   const n = { rain: 260, storm: 380, snow: 180, clouds: 7, fog: 0, clear: 0 }[kind] || 0;
   for (let i = 0; i < n; i++) drops.push({ x: Math.random(), y: Math.random(), s: .5 + Math.random(), w: Math.random() });
-  const f = document.getElementById('thermo-fill'), t = document.getElementById('thermo-t');
-  if (f) { f.style.height = Math.max(8, Math.min(100, (WX.temp + 10) * 2.5)) + '%'; t.textContent = WX.temp + '°'; }
+  const t = document.getElementById('thermo-t');
+  if (t) {
+    t.textContent = WX.temp + '°' + (WX.unit || '');
+    document.getElementById('wx-icon').textContent = { clear: '☀️', clouds: '☁️', rain: '🌧️', snow: '❄️', storm: '⛈️', fog: '🌫️' }[kind] || '';
+    document.getElementById('wx-kind').textContent = (WX.place ? WX.place + ' · ' : '') + kind.toUpperCase();
+  }
   paintSky();
 }
 function weatherTick(dt) {
@@ -634,9 +653,9 @@ function weatherTick(dt) {
 function tickClock() {
   const d = new Date(), h = hourNow(), m = document.getElementById('tod').value === 'live' ? d.getMinutes() : (h % 1) * 60;
   const hh = document.getElementById('hh'), mh = document.getElementById('mh');
-  if (hh) { hh.style.transform = `translateX(-50%) rotate(${(h % 12) * 30}deg)`; mh.style.transform = `translateX(-50%) rotate(${m * 6}deg)`; }
+  if (hh) { hh.style.transform = `translateX(-50%) rotate(${(h % 12) * 30 + m / 2}deg)`; mh.style.transform = `translateX(-50%) rotate(${m * 6}deg)`; }
   const mq = document.getElementById('datemq');
-  if (mq) mq.textContent = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+  if (mq) mq.textContent = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase();   // fits the small brass panel
   for (const i of tower.querySelectorAll('[data-tz]')) {
     const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + +i.dataset.tz;
     i.style.transform = `translateX(-50%) rotate(${(utc % 12) * 30}deg)`;

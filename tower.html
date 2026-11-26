@@ -51,15 +51,20 @@ main { flex: 1; min-height: 0; display: grid; place-items: center; padding: 8px 
 .parapet { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, var(--shell-edge), var(--shell)); border-radius: 6px 6px 0 0; }
 .sign { position: absolute; font: 700 1em var(--f-display); color: var(--neon); letter-spacing: .05em; white-space: nowrap;
   text-shadow: 0 0 6px rgba(255,90,60,.9), 0 0 22px rgba(255,90,60,.5); transform: translateX(-50%); }
-.clocktower { position: absolute; transform: translateX(-50%); background: linear-gradient(180deg, #5d5659, #4a4448); border-radius: 8px 8px 0 0; display: grid; justify-items: center; }
-.clockface { border-radius: 50%; background: radial-gradient(#fff8e6, #e9dcc0); border: 3px solid #c9a24f; position: relative; box-shadow: 0 0 10px rgba(255, 220, 140, .5); }
-.clockface i { position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%; background: #2b2620; border-radius: 2px; }
-.marquee { font: 600 10px var(--f-mono); color: #ffcf6a; background: #1a1418; padding: 1px 6px; border-radius: 3px; white-space: nowrap; letter-spacing: .08em; }
+.roofart { position: absolute; }
+.roofart img { display: block; width: 100%; height: 100%; }
+.dial { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.dial .hand { position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%; background: #2b2620; border-radius: 3px; }
+.dial .hour { width: 5%; height: 26%; }
+.dial .minute { width: 3.2%; height: 38%; }
+.dial .pin { position: absolute; left: 50%; top: 50%; width: 8%; height: 8%; border-radius: 50%; background: #c9a24f; transform: translate(-50%, -50%); }
+.lcd { position: absolute; display: grid; place-items: center; overflow: hidden; color: #ffcf6a; font-family: var(--f-mono); font-weight: 600; letter-spacing: .08em; text-shadow: 0 0 6px rgba(255, 190, 80, .8); white-space: nowrap; }
+.wxscreen { color: #7dffb0; text-shadow: 0 0 8px rgba(80, 255, 160, .8); grid-template-rows: auto auto auto; align-content: center; padding: 0; line-height: 1.05; gap: 3%; }
+.wx-icon { font-size: 1.3em; text-shadow: none; }
+.wx-temp { font-size: 2em; font-family: var(--f-display); }
+.wx-kind { font-size: .8em; letter-spacing: .12em; }
 .billboard { position: absolute; background: #1a1418; border: 3px solid #6b5e45; border-radius: 4px; color: #ffcf6a; display: grid; place-items: center; text-align: center; font: 600 10px var(--f-mono); line-height: 1.2; }
 .billboard b { font: 700 1.6em var(--f-display); color: #fff3c4; display: block; }
-.thermo { position: absolute; display: flex; align-items: flex-end; gap: 4px; font: 600 11px var(--f-mono); color: #ffe7b0; }
-.thermo .tube { width: 8px; border-radius: 4px; background: #eee; position: relative; overflow: hidden; border: 1px solid #999; }
-.thermo .tube i { position: absolute; left: 0; right: 0; bottom: 0; background: #ff5a4f; }
 .snowcap { position: absolute; left: 0; right: 0; top: -6px; height: 8px; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 3s; }
 body.snow .snowcap { opacity: .95; }
 
