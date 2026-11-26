@@ -1,0 +1,509 @@
+<title>Lobster Tower</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dusk-lit building cross-section (front wall removed) with a stairwell on the right, a room inspector beside it.
+   Single deliberate look matching the rendered art (purple dusk sky, warm interiors), so colors are set explicitly. */
+:root {
+  color-scheme: dark;
+  --sky-top: #3b3270;
+  --sky-mid: #8a6fae;
+  --sky-low: #2a2238;
+  --shell: #4a4448;       /* concrete of the building frame, sampled from the renders */
+  --shell-edge: #5d5659;
+  --ink: #fbf3e6;
+  --ink-soft: #c9bfd8;
+  --ink-dark: #2b2620;
+  --neon: #ff5a3c;        /* rooftop sign, the LobsterBoard red */
+  --ok: #5fd39a;
+  --warn: #ffbe4d;
+  --sleep: #93aef5;
+  --gym: #cf96f7;
+  --bad: #ff5a4f;
+  --panel: #241f33;
+  --panel-edge: #3d3554;
+  --f-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-low) 100%);
+  background-attachment: fixed;
+  color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; min-height: 100%;
+}
+body.day { --sky-top: #5d8fd4; --sky-mid: #b9d4ee; --sky-low: #47506a; }
+.page { max-width: 1360px; margin: 0 auto; padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(2rem, 4.4vw, 3rem); line-height: 1; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h1 span { color: var(--neon); text-shadow: 0 0 18px rgba(255,90,60,.55); }
+.sub { color: var(--ink-soft); max-width: 64ch; margin: 8px 0 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 500 13px/1 var(--f-body); color: var(--ink); background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+button:hover { border-color: var(--ink-soft); }
+button:focus-visible, .room:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--ink-dark); border-color: var(--ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+@media (max-width: 1080px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* The building is a drawing: on narrow screens it scrolls sideways inside its own frame */
+.tower-scroll { overflow-x: auto; overflow-y: visible; padding-bottom: 4px; }
+.tower { position: relative; min-width: 860px; }
+.skybox { position: absolute; right: 1%; top: 6px; z-index: 6; display: flex; align-items: center; gap: 8px; font: 500 12px var(--f-mono); background: rgba(30,24,48,.6); padding: 4px 9px; border-radius: 999px; }
+.cloud { width: 30px; height: 12px; background: #d9dbe6; border-radius: 10px; position: relative; }
+.cloud::before { content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #d9dbe6; left: 6px; top: -7px; }
+.roof { position: relative; height: 84px; margin: 0 5%; display: flex; align-items: center; justify-content: center; }
+.roof::before { content: ""; position: absolute; inset: 34px 0 0; background: var(--shell); border: 3px solid var(--shell-edge); border-bottom: 0; border-radius: 6px 6px 0 0; }
+.sign { position: relative; z-index: 1; font: 700 1.9rem/1 var(--f-display); color: #fff1ea; letter-spacing: .06em; padding: 6px 18px; background: #2a1414; border: 3px solid #4a2424; border-radius: 8px; text-shadow: 0 0 6px var(--neon), 0 0 18px var(--neon), 0 0 32px rgba(255,90,60,.7); box-shadow: 0 0 24px rgba(255,90,60,.35); }
+.clock { position: absolute; z-index: 1; right: 6%; bottom: 8px; font: 600 1rem var(--f-mono); color: #ffd6c9; text-shadow: 0 0 8px var(--neon); }
+.shell { background: var(--shell); border: 3px solid var(--shell-edge); padding: 8px; display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; }
+.floors { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.floor { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; height: 172px; }
+.floor-tag { font: 600 12px var(--f-display); color: var(--ink-soft); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; line-height: 1.15; background: rgba(0,0,0,.22); border-radius: 6px; }
+.floor-tag b { font-size: 24px; color: var(--ink); }
+.rooms { display: flex; gap: 0; min-width: 0; height: 100%; }
+
+/* Stairwell */
+.stairs { position: relative; display: flex; flex-direction: column; gap: 8px; background: #3a3238; }
+.landing { height: 172px; background: url("assets/stairs.webp") center bottom / cover; }
+.landing.flip { transform: scaleX(-1); }
+
+/* Rooms are sized by their artwork's proportions (flex-grow = aspect ratio) so nothing gets squashed */
+.room { position: relative; height: 100%; flex: var(--ar) 1 0; min-width: 0; overflow: hidden; cursor: pointer; container-type: size; background: #000; }
+.room + .room { border-left: 4px solid var(--shell); }
+.frame { position: absolute; left: 50%; transform: translateX(-50%);
+  width: max(100cqw, calc(100cqh * var(--ar))); height: max(100cqh, calc(100cqw / var(--ar)));
+  top: calc((100cqh - max(100cqh, calc(100cqw / var(--ar)))) * .7); }
+.room .art { position: absolute; inset: 0; background-size: 100% 100%; transition: filter .6s; }
+.room .art.mirror { left: 50%; transform: scaleX(-1); }
+.room .art.half { right: 50%; }
+.room .art.half.mirror { left: 50%; right: 0; }
+.room.lights-off .art { filter: brightness(.48) saturate(.75); }
+.room.selected { box-shadow: inset 0 0 0 3px var(--warn); }
+.room.selected::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px var(--warn); z-index: 8; pointer-events: none; }
+.room.alert .alarm { position: absolute; inset: 0; z-index: 4; background: rgba(255,60,50,.0); animation: alarm 1.1s ease-in-out infinite; pointer-events: none; }
+@keyframes alarm { 50% { background: rgba(255,60,50,.38); } }
+.plate { position: absolute; left: 6px; top: 6px; z-index: 6; font: 600 11px var(--f-display); background: rgba(24,18,32,.78); color: var(--ink); padding: 3px 8px; border-radius: 999px; max-width: calc(100% - 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; backdrop-filter: blur(2px); }
+.plate i { font-style: normal; color: var(--ink-soft); font-weight: 500; }
+.readout { position: absolute; left: 6px; bottom: 6px; z-index: 6; font: 500 10px var(--f-mono); background: rgba(255,248,235,.88); color: var(--ink-dark); padding: 2px 7px; border-radius: 999px; max-width: calc(100% - 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room.alert .readout { background: var(--bad); color: #fff; }
+
+/* Avatars: sized in container units so they scale with the room (and in the zoom view) */
+.actors { position: absolute; inset: 0; pointer-events: none; }
+.actor { position: absolute; transform: translateX(-50%); z-index: 4; }
+.prop { position: absolute; transform: translateX(-50%); z-index: 2; pointer-events: none; }
+.prop.front { z-index: 6; }
+.prop img { width: 100%; height: auto; display: block; filter: drop-shadow(0 4px 3px rgba(0,0,0,.35)); }
+.actor img { height: 100%; width: auto; display: block; margin: 0 auto; filter: drop-shadow(0 3px 2px rgba(0,0,0,.35)); }
+.actor .tag { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 2px; font: 600 max(9px, 6cqh) var(--f-display); white-space: nowrap; background: #fff; color: var(--ink-dark); padding: 1px 7px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.actor.working img { animation: bob 1.1s ease-in-out infinite; }
+.actor.idle img { animation: sip 3s ease-in-out infinite; transform-origin: bottom center; }
+.actor.gym img { animation: lift .9s ease-in-out infinite; transform-origin: bottom center; }
+.actor.alert img { animation: shake .3s steps(2) infinite; }
+.actor.sleep img { height: auto; width: 100%; }
+.actor.sit img, .actor.sleep img { animation: none; }
+.actor.sleep .tag { animation: zz 2.4s ease-in-out infinite; background: transparent; box-shadow: none; color: #e7ecff; font-size: max(10px, 8cqh); }
+@keyframes bob { 50% { transform: translateY(-1.6%); } }
+@keyframes sip { 50% { transform: rotate(-1.2deg); } }
+@keyframes lift { 50% { transform: scaleY(.97); } }
+@keyframes shake { 50% { transform: translateX(-2px); } }
+@keyframes zz { 0% { transform: translate(-30%, 0); opacity: .2; } 50% { opacity: 1; } 100% { transform: translate(10%, -60%); opacity: 0; } }
+
+/* Room-specific touches */
+.glow { position: absolute; z-index: 2; left: 31%; top: 20%; width: 34%; height: 28%; background: radial-gradient(ellipse, rgba(140,190,255,.85), rgba(80,120,220,.25) 70%, transparent); mix-blend-mode: screen; animation: flicker 2.2s infinite; pointer-events: none; }
+@keyframes flicker { 0%,100% { opacity: .85; } 40% { opacity: .55; } 60% { opacity: 1; } }
+.ticker { position: absolute; z-index: 2; left: 23%; top: 16.5%; width: 54%; height: 7%; overflow: hidden; display: flex; align-items: center; }
+.ticker span { white-space: nowrap; font: 600 5.5cqh var(--f-mono); color: #ffcc55; text-shadow: 0 0 6px rgba(255,180,60,.8); animation: crawl 14s linear infinite; padding-left: 100%; }
+@keyframes crawl { to { transform: translateX(-100%); } }
+.wing-sign { position: absolute; z-index: 3; top: 8%; height: 7%; display: grid; place-items: center; font: 700 5.6cqh var(--f-display); letter-spacing: .12em; color: #fff3d9; text-shadow: 0 1px 0 rgba(0,0,0,.5); }
+.empty-shelf { position: absolute; z-index: 2; top: 23%; height: 52%; background: linear-gradient(90deg, rgba(20,12,6,.0), rgba(20,12,6,.72) 12%); pointer-events: none; }
+.menu-board { position: absolute; z-index: 3; font: 500 max(8px, 4.6cqh)/1.35 var(--f-mono); color: #f3ead4; }
+
+.underground { background: #2f2b30; border: 3px solid var(--shell-edge); border-top: 0; padding: 8px; }
+.ground-line { height: 12px; background: #1b1820; border-inline: 3px solid var(--shell-edge); }
+.walker { position: absolute; z-index: 30; pointer-events: none; height: 74px; }
+.walker img { height: 100%; width: auto; display: block; filter: drop-shadow(0 3px 2px rgba(0,0,0,.35)); animation: step .35s ease-in-out infinite; }
+.walker.left img { transform: scaleX(-1); }
+@keyframes step { 50% { translate: 0 -3px; } }
+
+/* ── Inspector ── */
+.inspector { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+@media (max-width: 1080px) { .inspector { position: static; } }
+.eyebrow { font: 500 11px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+.inspector h2 { font: 700 1.6rem/1.1 var(--f-display); margin: 2px 0 0; }
+.inspector p { margin: 0; color: var(--ink-soft); }
+.thumb { width: 100%; aspect-ratio: 2.2; border-radius: 8px; background-size: cover; background-position: center 70%; }
+.who { display: flex; gap: 12px; align-items: center; }
+.who img { height: 84px; width: auto; flex: none; filter: drop-shadow(0 3px 3px rgba(0,0,0,.4)); }
+.who b { font: 600 1rem var(--f-display); display: block; }
+.who span { font-size: 13px; color: var(--ink-soft); }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 13px; margin: 0; }
+.kv dt { color: var(--ink-soft); }
+.kv dd { margin: 0; font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.states { display: flex; flex-direction: column; gap: 6px; }
+.state { display: grid; grid-template-columns: 98px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 13px; padding: 7px 8px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid transparent; }
+.state.current { border-color: var(--panel-edge); background: rgba(255,255,255,.08); }
+.state b { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.sim { display: flex; gap: 6px; flex-wrap: wrap; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.legend { font-size: 12px; color: var(--ink-soft); border-top: 1px solid var(--panel-edge); padding-top: 12px; }
+.note { font-size: 12px; color: var(--ink-soft); margin-top: 14px; max-width: 86ch; }
+
+/* ── Zoom view ── */
+.zoom { position: fixed; inset: 0; z-index: 50; background: rgba(14,10,22,.86); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.zoom-box { width: min(1100px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.zoom-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.zoom-head h3 { margin: 0; font: 700 1.4rem var(--f-display); }
+.zoom-frame { width: 100%; border-radius: 10px; overflow: hidden; border: 3px solid var(--shell-edge); }
+.zoom-frame .room { cursor: default; flex: none; width: 100%; height: 100%; border: 0; }
+.zoom-frame .room.selected::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>Lobster <span>Tower</span></h1>
+      <p class="sub">Every widget on your dashboard gets a room. Busy services work at their stations, quick breaks happen in the cafeteria, long naps in the dormitory, housekeeping in the gym, and anything broken heads to the basement. Each service has its own character, and they take the stairs, so you can watch them move.</p>
+    </div>
+    <div class="controls" role="group" aria-label="Building controls">
+      <button id="btn-day" type="button" aria-pressed="false">☀ Daytime</button>
+      <button id="btn-outage" type="button">Simulate an outage</button>
+      <button id="btn-reset" type="button">Reset to example</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="tower-scroll">
+        <section class="tower" id="tower" aria-label="Building cross-section">
+          <div class="skybox" title="Local Weather widget"><span class="cloud" aria-hidden="true"></span><span>46°F · Overcast</span></div>
+          <div class="roof"><span class="sign">LOBSTERBOARD</span><span class="clock" id="clock">22:40</span></div>
+          <div class="shell">
+            <div class="floors" id="floors"></div>
+            <div class="stairs" id="stairs" aria-hidden="true"></div>
+          </div>
+          <div class="ground-line" aria-hidden="true"></div>
+          <div class="underground" id="underground"></div>
+        </section>
+      </div>
+      <p class="note">Mockup. Rooms, furniture and the cast were generated in Higgsfield for this concept; numbers are example values from your dashboard screenshot, not live data.</p>
+    </div>
+    <aside class="inspector" id="inspector" aria-live="polite"></aside>
+  </div>
+</div>
+
+<div class="zoom" id="zoom" hidden role="dialog" aria-modal="true" aria-labelledby="zoom-title">
+  <div class="zoom-box">
+    <div class="zoom-head"><h3 id="zoom-title"></h3><button type="button" id="zoom-close">Close</button></div>
+    <div class="zoom-frame" id="zoom-frame"></div>
+  </div>
+</div>
+
+<script>
+const ART = n => `assets/room-${n}.webp`;
+const CAST = (c, pose) => `assets/cast/${c}-${pose}.webp`;
+const PROP = n => `assets/props/${n}.webp`;
+
+const STATE_LABEL = { working: 'Working', idle: 'Short break', sleep: 'Sleeping', gym: 'Housekeeping', alert: 'Alert' };
+const STATE_WHERE = { working: 'At their station', idle: 'Cafeteria', sleep: 'Dormitory', gym: 'Gym', alert: 'Basement' };
+const STATE_COLOR = { working: 'var(--ok)', idle: 'var(--warn)', sleep: 'var(--sleep)', gym: 'var(--gym)', alert: 'var(--bad)' };
+const ORDER = ['working', 'idle', 'sleep', 'gym', 'alert'];
+
+// The cast: one character per service, each with their own pose set.
+const WORKERS = {
+  plex:     { widget: 'Plex',     name: 'Rosa',      role: 'Projectionist',      state: 'idle',    room: 'cinema' },
+  radarr:   { widget: 'Radarr',   name: 'Finn',      role: 'Film librarian',     state: 'gym',     room: 'library' },
+  sonarr:   { widget: 'Sonarr',   name: 'Imani',     role: 'TV librarian',       state: 'working', room: 'library' },
+  seerr:    { widget: 'Seerr',    name: 'Mei',       role: 'Receptionist',       state: 'working', room: 'desk' },
+  sab:      { widget: 'SABnzbd',  name: 'Big Tony',  role: 'Dock worker',        state: 'sleep',   room: 'dock' },
+  prowlarr: { widget: 'Prowlarr', name: 'Skye',      role: 'Radio operator',     state: 'working', room: 'radio' },
+  servers:  { widget: 'Uptime · Disk · Network', name: 'Dev', role: 'Server tech', state: 'working', room: 'servers' },
+  lb:       { widget: 'LobsterBoard', name: 'Mr. Claws', role: 'The boss',        state: 'working', room: 'office' },
+  rss:      { widget: 'RSS Ticker', name: 'Walt',    role: 'Reporter',           state: 'idle',    room: 'newsroom' },
+};
+const DEFAULTS = Object.fromEntries(Object.entries(WORKERS).map(([k, w]) => [k, w.state]));
+
+/* Placement is in % of the room artwork (the .frame): x = centre, b = bottom, h = height (or w = width).
+   z: 'back' furniture sits behind avatars, 'front' furniture in front of them. */
+const ROOMS = {
+  cinema:   { name: 'Cinema', art: 'cinema', ar: 1.61, workers: ['plex'], readout: 'Nothing playing · 104 movies · 202 shows',
+              props: [{ n: 'couch', x: 37, w: 44, b: 6 }],
+              spot: { plex: { pose: 'sitting', cls: 'sit', x: 37, b: 15, h: 40 } },
+              reads: 'Plex sessions: active streams, transcodes',
+              states: { working: 'Something is playing: Rosa settles onto the couch and the screen lights up. It flickers when a stream is transcoding.',
+                        idle: 'Nobody watching right now: Rosa steps out for a coffee.',
+                        sleep: 'Nothing played for hours: Rosa naps upstairs.',
+                        gym: 'Plex is scanning the library: Rosa hits the gym.',
+                        alert: 'Plex can’t be reached: the room flashes red and Rosa runs to the basement.' } },
+  library:  { name: 'Media Library', art: 'library', ar: 2.33, workers: ['radarr', 'sonarr'],
+              wings: [ { label: 'MOVIES', left: 17, width: 23, fill: 80, shelfLeft: 8, shelfWidth: 39 },
+                       { label: 'TV', left: 58, width: 22, fill: 89, shelfLeft: 50, shelfWidth: 32 } ],
+              spot: { radarr: { pose: 'working', x: 27, b: 6, h: 54 }, sonarr: { pose: 'working', x: 66, b: 6, h: 54 } },
+              readout: 'Movies 37/46 on disk · TV 1,361/1,530 eps · 1 queued',
+              reads: 'Radarr and Sonarr: share of library on disk (empty shelf space dims), queue, missing, housekeeping',
+              states: { working: 'Something in that wing’s queue: Finn (Movies) or Imani (TV) is shelving.',
+                        idle: 'Queue empty: the librarian takes a coffee break.',
+                        sleep: 'Nothing new for hours: the librarian naps upstairs.',
+                        gym: 'Running housekeeping (RSS sync, refresh, backup): the librarian is in the gym.',
+                        alert: 'A health warning from Radarr or Sonarr: that librarian heads to the basement.' } },
+  desk:     { name: 'Front Desk', art: 'desk', ar: 1.61, workers: ['seerr'], readout: '11 approved · 11 processing',
+              props: [{ n: 'counter', x: 50, w: 74, b: 5, z: 'front' }],
+              spot: { seerr: { pose: 'working', x: 46, b: 13, h: 56 } },
+              reads: 'Seerr: requests by status',
+              states: { working: 'Requests are moving: Mei works the counter. Pending requests could line up as visitors.',
+                        idle: 'No open requests: Mei takes a break.', sleep: 'Quiet for hours: Mei naps.',
+                        gym: 'Seerr syncing with Plex or the *arrs: Mei works out.',
+                        alert: 'Seerr can’t be reached: the desk closes and Mei heads to the basement.' } },
+  dock:     { name: 'Loading Dock', art: 'dock', ar: 2.33, workers: ['sab'], readout: '0 B/s · queue empty · 3.3 TB this month', boxes: 3,
+              spot: { sab: { pose: 'working', x: 58, b: 6, h: 58 } },
+              reads: 'SABnzbd: download speed, queue size (one box per queued download)',
+              states: { working: 'Downloads arriving: Big Tony hauls boxes, and they stack up with the queue.',
+                        idle: 'Queue just emptied: Big Tony grabs a coffee.', sleep: 'Nothing downloaded for hours: Big Tony sleeps upstairs.',
+                        gym: 'Repairing or unpacking a finished download: Big Tony is in the gym.',
+                        alert: 'Downloads failing: Big Tony heads to the basement.' } },
+  radio:    { name: 'Radio Room', art: 'radio', ar: 2.33, workers: ['prowlarr'], readout: '3/3 indexers · 748 grabs',
+              spot: { prowlarr: { pose: 'working', x: 63, b: 6, h: 54 } },
+              reads: 'Prowlarr: indexer queries, grabs, failures',
+              states: { working: 'Skye works the transmitter, tuning in to indexers.',
+                        idle: 'No recent searches: Skye takes a break.', sleep: 'No searches for hours: Skye naps.',
+                        gym: 'Syncing indexers to the *arrs: Skye works out.',
+                        alert: 'All indexers failing: Skye heads to the basement.' } },
+  servers:  { name: 'Server Room', art: 'servers', ar: 2.33, workers: ['servers'], readout: 'CPU 2% · Disk 3% · up 3d 12h',
+              spot: { servers: { pose: 'working', x: 85, b: 6, h: 54 } },
+              reads: 'CPU load, disk %, network, uptime',
+              states: { working: 'Racks blink and Dev makes rounds. Past 90% CPU the room would overheat.',
+                        idle: 'Machine idle: Dev takes a break.', sleep: 'Not used for this room.',
+                        gym: 'Backups or updates running: Dev works out.',
+                        alert: 'Disk nearly full or a host down: the room flashes and Dev runs to the basement.' } },
+  office:   { name: 'Head Office', art: 'office', ar: 1.64, workers: ['lb'], readout: 'v0.9.1 · up to date',
+              props: [{ n: 'officedesk', x: 53, w: 60, b: 5, z: 'front' }],
+              spot: { lb: { pose: 'sitting', cls: 'sit', x: 53, b: 16, h: 48 } },
+              reads: 'LobsterBoard release check',
+              states: { working: 'Up to date: Mr. Claws is behind his desk.', idle: 'Not used for this room.', sleep: 'Not used for this room.', gym: 'Not used for this room.',
+                        alert: 'An update is available: Mr. Claws panics until you update.' } },
+  newsroom: { name: 'Newsroom', art: 'newsroom', ar: 1.63, workers: ['rss'], readout: 'Latest headline scrolling',
+              props: [{ n: 'newsdesk', x: 50, w: 62, b: 5, z: 'front' }],
+              spot: { rss: { pose: 'sitting', cls: 'sit', x: 50, b: 15, h: 46 } },
+              reads: 'RSS feed items',
+              states: { working: 'A new headline: the ticker scrolls and Walt types it up at his desk.', idle: 'No new items for a while: Walt grabs a coffee.',
+                        sleep: 'No new items for hours: Walt naps.', gym: 'Not used for this room.',
+                        alert: 'Feed can’t be fetched: the ticker goes dark and Walt heads to the basement.' } },
+};
+const AMENITY = {
+  dorm:     { name: 'Dormitory', art: 'dorm', ar: 2.33, state: 'sleep', blurb: 'Services idle for hours sleep here. A quick break goes to the cafeteria; a long quiet spell (say 2 hours, configurable) sends the avatar up to bed.' },
+  gym:      { name: 'Gym', art: 'gym', ar: 2.33, state: 'gym', blurb: 'Housekeeping: library scans, RSS syncs, refreshes, backups. Background work that isn’t serving you directly.' },
+  cafe:     { name: 'Cafeteria', art: 'cafe', ar: 4.66, state: 'idle', blurb: 'Quick breaks. Any service with nothing to do right now sits down here, so one glance tells you what’s idle.' },
+  basement: { name: 'Basement', art: 'basement', ar: 4.66, state: 'alert', blurb: 'Anything unreachable or reporting an error ends up here, and its room flashes red.' },
+};
+const FLOORS = [
+  { n: 4, label: 'Rest',  rooms: ['dorm', 'gym'] },
+  { n: 3, label: 'Media', rooms: ['cinema', 'library', 'desk'] },
+  { n: 2, label: 'Fetch', rooms: ['dock', 'radio'] },
+  { n: 1, label: 'Ops',   rooms: ['servers', 'office', 'newsroom'] },
+  { n: 'G', label: 'Lobby', rooms: ['cafe'] },
+];
+const BEDS = [14, 37, 60, 83];                     // dormitory bed centres (% of room width)
+const TABLES = [9, 23, 77, 91];                    // cafeteria table centres
+const SEATS = TABLES.flatMap(x => [x - 3.4, x + 3.4]);
+
+let selected = 'cinema';
+
+const here = s => Object.keys(WORKERS).filter(k => WORKERS[k].state === s);
+const spread = (n, from, to) => Array.from({ length: n }, (_, i) => n === 1 ? (from + to) / 2 : from + (to - from) * i / (n - 1));
+
+function actor(k, pose, { x, b, h, w, cls = '', tag = null }) {
+  const W = WORKERS[k];
+  const size = w != null ? `width:${w}%` : `height:${h}%`;
+  return `<div class="actor ${cls || pose}" data-worker="${k}" style="left:${x}%;bottom:${b}%;${size}">
+    ${tag ? `<span class="tag">${tag}</span>` : ''}<img alt="${W.name} (${W.widget})" src="${CAST(k, pose)}"></div>`;
+}
+const prop = ({ n, x, w, b, z }) => `<div class="prop${z === 'front' ? ' front' : ''}" style="left:${x}%;bottom:${b}%;width:${w}%"><img alt="" src="${PROP(n)}"></div>`;
+
+function roomBox(id, ar, artHtml, framed, overlay, cls = '') {
+  const sel = selected === id ? ' selected' : '';
+  return `<div class="room${cls}${sel}" style="--ar:${ar}" tabindex="0" role="button" data-id="${id}"><div class="frame">${artHtml}${framed}</div>${overlay}</div>`;
+}
+const art = (a, wide) => wide
+  ? `<div class="art half" style="background-image:url('${ART(a)}')"></div><div class="art half mirror" style="background-image:url('${ART(a)}')"></div>`
+  : `<div class="art" style="background-image:url('${ART(a)}')"></div>`;
+
+function widgetRoom(id) {
+  const r = ROOMS[id];
+  const sts = r.workers.map(k => WORKERS[k].state);
+  const alert = sts.includes('alert'), away = sts.every(s => s !== 'working' && s !== 'alert');
+  let extras = (r.props || []).map(prop).join('');
+  if (id === 'cinema' && WORKERS.plex.state === 'working') extras += `<div class="glow"></div>`;
+  if (id === 'newsroom' && WORKERS.rss.state === 'working') extras += `<div class="ticker"><span>Understanding Positional Embeddings in Modern LLMs  ·  </span></div>`;
+  if (id === 'dock' && WORKERS.sab.state === 'working') {
+    const n = Math.min(6, r.boxes);
+    extras += Array.from({ length: n }, (_, i) => prop({ n: 'box', x: 72 + (i % 3) * 7.2, w: 7, b: 6 + Math.floor(i / 3) * 16.5 })).join('');
+  }
+  if (r.wings) extras += r.wings.map(wg => `
+      <div class="wing-sign" style="left:${wg.left}%;width:${wg.width}%">${wg.label}</div>
+      <div class="empty-shelf" style="left:${wg.shelfLeft + wg.shelfWidth * wg.fill / 100}%;width:${wg.shelfWidth * (100 - wg.fill) / 100}%"></div>`).join('');
+  const actors = r.workers.filter(k => WORKERS[k].state === 'working').map(k => {
+    const sp = r.spot[k];
+    return actor(k, sp.pose, { ...sp, cls: sp.cls || 'working' });
+  }).join('');
+  return roomBox(id, r.ar, art(r.art), `${extras}<div class="actors">${actors}</div>`,
+    `${alert ? '<div class="alarm"></div>' : ''}
+     <span class="plate"${r.wings ? ' style="left:auto;right:6px"' : ''}>${r.name} <i>· ${r.workers.map(k => WORKERS[k].widget).join(' + ')}</i></span>
+     <span class="readout">${alert ? 'Not responding' : r.readout}</span>`,
+    (alert ? ' alert' : '') + (away ? ' lights-off' : ''));
+}
+
+function amenityRoom(id) {
+  const a = AMENITY[id];
+  const who = here(a.state);
+  let framed = '';
+  if (id === 'dorm') {
+    framed = BEDS.map(x => prop({ n: 'bed', x, w: 19, b: 6 })).join('') + '<div class="actors">' +
+      who.slice(0, 4).map((k, i) => actor(k, 'sleeping', { x: BEDS[i] + 2, b: 16, w: 15, cls: 'sleep', tag: 'z z z' })).join('') + '</div>';
+  } else if (id === 'cafe') {
+    const sitters = who.slice(0, SEATS.length), standers = who.slice(SEATS.length);
+    framed = TABLES.map(x => prop({ n: 'cafetable', x, w: 10.5, b: 5 })).join('') + '<div class="actors">' +
+      sitters.map((k, i) => actor(k, 'sitting', { x: SEATS[i], b: 7, h: 40, cls: 'sit', tag: WORKERS[k].widget })).join('') +
+      standers.map((k, i) => actor(k, 'coffee', { x: 44 + i * 6, b: 6, h: 52, cls: 'idle', tag: WORKERS[k].widget })).join('') + '</div>';
+  } else {
+    const xs = id === 'gym' ? spread(who.length, 28, 66) : spread(who.length, 22, 78);
+    framed = '<div class="actors">' + who.map((k, i) => actor(k, id === 'gym' ? 'gym' : 'alert',
+      { x: xs[i], b: 6, h: 54, cls: id === 'gym' ? 'gym' : 'alert', tag: WORKERS[k].widget + (id === 'gym' ? ': RSS sync' : ' down') })).join('') + '</div>';
+  }
+  const empty = { dorm: 'Beds empty', gym: 'Nobody working out', cafe: 'Empty: everyone is busy', basement: 'All systems normal' }[id];
+  return roomBox(id, a.ar, art(a.art, a.ar > 4), framed, `
+    <span class="plate">${a.name} <i>· ${{ dorm: 'idle for hours', gym: 'housekeeping work', cafe: 'quick breaks', basement: 'anything broken ends up here' }[id]}</i></span>
+    ${who.length ? '' : `<span class="readout">${empty}</span>`}`);
+}
+
+function render() {
+  document.getElementById('floors').innerHTML = FLOORS.map(f => `
+    <div class="floor"><div class="floor-tag"><b>${f.n}</b>${f.label}</div>
+      <div class="rooms">${f.rooms.map(id => ROOMS[id] ? widgetRoom(id) : amenityRoom(id)).join('')}</div></div>`).join('');
+  document.getElementById('underground').innerHTML = `
+    <div class="floor"><div class="floor-tag"><b>B</b>Utility</div><div class="rooms">${amenityRoom('basement')}</div></div>`;
+  // the flight on each floor alternates direction, so the stacked flights zig-zag
+  document.getElementById('stairs').innerHTML = FLOORS.map((_, i) => `<div class="landing${i % 2 ? ' flip' : ''}"></div>`).join('');
+  renderInspector();
+}
+
+function renderInspector() {
+  const el = document.getElementById('inspector');
+  const zoomBtn = `<button type="button" id="btn-zoom">Zoom in</button>`;
+  if (AMENITY[selected]) {
+    const a = AMENITY[selected];
+    el.innerHTML = `
+      <div class="thumb" style="background-image:url('${ART(a.art)}')" role="img" aria-label="${a.name}"></div>
+      <div><div class="eyebrow">Shared room</div><h2>${a.name}</h2></div>
+      <p>${a.blurb}</p>
+      <dl class="kv"><dt>Right now</dt><dd>${here(a.state).map(k => `${WORKERS[k].name} (${WORKERS[k].widget})`).join(', ') || 'nobody'}</dd></dl>
+      <div class="row">${zoomBtn}</div>${legend()}`;
+    return;
+  }
+  const r = ROOMS[selected];
+  const usable = ORDER.filter(s => !r.states[s].startsWith('Not used'));
+  const current = new Set(r.workers.map(k => WORKERS[k].state));
+  el.innerHTML = `
+    <div class="thumb" style="background-image:url('${ART(r.art)}')" role="img" aria-label="${r.name}"></div>
+    <div><div class="eyebrow">Room · Widget</div><h2>${r.name}</h2></div>
+    ${r.workers.map(k => `<div class="who"><img alt="" src="${CAST(k, 'working')}"><div><b>${WORKERS[k].name}</b><span>${WORKERS[k].role} · ${WORKERS[k].widget}</span></div></div>`).join('')}
+    <dl class="kv"><dt>Reads</dt><dd>${r.reads}</dd><dt>Example</dt><dd>${r.readout}</dd></dl>
+    <div class="states">${usable.map(s => `
+      <div class="state${current.has(s) ? ' current' : ''}"><b><span class="dot" style="background:${STATE_COLOR[s]}"></span>${STATE_LABEL[s]}</b>
+      <span>${r.states[s]} <em style="color:var(--ink-soft);font-style:normal">(${STATE_WHERE[s]})</em></span></div>`).join('')}</div>
+    ${r.workers.map(k => `<div><div class="eyebrow" style="margin-bottom:6px">Preview · ${WORKERS[k].name}</div>
+      <div class="sim" role="group" aria-label="Preview ${WORKERS[k].name}">${usable.map(s => `<button type="button" data-worker="${k}" data-sim="${s}" aria-pressed="${WORKERS[k].state === s}">${STATE_LABEL[s]}</button>`).join('')}</div></div>`).join('')}
+    <div class="row">${zoomBtn}</div>${legend()}`;
+}
+function legend() { return `<div class="legend">Click a room, or double-click to zoom. Preview buttons change that service’s state so you can watch its character walk to the right floor.</div>`; }
+
+// ── Movement: out of the room, along to the stairwell, up or down, then in to the destination ──
+function setState(k, s) {
+  const w = WORKERS[k];
+  if (w.state === s) return;
+  const tower = document.getElementById('tower');
+  const fromEl = document.querySelector(`.actor[data-worker="${k}"]`);
+  const from = fromEl?.getBoundingClientRect();
+  w.state = s;
+  render();
+  const toEl = document.querySelector(`.actor[data-worker="${k}"]`);
+  if (!from || !toEl || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  toEl.style.visibility = 'hidden';
+  const t = tower.getBoundingClientRect(), to = toEl.getBoundingClientRect();
+  const stairs = document.getElementById('stairs').getBoundingClientRect();
+  const H = 74;
+  const foot = (r) => ({ x: r.left - t.left + r.width / 2, y: r.bottom - t.top });
+  const a = foot(from), d = foot(to), sx = stairs.left - t.left + stairs.width / 2;
+  const ghost = document.createElement('div');
+  ghost.className = 'walker';
+  ghost.innerHTML = `<img alt="" src="${CAST(k, 'walking')}">`;
+  tower.appendChild(ghost);
+  const pts = [a, { x: sx, y: a.y }, { x: sx, y: d.y }, d];
+  const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+  const total = pts.slice(1).reduce((n, p, i) => n + dist(pts[i], p), 0) || 1;
+  let acc = 0;
+  const frames = pts.map((p, i) => { if (i) acc += dist(pts[i - 1], p); return { transform: `translate(${p.x - 20}px, ${p.y - H}px)`, offset: acc / total }; });
+  const dur = Math.min(4200, 900 + total * 2.6);
+  ghost.classList.toggle('left', sx < a.x);
+  const anim = ghost.animate(frames, { duration: dur, easing: 'linear' });
+  setTimeout(() => ghost.classList.toggle('left', d.x < sx), dur * (1 - dist(pts[2], d) / total));
+  anim.onfinish = () => { ghost.remove(); toEl.style.visibility = ''; };
+}
+
+// ── Zoom ──
+function openZoom() {
+  const src = document.querySelector(`.room[data-id="${selected}"]`);
+  if (!src) return;
+  const z = document.getElementById('zoom'), frame = document.getElementById('zoom-frame');
+  const ar = parseFloat(src.style.getPropertyValue('--ar')) || 2;
+  const clone = src.cloneNode(true);
+  clone.removeAttribute('tabindex'); clone.removeAttribute('role');
+  frame.innerHTML = ''; frame.appendChild(clone);
+  document.getElementById('zoom-title').textContent = (ROOMS[selected] || AMENITY[selected]).name;
+  z.hidden = false;
+  frame.style.width = '';
+  const w = frame.clientWidth, h = Math.min(w / ar, window.innerHeight * 0.75);
+  frame.style.height = h + 'px';
+  frame.style.width = Math.min(w, h * ar) + 'px';
+  document.getElementById('zoom-close').focus();
+}
+function closeZoom() { document.getElementById('zoom').hidden = true; document.querySelector(`.room[data-id="${selected}"]`)?.focus(); }
+
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'zoom-close' || e.target.id === 'zoom') { closeZoom(); return; }
+  if (e.target.id === 'btn-zoom') { openZoom(); return; }
+  const sim = e.target.closest('[data-sim]');
+  if (sim) { setState(sim.dataset.worker, sim.dataset.sim); return; }
+  const room = e.target.closest('#tower .room');
+  if (room) { selected = room.dataset.id; render(); }
+});
+document.addEventListener('dblclick', (e) => { const room = e.target.closest('#tower .room'); if (room) { selected = room.dataset.id; render(); openZoom(); } });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('zoom').hidden) { closeZoom(); return; }
+  const room = e.target.closest && e.target.closest('#tower .room');
+  if (room && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selected = room.dataset.id; render(); document.querySelector(`.room[data-id="${selected}"]`)?.focus(); }
+});
+document.getElementById('btn-day').addEventListener('click', (e) => {
+  const on = document.body.classList.toggle('day');
+  e.currentTarget.setAttribute('aria-pressed', on);
+  e.currentTarget.textContent = on ? '☾ Nighttime' : '☀ Daytime';
+  document.getElementById('clock').textContent = on ? '12:25' : '22:40';
+});
+document.getElementById('btn-outage').addEventListener('click', () => {
+  const ks = Object.keys(WORKERS).filter(k => WORKERS[k].state !== 'alert' && k !== 'lb');
+  if (!ks.length) return;
+  const k = ks[Math.floor(Math.random() * ks.length)];
+  selected = WORKERS[k].room;
+  setState(k, 'alert');
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+  for (const [k, s] of Object.entries(DEFAULTS)) WORKERS[k].state = s;
+  selected = 'cinema'; render();
+});
+render();
+</script>
