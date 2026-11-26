@@ -167,6 +167,7 @@ dialog::backdrop { background: rgba(10, 8, 18, .6); }
   <button class="switch" id="demo" aria-pressed="true" title="Simulated data for every kept widget">Demo mode</button>
   <label class="ctl">Dashboard <select id="preset"><option value="all">Everything</option><option value="media">Media server</option><option value="homelab">Homelab</option><option value="developer">Developer</option></select></label>
   <label class="ctl">Weather <select id="wx"><option value="auto">Demo cycle</option><option>clear</option><option>clouds</option><option>rain</option><option>snow</option><option>storm</option><option>fog</option></select></label>
+  <button id="rooms-btn" title="Choose which rooms the tower shows">Rooms</button>
   <label class="ctl">Time <select id="tod"><option value="live">Live</option><option value="6.5">Dawn</option><option value="12">Day</option><option value="18.6">Dusk</option><option value="23">Night</option></select></label>
   <div class="counts" id="counts" aria-live="polite"></div>
 </header>
@@ -200,17 +201,17 @@ const CATALOG = {
   'docker-containers': { label: 'Docker',   room: 'yard',     avatar: true, icon: '🐳', read: () => `${rnd(8, 16)} running · ${rnd(0, 1)} stopped` },
   'network-speed':     { label: 'Network',  room: 'network',  avatar: true, gym: false, icon: '🌐', read: () => `↓ ${rnd(1, 90)} Mb/s · ↑ ${rnd(1, 20)} Mb/s` },
   // OpenClaw
-  'auth-status':   { label: 'Auth',     room: 'control', avatar: true, gym: false, icon: '🔐', read: () => 'Max subscription' },
-  'session-count': { label: 'Sessions', room: 'control', avatar: true, gym: false, icon: '💬', read: () => `${rnd(0, 4)} active sessions` },
-  'token-gauge':   { label: 'Tokens',   room: 'control', avatar: true, gym: false, icon: '📊', read: () => `${rnd(10, 90)}% of limit` },
-  'cron-jobs':     { label: 'Cron',     room: 'control', avatar: true, icon: '⏰', read: () => `${rnd(3, 9)} jobs · next in ${rnd(1, 50)} min` },
-  'activity-list': { label: 'Activity', room: 'control', avatar: true, gym: false, icon: '📋', read: () => `${rnd(1, 30)} events today` },
-  'system-log':    { label: 'Log',      room: 'control', avatar: true, gym: false, icon: '🔧', read: () => `${rnd(0, 3)} warnings in the last hour` },
+  'auth-status':   { label: 'Auth',     room: 'control', avatar: true, cast: 'auth', walk: true, gym: false, icon: '🔐', read: () => 'Max subscription' },
+  'session-count': { label: 'Sessions', room: 'control', avatar: true, cast: 'sessions', walk: true, gym: false, icon: '💬', read: () => `${rnd(0, 4)} active sessions` },
+  'token-gauge':   { label: 'Tokens',   room: 'control', avatar: true, cast: 'tokens', walk: true, gym: false, icon: '📊', read: () => `${rnd(10, 90)}% of limit` },
+  'cron-jobs':     { label: 'Cron',     room: 'control', avatar: true, cast: 'cron', walk: true, icon: '⏰', read: () => `${rnd(3, 9)} jobs · next in ${rnd(1, 50)} min` },
+  'activity-list': { label: 'Activity', room: 'control', avatar: true, cast: 'activity', walk: true, gym: false, icon: '📋', read: () => `${rnd(1, 30)} events today` },
+  'system-log':    { label: 'Log',      room: 'control', avatar: true, cast: 'log', walk: true, gym: false, icon: '🔧', read: () => `${rnd(0, 3)} warnings in the last hour` },
   // time and planning
   'clock':       { label: 'Clock',       room: 'roof',  piece: 'clocktower', icon: '🕐', read: () => new Date().toLocaleTimeString() },
   'world-clock': { label: 'World Clock', room: 'lobby', piece: 'clocks', icon: '🌍', read: () => 'London · Tokyo · New York' },
   'countdown':   { label: 'Countdown',   room: 'roof',  piece: 'billboard', icon: '⏳', read: () => `${countdownDays()} days to go` },
-  'calendar':    { label: 'Calendar',    room: 'planning', avatar: true, gym: false, icon: '📅', read: () => `Next: standup in ${rnd(5, 90)} min` },
+  'calendar':    { label: 'Calendar',    room: 'planning', avatar: true, cast: 'calendar', walk: true, gym: false, icon: '📅', read: () => `Next: standup in ${rnd(5, 90)} min` },
   // productivity
   'todo-list':    { label: 'Todo',      room: 'office',   avatar: true, gym: false, icon: '✅', read: () => `${rnd(1, 9)} open tasks` },
   'email-count':  { label: 'Email',     room: 'mail',     avatar: true, gym: false, icon: '📧', read: () => `${rnd(0, 60)} unread` },
@@ -245,8 +246,8 @@ for (const t of AI_TOOLS) CATALOG[t] = { label: AI_LABEL[t], room: 'agentwall', 
    spots: hand-placed stations on the artwork, used in order before spreading the rest. */
 const ROOMS = {
   headoffice: { name: 'Head Office', group: 'top', art: 'office', ar: 1.64, props: [{ n: 'officedesk', x: 53, w: 60, b: 5, z: 'front' }], spots: [{ x: 53, pose: 'sitting', h: .48, b: .16 }] },
-  control:    { name: 'Control Room', group: 'top', icon: '🎛️' },
-  planning:   { name: 'Planning Office', group: 'top', icon: '📅' },
+  control:    { name: 'Control Room', group: 'top', art: 'control', ar: 2.68, spots: [{ x: 21 }, { x: 31 }, { x: 45 }, { x: 58 }, { x: 72 }, { x: 84 }] },
+  planning:   { name: 'Planning Office', group: 'top', art: 'planning', ar: 2.06, spots: [{ x: 64 }] },
   cinema:     { name: 'Cinema', group: 'media', art: 'cinema', ar: 1.61, props: [{ n: 'couch', x: 37, w: 44, b: 6 }], spots: [{ x: 37, pose: 'sitting', h: .4, b: .15 }] },
   library:    { name: 'Media Library', group: 'media', art: 'library', ar: 2.33, spots: [{ x: 27 }, { x: 66 }] },
   desk:       { name: 'Front Desk', group: 'media', art: 'desk', ar: 1.61, props: [{ n: 'counter', x: 50, w: 74, b: 5, z: 'front' }], spots: [{ x: 46, b: .13, h: .56 }] },
@@ -269,8 +270,8 @@ const ROOMS = {
   agentwall:  { name: 'Agent Wall', group: 'base', agentwall: true },
   basement:   { name: 'Basement', group: 'base', art: 'basement', ar: 2.33, shared: 'alert' },
 };
-const GROUP_ORDER = ['top', 'work*', 'rest', 'ground', 'system', 'base'];   // work* = media, content, work packed together
-const WORK_GROUPS = ['media', 'content', 'work'];
+const GROUP_ORDER = ['work*', 'rest', 'ground', 'system', 'base'];   // work* = the offices first, then media, content, work, packed together
+const WORK_GROUPS = ['top', 'media', 'content', 'work'];
 
 /* Demo dashboards. Inside LobsterBoard the list comes from the page's own config. */
 const PRESETS = {
@@ -281,6 +282,13 @@ const PRESETS = {
 };
 const dashboardFor = key => (PRESETS[key].types || Object.keys(CATALOG)).map((type, i) => ({ id: `w${i}`, type }));
 const HEADER_TEXT = 'LOBSTER TOWER';
+
+/* Rooms the owner has switched off. Inside LobsterBoard this is saved in the Tower widget's settings;
+   here it lives in this browser only. Shared rooms can't be hidden: avatars need them. */
+const HIDEABLE = k => !ROOMS[k].shared;
+let HIDDEN = new Set();
+try { HIDDEN = new Set(JSON.parse(localStorage.getItem('tower.hidden') || '[]')); } catch (e) {}
+function saveHidden() { try { localStorage.setItem('tower.hidden', JSON.stringify([...HIDDEN])); } catch (e) {} }
 
 /* ---------- helpers ---------- */
 const rnd = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
@@ -306,6 +314,7 @@ function buildModel(dashboard) {
   const need = new Set(['dorm', 'gym', 'lobby', 'cafe', 'basement']);
   for (const w of dashboard) {
     const c = CATALOG[w.type]; if (!c) continue;
+    if (HIDDEN.has(c.room)) continue;                           // the owner switched this room off
     if (c.room === 'roof') { if (c.piece === 'clocktower') m.roof.clock = true; if (c.piece === 'billboard') m.roof.billboard = true; if (c.piece === 'sky') m.roof.sky = true; continue; }
     need.add(c.room);
     if (c.avatar) m.avatars.push(newAvatar(w, c));
@@ -688,6 +697,10 @@ function figFor(a) {
     if (st === 'working' && a.state === 'working') return SAB.work[Math.floor(a.frameT / .45) % 4];
     if (st === 'gym') return SAB.lift[Math.floor(a.frameT / .42) % 6];
   }
+  if (a.c.cast && a.c.walk) {
+    if (st === 'walk') return A(`cast/${a.c.cast}-walk-${Math.floor((a.dist || 0) / (G.H * .1)) % 6}.webp`);
+    if (st === 'ride') return A(`cast/${a.c.cast}-walk-2.webp`);
+  }
   if (a.c.cast) return A(`cast/${a.c.cast}-${st === 'walk' ? 'walking' : st === 'ride' ? 'working' : st}.webp`);
   return 'pawn:' + (st === 'walk' || st === 'ride' ? 'working' : st);
 }
@@ -712,7 +725,7 @@ function draw() {
       if (pose === 'sleeping') { hgt = H * .19; lift = a.slot.bed ? H * .17 : H * .02; }
     }
     const feet = a.mode === 'ride' ? LIFTS[a.riding].y + cabH() * .955 : G.walkY(a.floor) - lift;
-    const bob = a.mode === 'walk' && !a.c.frames ? Math.abs(Math.sin((a.dist || 0) / (H * .09))) * H * .03 : 0;
+    const bob = a.mode === 'walk' && !a.c.frames && !a.c.walk ? Math.abs(Math.sin((a.dist || 0) / (H * .09))) * H * .03 : 0;
     el.style.left = a.x + 'px'; el.style.top = (feet - hgt - bob) + 'px'; el.style.height = hgt + 'px';
     el.className = `av ${a.state}${a.flip ? ' flip' : ''}${a.mode === 'ride' ? ' riding' : ''}`;
     const tag = a.slot && a.slot.dozing && posed ? `${a.label} · z z z` : a.state === 'alert' && posed ? `${a.label} · down` : a.label;
@@ -863,6 +876,7 @@ function openRoom(key) {
   h += room.stations.map(cardHtml).join('');
   h += room.pieces.map(p => `<div class="card"><h3>${p.c.icon} ${esc(p.c.label)}</h3><div class="read">${esc(p.c.read())}</div></div>`).join('');
   if (room.R.agentwall) h += M.panels.map(p => `<div class="card"><h3>${esc(p.c.label)} <span class="chip">${p.state}</span></h3><div class="read">session ${p.s}% · week ${p.wk}%</div></div>`).join('');
+  if (HIDEABLE(key)) h += `<div><button data-hide="${key}">Hide this room</button> <span class="hint">Bring it back from Rooms in the top bar.</span></div>`;
   h += `<p class="hint">${demo ? 'Demo data. Inside LobsterBoard this shows the widget’s real card.' : ''}</p>`;
   document.getElementById('dlg-body').innerHTML = h;
   dlg.showModal();
@@ -880,7 +894,27 @@ document.getElementById('dlg-body').addEventListener('click', e => {
   b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   updateRoomAlerts();
 });
+document.getElementById('dlg-body').addEventListener('click', e => {
+  const b = e.target.closest('[data-hide]'); if (!b) return;
+  HIDDEN.add(b.dataset.hide); saveHidden(); dlg.close(); start(document.getElementById('preset').value);
+});
 document.getElementById('dlg-close').addEventListener('click', () => dlg.close());
+/* the Rooms list: a switch per room the current dashboard uses */
+document.getElementById('rooms-btn').addEventListener('click', () => {
+  const used = [...new Set(dashboardFor(document.getElementById('preset').value).map(w => CATALOG[w.type] && CATALOG[w.type].room))]
+    .filter(k => k && ROOMS[k] && HIDEABLE(k));
+  document.getElementById('dlg-title').textContent = 'Rooms in the tower';
+  document.getElementById('dlg-body').innerHTML = `<p class="hint">Switch a room off to leave it out of the tower. Its widgets stay on your dashboard.</p>` +
+    used.map(k => `<label class="card" style="display:flex;gap:10px;align-items:center;cursor:pointer"><input type="checkbox" data-room-toggle="${k}" ${HIDDEN.has(k) ? '' : 'checked'}>
+      <span><b>${esc(ROOMS[k].name)}</b><br><span class="hint">${esc(Object.keys(CATALOG).filter(t => CATALOG[t].room === k && dashboardFor(document.getElementById('preset').value).some(w => w.type === t)).map(t => CATALOG[t].label).join(' · '))}</span></span></label>`).join('') +
+    `<p class="hint">The cafeteria, dormitory, gym, lobby and basement always stay: avatars need them.</p>`;
+  dlg.showModal();
+});
+document.getElementById('dlg-body').addEventListener('change', e => {
+  const t = e.target.closest('[data-room-toggle]'); if (!t) return;
+  t.checked ? HIDDEN.delete(t.dataset.roomToggle) : HIDDEN.add(t.dataset.roomToggle);
+  saveHidden(); start(document.getElementById('preset').value);
+});
 tower.addEventListener('click', e => { const r = e.target.closest('[data-room]'); if (r && !r.classList.contains('hall')) openRoom(r.dataset.room); });
 tower.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.room) { e.preventDefault(); openRoom(e.target.dataset.room); } });
 
