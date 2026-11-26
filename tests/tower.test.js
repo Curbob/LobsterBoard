@@ -77,6 +77,10 @@ describe('tower catalog', () => {
     expect(t.properties).toHaveProperty('sleepHours');
     expect(t.properties).toHaveProperty('hiddenRooms');
   });
+
+  it('lists the Lobster Tower widget in the editor\'s widget picker', () => {
+    expect(read('app.html')).toContain('data-widget="lobster-tower"');
+  });
 });
 
 describe('tower live states', () => {
