@@ -120,7 +120,9 @@ main { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px
 #tony.flip img { transform: translateX(-50%) scaleX(-1); }
 #tony .tag { position: absolute; left: 0; transform: translateX(-50%); bottom: 102%; white-space: nowrap;
   font: 600 10px var(--f-display); background: rgba(20, 16, 28, .78); padding: 1px 6px; border-radius: 4px; color: var(--warn); }
-#tony.riding { z-index: 4; }   /* behind the cab gate */
+#tony.riding { z-index: 4; }
+.belt-box { position: absolute; z-index: 4; pointer-events: none; transform-origin: bottom center; }
+.belt-box img { display: block; width: 100%; height: auto; max-width: none; }   /* behind the cab gate */
 
 @media (prefers-reduced-motion: reduce) { .gate { transition: none; } }
 </style>
@@ -162,9 +164,9 @@ const ROOMS = {
   library:  { name: 'Media Library', sub: 'Radarr + Sonarr', ar: 2.33, who: [{ c: 'radarr', p: 'working', x: 27, b: 6, h: 54 }, { c: 'sonarr', p: 'working', x: 66, b: 6, h: 54 }] },
   gym:      { name: 'Gym', sub: 'housekeeping', ar: 2.33 },
   desk:     { name: 'Front Desk', sub: 'Seerr', ar: 1.61, props: [{ n: 'counter', x: 50, w: 74, b: 5, z: 'front' }], who: [{ c: 'seerr', p: 'working', x: 46, b: 13, h: 56 }] },
-  cafe:     { name: 'Cafeteria', sub: 'quick breaks', ar: 2.33, props: [9, 30, 70, 91].map(x => ({ n: 'cafetable', x, w: 9, b: 5 })) },
-  dock:     { name: 'Loading Dock', sub: 'SABnzbd', ar: 2.33, props: [0, 1, 2, 3].map(i => ({ n: 'box', x: 14 + (i % 3) * 7, w: 6.8, b: 6 + Math.floor(i / 3) * 16 })) },
-  dorm:     { name: 'Dormitory', sub: 'idle for hours', ar: 2.33, props: [14, 37, 60, 83].map(x => ({ n: 'bed', x, w: 19, b: 6 })) },
+  cafe:     { name: 'Cafeteria', sub: 'quick breaks', ar: 2.33, props: [11, 34, 66, 89].map(x => ({ n: 'cafetable', x, w: 19, b: 5 })) },
+  dock:     { name: 'Loading Dock', sub: 'SABnzbd', ar: 2.33, props: [{ n: 'conveyor', x: 52, w: 52, b: 5 }, { n: 'box', x: 91, w: 6.8, b: 6 }, { n: 'box', x: 97.6, w: 6.8, b: 6 }, { n: 'box', x: 94.3, w: 6.8, b: 24 }] },
+  dorm:     { name: 'Dormitory', sub: 'idle for hours', ar: 2.33, props: [18, 50, 82].map(x => ({ n: 'bed', x, w: 26, b: 6 })) },
   basement: { name: 'Basement', sub: 'anything broken ends up here', ar: 2.33, basement: true },
 };
 const FLOORS = [                       // top to bottom
@@ -175,10 +177,10 @@ const FLOORS = [                       // top to bottom
 ];
 /* Where Big Tony goes for each state: room, x in % of that room, and what he does there. */
 const SPOTS = {
-  dock:     { room: 'dock', x: 60, act: 'work', say: 'Working the dock: SABnzbd is downloading' },
+  dock:     { room: 'dock', x: 84, act: 'work', say: 'Working the dock: SABnzbd is downloading' },
   gym:      { room: 'gym', x: 50, act: 'lift', say: 'In the gym: SABnzbd is repairing and unpacking' },
   cafe:     { room: 'cafe', x: 50, act: 'coffee', say: 'Coffee break: the download queue is empty' },
-  dorm:     { room: 'dorm', x: 61, act: 'sleeping', say: 'Asleep: nothing downloaded for hours' },
+  dorm:     { room: 'dorm', x: 50, act: 'sleeping', say: 'Asleep: nothing downloaded for hours' },
   basement: { room: 'basement', x: 50, act: 'alert', say: 'In the basement: downloads are failing' },
 };
 
@@ -262,7 +264,7 @@ function render() {
     });
   }
   h += `<div id="tony"><span class="tag">Big Tony</span><img alt="Big Tony, the SABnzbd dock worker" src="${TONY.work[0]}"></div>`;
-  tower.innerHTML = h;
+  tower.innerHTML = h;   // also clears boxes left on the belt
   for (const side of ['L', 'R']) placeCab(side, cabY(lifts[side].floor));
   placeTony();
 }
@@ -283,10 +285,11 @@ function placeCab(side, y) {
 const T = { floor: 2, x: null, frame: TONY.work[0], flip: false, riding: null, label: '' };
 function placeTony() {
   const el = document.getElementById('tony'); if (!el) return;
-  if (T.x == null) { const g = G.rooms.dock; T.x = (g.x + g.w * .6) / G.W; }
+  if (T.x == null) { const g = G.rooms.dock; T.x = (g.x + g.w * .84) / G.W; }
   const x = T.x * G.W;
-  const feet = T.riding ? lifts[T.riding].y + cabH() * .955 : G.walkY(T.floor);
-  const h = G.H * (T.pose === 'sleeping' ? .3 : .58);
+  const sleeping = T.pose === 'sleeping';
+  const feet = T.riding ? lifts[T.riding].y + cabH() * .955 : G.walkY(T.floor) - (sleeping ? G.H * .17 : 0);  // on the mattress
+  const h = G.H * (sleeping ? .19 : .58);
   Object.assign(el.style, { left: x + 'px', top: (feet - h) + 'px', height: h + 'px' });
   el.classList.toggle('flip', T.flip);
   el.classList.toggle('riding', !!T.riding);
@@ -402,7 +405,35 @@ async function goTo(key, token) {
   T.flip = false;
   await activity(S.act, token);
 }
+/* The dock job: take a box off the incoming stack, turn, push it onto the conveyor,
+   and the belt carries it to the roll-up door at the back. */
+async function dockWork(token, loops) {
+  const g = G.rooms.dock, conv = ROOMS.dock.props[0];
+  const beltTop = G.walkY(g.floor) - (conv.w / 100 * g.w / (1400 / 267)) * .97;
+  const loadX = g.x + g.w * .76, doorX = g.x + g.w * .46, bw = G.H * .17;
+  for (let i = 0; i < loops; i++) {
+    T.flip = false; setFrame(TONY.work[0]); await sleep(420, token);   // bend down to the stack
+    setFrame(TONY.work[1]); await sleep(320, token);                   // lift the box
+    T.flip = true; setFrame(TONY.work[1]); await sleep(320, token);    // turn to the belt
+    setFrame(TONY.door);                                               // push it onto the belt
+    sendBox(loadX, doorX, beltTop, bw);
+    await sleep(700, token);
+  }
+}
+function sendBox(x0, x1, y, w) {
+  const el = document.createElement('div');
+  el.className = 'belt-box';
+  el.innerHTML = `<img alt="" src="${A('props/box.webp')}">`;
+  Object.assign(el.style, { width: w + 'px', left: x0 - w / 2 + 'px', top: y - w * 900 / 867 + 'px' });
+  tower.appendChild(el);
+  const ride = (x1 - x0), travel = Math.abs(ride) / (G.H * .45) * 1000;
+  el.animate([{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${ride}px)`, opacity: 1, offset: .82 },   // solid until the door
+              { transform: `translateX(${ride - G.H * .05}px) translateY(-${G.H * .05}px) scale(.62)`, opacity: 0 }],
+             { duration: travel / .82, easing: 'linear', fill: 'forwards' }).onfinish = () => el.remove();
+}
+
 async function activity(act, token, loops = Infinity) {
+  if (act === 'work') return dockWork(token, loops === Infinity ? Infinity : loops * 2);
   if (TONY[act] && Array.isArray(TONY[act])) {
     const ms = act === 'lift' ? 420 : 380;
     for (let i = 0; i < loops * TONY[act].length; i++) { setFrame(TONY[act][i % TONY[act].length]); await sleep(ms, token); }
