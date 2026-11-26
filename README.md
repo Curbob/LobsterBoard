@@ -231,6 +231,17 @@ Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General
 | Vertical Line | Vertical divider |
 | Pages Menu | Navigation for custom pages |
 
+## Lobster Tower
+
+Add the **Lobster Tower** widget to your dashboard and it becomes a door to `tower.html`: a cutaway building where every widget on your dashboard is a room with its own avatar, tagged with the service's name.
+
+- **Working** avatars are at their station: SABnzbd loads boxes onto a conveyor while downloading, Plex sits in the cinema while someone streams.
+- **Breaks** happen in the cafeteria when there's nothing to do; after a long quiet spell (2 hours by default) the avatar goes to bed in the dormitory.
+- **Housekeeping** (repairs, syncs, warnings) sends avatars to the gym; anything **failing or unreachable** goes to the basement and its room flashes red.
+- AI coding tools light up panels on the **Agent Wall**; clocks, weather, images and quotes become part of the building (a clock tower, the sky, a gallery, a lobby chalkboard).
+- Click any room for its widgets' live readouts. Switch rooms off from **Rooms** in the tower's top bar, or in the widget's **Hidden rooms** setting.
+- **Demo mode** fills every room with made-up data, so you can try it without the services behind it (`tower.html?demo=1`).
+
 ## Custom Pages
 
 LobsterBoard includes a pages system for adding full custom pages beyond the widget dashboard. Pages get their own route, nav entry, and optional server-side API.

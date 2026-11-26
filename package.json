@@ -49,6 +49,8 @@
     "server.cjs",
     "server/",
     "app.html",
+    "tower.html",
+    "tower/",
     "js/",
     "css/",
     "dist",
