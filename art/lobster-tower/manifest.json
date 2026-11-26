@@ -1,5 +1,10 @@
 {
  "files": {
+  "originals/building/cab.webp": "e61e964c-792e-438a-9eb5-4c5557eb84b3",
+  "originals/building/door-closed.webp": "7aac3e15-58fa-408b-9831-d123761625a7",
+  "originals/building/door-open.webp": "2044be31-fe7f-49cb-bf00-09f95d799ffc",
+  "originals/building/elevator-door.webp": "b3f7686a-1b66-49f0-8306-ae2226b142d0",
+  "originals/building/shaft.webp": "01b7ecc3-e3d4-4c02-b09d-332f475de1ac",
   "originals/cast/lb-alert.webp": "e871bfa4-cca6-42e6-957f-aa3f1b364c82",
   "originals/cast/lb-coffee.webp": "10bdae31-ea8b-4096-835e-2e03c2f786e7",
   "originals/cast/lb-gym.webp": "30af760e-9cfd-48c1-962e-09814276d58f",
@@ -102,7 +107,13 @@
   "originals/rooms/office-empty.webp": "86614c34-e702-45e2-8a5c-0a7924be7b5a",
   "originals/rooms/office.webp": "b385e45a-aa85-43d8-971f-e616d2326b0d",
   "originals/rooms/radio.webp": "744b2ee1-4168-4836-8d72-b5b3a9100c74",
-  "originals/rooms/servers.webp": "27e86f50-7ff4-4793-9daa-abbd7a3b289a"
+  "originals/rooms/servers.webp": "27e86f50-7ff4-4793-9daa-abbd7a3b289a",
+  "originals/sprites/sab-button.webp": "3ebaa971-7941-4b86-9e69-8d99ee5e82b6",
+  "originals/sprites/sab-door.webp": "602e1d13-1bc7-473d-b785-918d0ae7f45d",
+  "originals/sprites/sab-lift-sheet.webp": "08a4a209-e92f-473a-b496-a1d912619947",
+  "originals/sprites/sab-ride.webp": "5ba6cdc1-3138-4b12-bb04-7f6808c0a513",
+  "originals/sprites/sab-walk-sheet.webp": "cfaadbe5-5778-483c-be55-8c941f7b066c",
+  "originals/sprites/sab-work-sheet.webp": "b7ef81c9-132d-4af0-88ae-10d581725ab6"
  },
  "note": "Each file is a WebP (q90) of the original PNG. The untouched original can be re-downloaded from the Higgsfield library by job id.",
  "source": "Higgsfield (gpt_image_2_6), generated for the Lobster Tower concept"

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobster Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Full-screen, landscape cutaway of the building. One deliberate dusk look that matches the art,
+   so the palette is fixed rather than following the system theme. */
+:root {
+  color-scheme: dark;
+  --sky-top: #3b3270; --sky-mid: #8a6fae; --sky-low: #2a2238;
+  --shell: #4a4448; --shell-edge: #5d5659; --slab: #3a3437;
+  --ink: #fbf3e6; --ink-soft: #c9bfd8;
+  --neon: #ff5a3c; --ok: #5fd39a; --warn: #ffbe4d; --sleep: #93aef5; --gym: #cf96f7; --bad: #ff5a4f;
+  --panel: #241f33; --panel-edge: #3d3554;
+  --f-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+:root[data-theme="light"], :root[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 45%, var(--sky-low) 100%);
+  color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 16px; background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border-bottom: 1px solid var(--panel-edge);
+}
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -.01em; }
+h1 span { color: var(--neon); }
+.controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.controls .lbl { color: var(--ink-soft); font-size: 12px; margin-right: 2px; }
+button {
+  font: 500 13px var(--f-body); color: var(--ink); background: #342d48; border: 1px solid var(--panel-edge);
+  border-radius: 7px; padding: 5px 10px; cursor: pointer;
+}
+button:hover { background: #41395a; }
+button:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+button[aria-pressed="true"] { background: #5a3d2c; border-color: var(--neon); }
+.status { margin-left: auto; font-family: var(--f-mono); font-size: 12px; color: var(--ink-soft); max-width: 46ch; }
+.status b { color: var(--warn); font-weight: 500; }
+
+main { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px 16px 14px; }
+#tower { position: relative; }
+
+/* roof */
+.roof { position: absolute; left: 0; right: 0; top: 0; border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--shell-edge), var(--shell)); display: grid; place-items: center; }
+.sign { font-family: var(--f-display); font-weight: 700; color: var(--neon); letter-spacing: .04em;
+  text-shadow: 0 0 6px rgba(255, 90, 60, .9), 0 0 22px rgba(255, 90, 60, .55); white-space: nowrap; }
+
+.slab { position: absolute; background: var(--slab); box-shadow: inset 0 2px 0 var(--shell-edge); }
+.floor-no { position: absolute; z-index: 4; font: 600 11px var(--f-mono); color: var(--ink-soft); text-align: center; letter-spacing: .06em; }
+
+/* rooms */
+.room { position: absolute; overflow: hidden; background: #000 center / cover no-repeat; }
+.room.basement { background-size: auto 100%; background-repeat: repeat-x; background-position: left center; }
+.room .plate {
+  position: absolute; left: 6px; top: 6px; z-index: 8; padding: 2px 8px; border-radius: 5px;
+  background: rgba(20, 16, 28, .72); font: 600 11px var(--f-display); letter-spacing: .03em; white-space: nowrap;
+}
+.room .plate i { font: 400 10px var(--f-body); color: var(--ink-soft); font-style: normal; }
+.prop, .actor { position: absolute; transform: translateX(-50%); pointer-events: none; }
+.prop img, .actor img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+.actor img { height: 100%; width: auto; }
+.prop.front { z-index: 6; }
+.wall { position: absolute; background: linear-gradient(90deg, #2c2729, #4d4548 50%, #2c2729); z-index: 2; }
+
+/* Doors between rooms sit in the cut side wall, so we see them edge-on.
+   Closed: a thin slab filling the doorway. Open: the slab swings away from us on its hinge
+   and lies against the back wall of the room being entered, behind whoever walks through. */
+.door { position: absolute; width: 0; z-index: 3; perspective: 900px; }
+.door .edge { position: absolute; bottom: 0; left: 50%; height: 100%; transform: translateX(-50%);
+  background: linear-gradient(90deg, #6d3d17, #b8692c 45%, #7a431a); border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35); transition: opacity .2s .1s; }
+.door .leaf { position: absolute; bottom: 4%; height: 94%; left: 0; transform-origin: left center;
+  transform: rotateY(90deg); transition: transform .45s cubic-bezier(.3,.7,.3,1), filter .45s;
+  filter: brightness(.7); backface-visibility: hidden; }
+.door .leaf img { display: block; height: 100%; width: 100%; }
+.door.open-r .leaf { transform: rotateY(28deg); filter: brightness(.9); }
+.door.open-l .leaf { left: auto; right: 0; transform-origin: right center; transform: rotateY(-28deg); filter: brightness(.9); }
+.door.open-l .leaf img { transform: scaleX(-1); }
+.door.left-hinge .leaf { left: auto; right: 0; transform-origin: right center; transform: rotateY(-90deg); }
+.door.left-hinge .leaf img { transform: scaleX(-1); }
+.door.open-r .edge, .door.open-l .edge { opacity: 0; transition-delay: 0s; }
+.lintel { position: absolute; z-index: 4; background: linear-gradient(180deg, #c99a5a, #8b6233); }
+
+/* elevators */
+.shaft { position: absolute; background: url(assets/shaft.webp) center top repeat-y; z-index: 1;
+  box-shadow: inset 0 0 0 3px var(--shell); }
+.cab { position: absolute; z-index: 3; }
+.cab img { width: 100%; height: 100%; display: block; }
+.cable { position: absolute; z-index: 2; width: 3px; background: linear-gradient(90deg, #555, #aaa, #555); }
+.gate { position: absolute; z-index: 7; transform-origin: left center; transition: transform .55s ease-in-out;
+  background:
+    repeating-linear-gradient(45deg, transparent 0 9px, #c9a24f 9px 11px),
+    repeating-linear-gradient(-45deg, transparent 0 9px, #a8802f 9px 11px);
+  border-left: 3px solid #e0bb62; border-right: 3px solid #e0bb62; }
+.gate.open { transform: scaleX(.08); }
+.call { position: absolute; z-index: 4; width: 10px; height: 18px; border-radius: 3px;
+  background: #3b3437; border: 1px solid #222; display: grid; place-items: center; }
+.call::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #6b5e45; }
+.call.lit::after { background: #ffd066; box-shadow: 0 0 6px #ffc44a; }
+.indicator { position: absolute; z-index: 4; font: 600 10px var(--f-mono); color: #ffcf6a; background: #1a1418;
+  padding: 0 4px; border-radius: 3px; text-align: center; min-width: 18px; }
+
+/* Big Tony: a frame-animated sprite */
+#tony { position: absolute; z-index: 5; transform-origin: bottom center; pointer-events: none; }
+#tony img { display: block; height: 100%; width: auto; transform: translateX(-50%); position: absolute; left: 0; bottom: 0; }
+#tony.flip img { transform: translateX(-50%) scaleX(-1); }
+#tony .tag { position: absolute; left: 0; transform: translateX(-50%); bottom: 102%; white-space: nowrap;
+  font: 600 10px var(--f-display); background: rgba(20, 16, 28, .78); padding: 1px 6px; border-radius: 4px; color: var(--warn); }
+#tony.riding { z-index: 4; }   /* behind the cab gate */
+
+@media (prefers-reduced-motion: reduce) { .gate { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lobster <span>Tower</span></h1>
+  <div class="controls" role="group" aria-label="Send Big Tony somewhere">
+    <span class="lbl">Send Big Tony to:</span>
+    <button data-go="dock" aria-pressed="true">Dock (working)</button>
+    <button data-go="gym">Gym (housekeeping)</button>
+    <button data-go="cafe">Cafeteria (break)</button>
+    <button data-go="dorm">Dormitory (asleep)</button>
+    <button data-go="basement">Basement (alert)</button>
+    <button id="auto" aria-pressed="true" title="Cycle through the destinations">Auto tour</button>
+  </div>
+  <div class="status" id="status" aria-live="polite"></div>
+</header>
+<main><div id="tower" aria-label="Cutaway of the Lobster Tower"></div></main>
+
+<script>
+const A = p => `assets/${p}`;
+const TONY = {
+  walk: [0, 1, 2, 3, 4, 5].map(i => A(`tony/walk-${i}.webp`)),
+  work: [0, 1, 2, 1].map(i => A(`tony/work-${i}.webp`)),
+  lift: [0, 1, 2, 2, 1, 0].map(i => A(`tony/lift-${i}.webp`)),
+  door: A('tony/door.webp'), button: A('tony/button.webp'), ride: A('tony/ride.webp'),
+  coffee: A('cast/sab-coffee.webp'), sleeping: A('cast/sab-sleeping.webp'), alert: A('cast/sab-alert.webp'),
+};
+Object.values(TONY).flat().forEach(src => { const i = new Image(); i.src = src; });   // preload every frame
+
+/* Rooms. ar = art aspect ratio. Placement inside a room is in % of the room box. */
+const ROOMS = {
+  office:   { name: 'Head Office', sub: 'LobsterBoard', ar: 1.64, props: [{ n: 'officedesk', x: 53, w: 60, b: 5, z: 'front' }], who: [{ c: 'lb', p: 'sitting', x: 53, b: 16, h: 48 }] },
+  newsroom: { name: 'Newsroom', sub: 'RSS', ar: 1.63, props: [{ n: 'newsdesk', x: 50, w: 62, b: 5, z: 'front' }], who: [{ c: 'rss', p: 'sitting', x: 50, b: 15, h: 46 }] },
+  servers:  { name: 'Server Room', sub: 'System', ar: 2.33, who: [{ c: 'servers', p: 'working', x: 85, b: 6, h: 54 }] },
+  radio:    { name: 'Radio Room', sub: 'Prowlarr', ar: 2.33, who: [{ c: 'prowlarr', p: 'working', x: 63, b: 6, h: 54 }] },
+  cinema:   { name: 'Cinema', sub: 'Plex', ar: 1.61, props: [{ n: 'couch', x: 37, w: 44, b: 6 }], who: [{ c: 'plex', p: 'sitting', x: 37, b: 15, h: 40 }] },
+  library:  { name: 'Media Library', sub: 'Radarr + Sonarr', ar: 2.33, who: [{ c: 'radarr', p: 'working', x: 27, b: 6, h: 54 }, { c: 'sonarr', p: 'working', x: 66, b: 6, h: 54 }] },
+  gym:      { name: 'Gym', sub: 'housekeeping', ar: 2.33 },
+  desk:     { name: 'Front Desk', sub: 'Seerr', ar: 1.61, props: [{ n: 'counter', x: 50, w: 74, b: 5, z: 'front' }], who: [{ c: 'seerr', p: 'working', x: 46, b: 13, h: 56 }] },
+  cafe:     { name: 'Cafeteria', sub: 'quick breaks', ar: 2.33, props: [9, 30, 70, 91].map(x => ({ n: 'cafetable', x, w: 9, b: 5 })) },
+  dock:     { name: 'Loading Dock', sub: 'SABnzbd', ar: 2.33, props: [0, 1, 2, 3].map(i => ({ n: 'box', x: 14 + (i % 3) * 7, w: 6.8, b: 6 + Math.floor(i / 3) * 16 })) },
+  dorm:     { name: 'Dormitory', sub: 'idle for hours', ar: 2.33, props: [14, 37, 60, 83].map(x => ({ n: 'bed', x, w: 19, b: 6 })) },
+  basement: { name: 'Basement', sub: 'anything broken ends up here', ar: 2.33, basement: true },
+};
+const FLOORS = [                       // top to bottom
+  { n: 3, rooms: ['office', 'newsroom', 'servers', 'radio'] },
+  { n: 2, rooms: ['cinema', 'library', 'gym', 'desk'] },
+  { n: 1, rooms: ['cafe', 'dock', 'dorm'] },
+  { n: 'B', rooms: ['basement'] },
+];
+/* Where Big Tony goes for each state: room, x in % of that room, and what he does there. */
+const SPOTS = {
+  dock:     { room: 'dock', x: 60, act: 'work', say: 'Working the dock: SABnzbd is downloading' },
+  gym:      { room: 'gym', x: 50, act: 'lift', say: 'In the gym: SABnzbd is repairing and unpacking' },
+  cafe:     { room: 'cafe', x: 50, act: 'coffee', say: 'Coffee break: the download queue is empty' },
+  dorm:     { room: 'dorm', x: 61, act: 'sleeping', say: 'Asleep: nothing downloaded for hours' },
+  basement: { room: 'basement', x: 50, act: 'alert', say: 'In the basement: downloads are failing' },
+};
+
+const tower = document.getElementById('tower');
+const statusEl = document.getElementById('status');
+let G = null;                          // geometry, rebuilt on resize
+
+function layout() {
+  const main = document.querySelector('main');
+  const units = Math.max(...FLOORS.slice(0, 3).map(f => f.rooms.reduce((s, r) => s + ROOMS[r].ar, 0)));
+  const SH = 0.62, SLAB = 0.07, ROOF = 0.42;               // in floor heights
+  const wUnits = units + 2 * SH, hUnits = ROOF + FLOORS.length * (1 + SLAB);
+  const H = Math.floor(Math.min((main.clientWidth - 32) / wUnits, (main.clientHeight - 24) / hUnits));
+  const g = { H, sh: SH * H, slab: SLAB * H, roof: ROOF * H, W: wUnits * H, rooms: {}, floors: [], doors: [] };
+  g.inner = units * H;
+  FLOORS.forEach((f, i) => {
+    const top = g.roof + i * (H + g.slab) + g.slab;
+    const fl = { n: f.n, top, bottom: top + H, rooms: [] };
+    const sum = f.rooms.reduce((s, r) => s + ROOMS[r].ar, 0);
+    let x = g.sh;
+    f.rooms.forEach((r, j) => {
+      const w = g.inner * ROOMS[r].ar / sum;
+      g.rooms[r] = { id: r, floor: i, x, w, top, h: H };
+      fl.rooms.push(r);
+      if (j > 0) g.doors.push({ floor: i, x, id: `d${i}-${j}` });
+      x += w;
+    });
+    g.floors.push(fl);
+  });
+  g.walkY = i => g.floors[i].bottom - 0.06 * H;           // feet line on floor i
+  g.shaftX = side => side === 'L' ? g.sh / 2 : g.W - g.sh / 2;
+  return g;
+}
+
+function propHtml({ n, x, w, b, z }) {
+  return `<div class="prop${z === 'front' ? ' front' : ''}" style="left:${x}%;bottom:${b}%;width:${w}%"><img alt="" src="${A(`props/${n}.webp`)}"></div>`;
+}
+
+const lifts = { L: { floor: 2, busy: Promise.resolve() }, R: { floor: 1, busy: Promise.resolve() } };
+
+function render() {
+  G = layout();
+  const { H } = G;
+  tower.style.width = G.W + 'px';
+  tower.style.height = (G.floors.at(-1).bottom + G.slab) + 'px';
+  let h = `<div class="roof" style="height:${G.roof + G.slab}px"><div class="sign" style="font-size:${G.roof * .5}px">LOBSTER TOWER</div></div>`;
+  G.floors.forEach((f, i) => {
+    h += `<div class="slab" style="left:0;width:${G.W}px;top:${f.top - G.slab}px;height:${G.slab}px"></div>`;
+    for (const r of f.rooms) {
+      const R = ROOMS[r], g = G.rooms[r];
+      const art = `background-image:url('${A(`room-${r}.webp`)}')`;
+      h += `<div class="room${R.basement ? ' basement' : ''}" data-room="${r}" style="left:${g.x}px;top:${g.top}px;width:${g.w}px;height:${H}px;${art}">
+        ${(R.props || []).map(propHtml).join('')}
+        ${(R.who || []).map(a => `<div class="actor" style="left:${a.x}%;bottom:${a.b}%;height:${a.h}%"><img alt="" src="${A(`cast/${a.c}-${a.p}.webp`)}"></div>`).join('')}
+        <span class="plate">${R.name} <i>· ${R.sub}</i></span></div>`;
+    }
+  });
+  h += `<div class="slab" style="left:0;width:${G.W}px;top:${G.floors.at(-1).bottom}px;height:${G.slab}px"></div>`;
+  // walls between rooms, cut through: a doorway near the floor holds an edge-on door
+  const dh = H * 0.72, wt = H * 0.07, leafW = dh * .94 * 292 / 642 * .9;
+  for (const d of G.doors) {
+    const f = G.floors[d.floor], doorTop = G.walkY(d.floor) - dh;
+    h += `<div class="wall" style="left:${d.x - wt / 2}px;top:${f.top}px;width:${wt}px;height:${doorTop - f.top}px"></div>`;
+    h += `<div class="wall" style="left:${d.x - wt / 2}px;top:${G.walkY(d.floor)}px;width:${wt}px;height:${f.bottom - G.walkY(d.floor)}px"></div>`;
+    h += `<div class="lintel" style="left:${d.x - wt / 2 - 2}px;top:${doorTop - 3}px;width:${wt + 4}px;height:4px"></div>`;
+    h += `<div class="door" id="${d.id}" style="left:${d.x}px;top:${doorTop}px;height:${dh}px">
+      <div class="edge" style="width:${wt * .4}px"></div>
+      <div class="leaf" style="width:${leafW}px"><img alt="" src="${A('door-slab.webp')}"></div></div>`;
+  }
+  // elevator shafts, cabs, gates, call buttons, floor indicators
+  const top0 = G.floors[0].top, bot = G.floors.at(-1).bottom;
+  for (const side of ['L', 'R']) {
+    const x0 = side === 'L' ? 0 : G.W - G.sh;
+    h += `<div class="shaft" style="left:${x0}px;top:${top0}px;width:${G.sh}px;height:${bot - top0}px;background-size:${G.sh}px ${H + G.slab}px"></div>`;
+    h += `<div class="cable" id="cable${side}" style="left:${x0 + G.sh / 2 - 1.5}px;top:${top0}px"></div>`;
+    h += `<div class="cab" id="cab${side}"><img alt="" src="${A('cab.webp')}"></div><div class="gate" id="gate${side}"></div>`;
+    G.floors.forEach((f, i) => {
+      const bx = side === 'L' ? G.sh + H * .05 : G.W - G.sh - H * .05 - 10;
+      h += `<div class="call" id="call${side}${i}" style="left:${bx}px;top:${f.top + H * .42}px"></div>`;
+      h += `<div class="floor-no" style="left:${x0}px;width:${G.sh}px;top:${f.top + 3}px">${f.n === 'B' ? 'B' : 'F' + f.n}</div>`;
+    });
+  }
+  h += `<div id="tony"><span class="tag">Big Tony</span><img alt="Big Tony, the SABnzbd dock worker" src="${TONY.work[0]}"></div>`;
+  tower.innerHTML = h;
+  for (const side of ['L', 'R']) placeCab(side, cabY(lifts[side].floor));
+  placeTony();
+}
+
+/* ---------- elevator mechanics ---------- */
+const cabH = () => G.H * 0.9, cabW = () => cabH() * 441 / 700;
+const cabY = floor => G.floors[floor].bottom - cabH();       // cab top when level with a floor
+function placeCab(side, y) {
+  const cab = document.getElementById('cab' + side), gate = document.getElementById('gate' + side), cable = document.getElementById('cable' + side);
+  const x = G.shaftX(side) - cabW() / 2;
+  Object.assign(cab.style, { left: x + 'px', top: y + 'px', width: cabW() + 'px', height: cabH() + 'px' });
+  Object.assign(gate.style, { left: x + cabW() * .07 + 'px', top: y + cabH() * .1 + 'px', width: cabW() * .86 + 'px', height: cabH() * .86 + 'px' });
+  cable.style.height = Math.max(0, y - G.floors[0].top) + 'px';
+  lifts[side].y = y;
+}
+
+/* ---------- Big Tony's state ---------- */
+const T = { floor: 2, x: null, frame: TONY.work[0], flip: false, riding: null, label: '' };
+function placeTony() {
+  const el = document.getElementById('tony'); if (!el) return;
+  if (T.x == null) { const g = G.rooms.dock; T.x = (g.x + g.w * .6) / G.W; }
+  const x = T.x * G.W;
+  const feet = T.riding ? lifts[T.riding].y + cabH() * .955 : G.walkY(T.floor);
+  const h = G.H * (T.pose === 'sleeping' ? .3 : .58);
+  Object.assign(el.style, { left: x + 'px', top: (feet - h) + 'px', height: h + 'px' });
+  el.classList.toggle('flip', T.flip);
+  el.classList.toggle('riding', !!T.riding);
+  const img = el.querySelector('img'); if (img.getAttribute('src') !== T.frame) img.setAttribute('src', T.frame);
+}
+const setFrame = (src, pose = null) => { T.frame = src; T.pose = pose; placeTony(); };
+
+/* ---------- a tiny cancellable timeline ---------- */
+let run = 0;                                 // bumping this cancels the current route
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+class Cancelled extends Error {}
+function sleep(ms, token) {
+  return new Promise((res, rej) => setTimeout(() => token === run ? res() : rej(new Cancelled()), reduce ? Math.min(ms, 60) : ms));
+}
+function tween(ms, token, step) {
+  return new Promise((res, rej) => {
+    const t0 = performance.now();
+    const tick = now => {
+      if (token !== run) return rej(new Cancelled());
+      const k = reduce ? 1 : Math.max(0, Math.min(1, (now - t0) / ms));   // rAF time can predate t0
+      step(k);
+      k < 1 ? requestAnimationFrame(tick) : res();
+    };
+    requestAnimationFrame(tick);
+  });
+}
+const say = t => { T.label = t; statusEl.innerHTML = `<b>Big Tony</b> · ${t}`; };
+
+/* Walk on the current floor to x (fraction of tower width), opening any doors on the way. */
+async function walkTo(xTarget, token) {
+  const dir = Math.sign(xTarget - T.x); if (!dir) return;
+  T.flip = dir < 0;
+  const doors = G.doors.filter(d => d.floor === T.floor)
+    .map(d => ({ ...d, f: d.x / G.W }))
+    .filter(d => (d.f - T.x) * dir > 0 && (xTarget - d.f) * dir > 0)
+    .sort((a, b) => (a.f - b.f) * dir);
+  const before = .2 * G.H / G.W, after = .36 * G.H / G.W;
+  for (const d of doors) {
+    const el = document.getElementById(d.id);
+    await stride(d.f - dir * before, token);
+    setFrame(TONY.door);                                   // hand up, push the door
+    await sleep(240, token);
+    el.classList.remove('left-hinge');
+    el.classList.add(dir > 0 ? 'open-r' : 'open-l');       // it swings into the room he's entering
+    await sleep(380, token);
+    await stride(d.f + dir * after, token);
+    el.classList.toggle('left-hinge', dir < 0);            // swing shut from the same side
+    el.classList.remove('open-r', 'open-l');
+  }
+  await stride(xTarget, token);
+}
+/* Move with the 6-frame walk cycle. Frames advance with distance, so feet don't skate. */
+async function stride(xTarget, token) {
+  const x0 = T.x, dist = Math.abs(xTarget - x0) * G.W;
+  if (dist < 1) return;
+  const speed = G.H * 0.75;                                // px per second
+  const per = G.H * 0.1;                                   // px of travel per frame
+  await tween(dist / speed * 1000, token, k => {
+    T.x = x0 + (xTarget - x0) * k;
+    const n = Math.floor(k * dist / per) % 6;
+    setFrame(TONY.walk[n]);
+  });
+}
+async function ride(side, toFloor, token) {
+  const L = lifts[side];
+  const y0 = L.y, y1 = cabY(toFloor), d = Math.abs(y1 - y0);
+  if (d > 1) await tween(d / (G.H * 1.1) * 1000, token, k => {
+    const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // ease in-out
+    placeCab(side, y0 + (y1 - y0) * e); placeTony();
+  });
+  L.floor = toFloor;
+}
+const gate = (side, open) => document.getElementById('gate' + side).classList.toggle('open', open);
+
+async function takeLift(side, toFloor, token) {
+  const sx = G.shaftX(side) / G.W;
+  const edge = side === 'L' ? (G.sh + G.H * .22) / G.W : (G.W - G.sh - G.H * .22) / G.W;
+  await walkTo(edge, token);
+  T.flip = side === 'L';
+  setFrame(TONY.button);                                   // press the call button
+  const call = document.getElementById(`call${side}${T.floor}`);
+  call.classList.add('lit');
+  await sleep(350, token);
+  if (lifts[side].floor !== T.floor) { say(`Calling the ${side === 'L' ? 'left' : 'right'} elevator`); await ride(side, T.floor, token); }
+  call.classList.remove('lit');
+  gate(side, true); await sleep(600, token);
+  await stride(sx, token);                                 // step into the cab
+  T.riding = side; setFrame(TONY.ride);
+  gate(side, false); await sleep(600, token);
+  say(`Riding the ${side === 'L' ? 'left' : 'right'} elevator to ${G.floors[toFloor].n === 'B' ? 'the basement' : 'floor ' + G.floors[toFloor].n}`);
+  await ride(side, toFloor, token);
+  T.floor = toFloor;
+  gate(side, true); await sleep(600, token);
+  T.riding = null;
+  T.flip = side === 'R';
+  await stride(edge, token);                               // step out
+  gate(side, false);
+}
+
+/* Route to a spot: same floor walks; otherwise pick the elevator that makes the shorter trip. */
+async function goTo(key, token) {
+  const S = SPOTS[key], g = G.rooms[S.room];
+  const tx = (g.x + g.w * S.x / 100) / G.W;
+  if (g.floor !== T.floor) {
+    const dist = side => { const e = G.shaftX(side) / G.W; return Math.abs(T.x - e) + Math.abs(tx - e); };
+    const side = dist('L') <= dist('R') ? 'L' : 'R';
+    say(`Heading to the ${ROOMS[S.room].name.toLowerCase()} via the ${side === 'L' ? 'left' : 'right'} elevator`);
+    await takeLift(side, g.floor, token);
+        say(`Walking to the ${ROOMS[S.room].name.toLowerCase()}`);
+  } else say(`Walking to the ${ROOMS[S.room].name.toLowerCase()}`);
+  await walkTo(tx, token);
+  say(S.say);
+  T.flip = false;
+  await activity(S.act, token);
+}
+async function activity(act, token, loops = Infinity) {
+  if (TONY[act] && Array.isArray(TONY[act])) {
+    const ms = act === 'lift' ? 420 : 380;
+    for (let i = 0; i < loops * TONY[act].length; i++) { setFrame(TONY[act][i % TONY[act].length]); await sleep(ms, token); }
+  } else { setFrame(TONY[act], act); if (loops === Infinity) await new Promise(() => {}); }
+}
+
+/* ---------- controls ---------- */
+let autoTour = !reduce;
+const buttons = [...document.querySelectorAll('[data-go]')];
+function mark(key) { buttons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.go === key))); }
+async function send(key) {
+  const token = ++run;
+  mark(key);
+  // finish any open door or gate instantly so a new route starts clean
+  document.querySelectorAll('.door').forEach(d => d.classList.remove('open-r', 'open-l'));
+  if (T.riding) { T.floor = G.floors.findIndex((f, i) => Math.abs(cabY(i) - lifts[T.riding].y) < G.H / 2); T.riding = null; T.x = G.shaftX(T.x < .5 ? 'L' : 'R') / G.W; }
+  try { await goTo(key, token); } catch (e) { if (!(e instanceof Cancelled)) throw e; }
+}
+buttons.forEach(b => b.addEventListener('click', () => { autoTour = false; syncAuto(); send(b.dataset.go); }));
+const autoBtn = document.getElementById('auto');
+function syncAuto() { autoBtn.setAttribute('aria-pressed', String(autoTour)); }
+autoBtn.addEventListener('click', () => { autoTour = !autoTour; syncAuto(); if (autoTour) tour(); });
+async function tour() {
+  const order = ['gym', 'dock', 'cafe', 'basement', 'dorm', 'dock'];
+  let i = 0;
+  while (autoTour) {
+    const key = order[i++ % order.length];
+    const token = ++run; mark(key);
+    try {
+      const S = SPOTS[key];
+      const g = G.rooms[S.room], tx = (g.x + g.w * S.x / 100) / G.W;
+      if (g.floor !== T.floor) {
+        const dist = side => { const e = G.shaftX(side) / G.W; return Math.abs(T.x - e) + Math.abs(tx - e); };
+        const side = dist('L') <= dist('R') ? 'L' : 'R';
+        say(`Heading to the ${ROOMS[S.room].name.toLowerCase()} via the ${side === 'L' ? 'left' : 'right'} elevator`);
+        await takeLift(side, g.floor, token);
+        say(`Walking to the ${ROOMS[S.room].name.toLowerCase()}`);
+      }
+      await walkTo(tx, token); say(S.say); T.flip = false;
+      if (Array.isArray(TONY[S.act])) await activity(S.act, token, 4);
+      else { setFrame(TONY[S.act], S.act); await sleep(3500, token); }
+    } catch (e) { if (e instanceof Cancelled) return; throw e; }
+  }
+}
+
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const keep = T.label; render(); say(keep); }, 120); });
+render();
+say(SPOTS.dock.say);
+syncAuto();
+if (autoTour) setTimeout(tour, 1200); else send('dock');
+</script>
+</body>
+</html>
