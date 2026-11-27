@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2] - 2026-11-27
+
+### Added
+- **Now Playing** is back in the widget picker (🎵 Entertainment). It needs its **Endpoint** setting pointed at a music service that returns now-playing data ([#43](https://github.com/Curbob/LobsterBoard/pull/43))
+
+### Docs
+- README: new **Add-ons** section featuring [🏢 Lobster Tower](https://github.com/Curbob/lobsterboard-tower), a cutaway building of your dashboard where every widget is a room with an avatar showing what the service is doing. It installs as a custom page: `git clone https://github.com/Curbob/lobsterboard-tower pages/tower` ([#42](https://github.com/Curbob/LobsterBoard/pull/42))
+
 ## [0.9.1] - 2026-11-25
 
 ### Added
