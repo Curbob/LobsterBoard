@@ -1,6 +1,6 @@
 /**
  * LobsterBoard - Media Server Widgets
- * Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd.
+ * Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd and Youtarr.
  *
  * Each widget has its own Service URL and API key (kept server-side in
  * secrets.json) and a Style option: "numbers" (stat tiles) or "visual"
@@ -104,9 +104,10 @@
       (caption ? '<div class="lbm-poster-c">' + esc(caption) + '</div>' : '') + '</div>';
   };
 
-  M.posters = function(items, captionFn) {
+  // wide: 16:9 thumbnails (YouTube) instead of 2:3 posters
+  M.posters = function(items, captionFn, wide) {
     if (!items || !items.length) return '';
-    return '<div class="lbm-posters">' + items.map(function(i) { return M.poster(i, captionFn ? captionFn(i) : ''); }).join('') + '</div>';
+    return '<div class="lbm-posters' + (wide ? ' lbm-wide' : '') + '">' + items.map(function(i) { return M.poster(i, captionFn ? captionFn(i) : ''); }).join('') + '</div>';
   };
 
   M.list = function(rows) {
@@ -249,6 +250,8 @@
       // Posters wrap to the widget width; --lbm-pw is the smallest a poster may get (set by Poster size)
       '.lbm-posters{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--lbm-pw,54px),1fr));gap:6px;flex:none}',
       '.lbm-poster{position:relative;min-width:0;aspect-ratio:2/3;border-radius:4px;overflow:hidden;background:var(--bg-tertiary,#21262d)}',
+      '.lbm-wide{grid-template-columns:repeat(auto-fill,minmax(calc(var(--lbm-pw,54px)*1.9),1fr))}',
+      '.lbm-wide .lbm-poster{aspect-ratio:16/9}',
       '.lbm-poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}',
       '.lbm-poster-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.4em;color:var(--text-muted,#8b949e)}',
       '.lbm-poster-c{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.72);color:#fff;font-size:0.62em;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -428,6 +431,43 @@
       (s.today != null ? '<div class="lbm-foot">' + M.bytes(s.today) + ' today · ' + M.bytes(s.month) + ' this month' + (s.failed ? ' · ' + M.num(s.failed) + ' failed' : '') + '</div>' : '');
   };
 
+  M.renderers.youtarr = function(d, style) {
+    var s = d.stats || {};
+    var run = d.lastRun;
+    var recent = d.recent || [];
+    var runColor = !run ? null : run.status === 'error' ? C.red : (run.status === 'warning' || run.failed) ? C.orange : C.green;
+    if (style === 'numbers') {
+      var versions = [d.version && 'Youtarr ' + d.version, d.ytDlpVersion && 'yt-dlp ' + d.ytDlpVersion].filter(Boolean).join(' · ');
+      return M.tiles([
+        ['Channels', M.num(s.channels)], ['Videos', M.num(s.videos)], ['Storage', M.bytes(s.storageBytes)],
+        ['Downloading', M.num(s.downloading), s.downloading ? C.green : null], ['Queued', M.num(s.queued), s.queued ? C.blue : null],
+        run && ['Last run', run.status === 'error' && !run.downloaded ? 'Error' : M.num(run.downloaded) + ' new', runColor],
+        run && run.failed ? ['Failed', M.num(run.failed), C.red] : null
+      ]) + (recent[0] ? M.list([['Latest: ' + recent[0].title, M.when(recent[0].date)]]) : '') + M.health(d.health) +
+        (versions ? '<div class="lbm-foot">' + esc(versions) + '</div>' : '');
+    }
+    var busy = s.downloading || s.active;
+    var state = s.paused ? 'Paused' : s.downloading ? 'Downloading' : s.active ? 'Working' : 'Idle';
+    var now = [
+      s.downloading ? M.num(s.downloading) + ' downloading' : '',
+      s.queued ? M.num(s.queued) + ' queued' : '',
+      s.queuedJobs ? M.num(s.queuedJobs) + (s.queuedJobs === 1 ? ' job' : ' jobs') + ' waiting' : ''
+    ].filter(Boolean);
+    if (!now.length) now.push(busy ? 'Checking for new videos' : 'Nothing in the queue');
+    if (!busy && run && run.checkedAt) now.push('checked ' + M.when(run.checkedAt));
+    return '<div class="lbm-top"><div><div class="lbm-big"' + (s.paused ? ' style="color:' + C.orange + '"' : busy ? ' style="color:' + C.green + '"' : '') + '>' +
+      state + '</div><div class="lbm-muted">' + esc(now.join(' · ')) + '</div></div></div>' +
+      M.health(d.health) +
+      (run ? '<div class="lbm-list"><div class="lbm-row"><span class="lbm-row-t"><span style="color:' + runColor + '">●</span> Last run: ' +
+        M.num(run.downloaded) + ' downloaded' + (run.failed ? ', ' + M.num(run.failed) + ' failed' : '') + (run.status === 'error' ? ' (error)' : '') +
+        '</span><span class="lbm-row-m">' + esc(M.when(run.date)) + '</span></div></div>' : '') +
+      (recent.length
+        ? M.section('Recent downloads', M.posters(recent, function(v) { return v.channel || ''; }, true)) +
+          M.list(recent.slice(0, 3).map(function(v) { return [v.title, M.when(v.date)]; }))
+        : '<div class="lbm-msg">No downloads yet</div>') +
+      '<div class="lbm-foot">' + M.num(s.channels) + ' channels · ' + M.num(s.videos) + ' videos · ' + M.bytes(s.storageBytes) + '</div>';
+  };
+
   // ─────────────────────────────────────────────
   // Widget definitions
   // ─────────────────────────────────────────────
@@ -439,7 +479,7 @@
       category: 'large',
       description: o.description + ' Set the Service URL and API key, save the layout, then choose Numbers or Visual style.' + (o.posters ? ' Poster size enlarges the posters in Visual style.' : ''),
       defaultWidth: 360,
-      defaultHeight: 260,
+      defaultHeight: o.height || 260,
       hasApiKey: true,
       hideApiKeyVar: true,
       placeholders: { serviceUrl: o.placeholder },
@@ -504,6 +544,13 @@
     name: 'SABnzbd', emoji: '⬇️', refresh: 10, placeholder: 'http://192.168.1.20:8080',
     description: 'Downloads from SABnzbd: speed graph, queue with progress, time left and totals.',
     keyNote: 'SABnzbd → Config → General → Security → API Key'
+  });
+
+  WIDGETS['media-youtarr'] = mediaWidget('youtarr', {
+    posters: true, height: 320, // room for a row of thumbnails above the titles
+    name: 'Youtarr', emoji: '📹', refresh: 30, placeholder: 'http://192.168.1.20:3087',
+    description: 'YouTube downloads from Youtarr: channels, videos, storage used, what is downloading, the last run and recent downloads.',
+    keyNote: 'Youtarr → Settings → API Keys & Bookmarklet → create a key with "Read-only status key" ticked (Youtarr 1.94.0 or newer)'
   });
 
 })(typeof window !== 'undefined' ? (window.WIDGETS = window.WIDGETS || {}) : {});

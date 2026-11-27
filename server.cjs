@@ -177,7 +177,7 @@ const server = http.createServer(async (req, res) => {
   // Finance routes (stocks via Yahoo Finance, crypto via CoinGecko)
   if (financeRoutes.handle(req, res, pathname, parsedUrl)) return;
 
-  // Media server widgets (Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd)
+  // Media server widgets (Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd, Youtarr)
   if (mediaRoutes.handle(req, res, pathname, parsedUrl)) return;
 
   // Stats routes

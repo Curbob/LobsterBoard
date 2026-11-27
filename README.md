@@ -33,7 +33,7 @@ Open **http://localhost:8080** → press **Ctrl+E** to enter edit mode → drag 
 
 - **Drag-and-drop editor** — visual layout with 20px snap grid, resize handles, property panel
 - **60+ widgets** — system monitoring, weather, calendars, RSS, finance, AI/LLM tracking, media server, notes, and more
-- **Media server widgets** — Radarr, Sonarr, Seerr, Plex, Prowlarr and SABnzbd, each in a Visual or Numbers style
+- **Media server widgets** — Radarr, Sonarr, Seerr, Plex, Prowlarr, SABnzbd and Youtarr, each in a Visual or Numbers style
 - **Template Gallery** — export, import, and share dashboard layouts with auto-screenshot previews; import as merge or full replace
 - **Custom pages** — extend your dashboard with full custom pages (notes, kanban boards, anything)
 - **Canvas sizes** — preset resolutions (1920×1080, 2560×1440, etc.) or custom sizes
@@ -200,8 +200,9 @@ Each widget has its own **Service URL** and **API key**, so add only the ones yo
 | Plex | Who is watching what (progress, player, transcode), library counts, recently added |
 | Prowlarr | Enabled indexers, queries, grabs, failure rates per indexer, health |
 | SABnzbd | Download speed graph, queue with progress, time left, today / month totals |
+| Youtarr | Channels, videos and storage used, what is downloading and queued, last run result, recent downloads with thumbnails (needs [Youtarr](https://github.com/DialmasterOrg/Youtarr) 1.94.0 or newer) |
 
-Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General → API Key*; SABnzbd: *Config → General → API Key*; Plex: your `X-Plex-Token`.
+Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General → API Key*; SABnzbd: *Config → General → API Key*; Plex: your `X-Plex-Token`; Youtarr: *Settings → API Keys & Bookmarklet*, create a key with **Read-only status key** ticked.
 
 ### 🔗 Embeds & Media
 | Widget | Description |
@@ -338,7 +339,7 @@ pm2 startup
 | `/api/calendar?url=` | GET | Proxy iCal feed |
 | `/api/rss?url=` | GET | Proxy RSS/Atom feed |
 | `/api/lb-release` | GET | LobsterBoard version check |
-| `/api/media/:service?widgetId=` | GET | Media server widget data (radarr, sonarr, seerr, plex, prowlarr, sabnzbd) |
+| `/api/media/:service?widgetId=` | GET | Media server widget data (radarr, sonarr, seerr, plex, prowlarr, sabnzbd, youtarr) |
 
 ## File Structure
 
