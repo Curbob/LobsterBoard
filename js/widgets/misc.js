@@ -498,38 +498,4 @@
     `
   };
 
-
-  // Lobster Tower: turns the tower on. On the dashboard it is just a door to the tower page,
-  // which builds a cutaway building from this dashboard's widgets (tower.html, js/tower/).
-  WIDGETS['lobster-tower'] = {
-    name: 'Lobster Tower',
-    icon: '🏢',
-    category: 'small',
-    description: 'Opens the Lobster Tower: a cutaway building where every widget on this dashboard is a room with an avatar showing what that service is doing.',
-    defaultWidth: 220,
-    defaultHeight: 110,
-    properties: {
-      title: 'Lobster Tower',
-      showHeader: false,
-      sleepHours: '2',
-      hiddenRooms: ''
-    },
-    preview: `<div style="text-align:center;padding:8px;">
-      <div style="font-size:26px;">🏢</div>
-      <div style="font-size:12px;">Open the tower</div>
-    </div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <a href="tower.html" class="lb-tower-door" title="Open the Lobster Tower"
-           style="display:flex;align-items:center;justify-content:center;gap:10px;height:100%;padding:10px;text-decoration:none;color:inherit;border-radius:8px;background:linear-gradient(135deg,rgba(255,90,60,.16),rgba(138,111,174,.18));">
-          <span style="font-size:2em;line-height:1" aria-hidden="true">🏢</span>
-          <span style="display:flex;flex-direction:column;line-height:1.25;">
-            <b style="font-size:1.05em;">${_esc(props.title || 'Lobster Tower')}</b>
-            <span style="font-size:.8em;color:var(--text-muted,#8b949e);">See your widgets at work →</span>
-          </span>
-        </a>
-      </div>`,
-    generateJs: () => ''
-  };
-
 })(typeof window !== 'undefined' ? (window.WIDGETS = window.WIDGETS || {}) : {});

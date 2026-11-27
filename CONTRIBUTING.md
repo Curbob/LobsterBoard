@@ -160,7 +160,6 @@ LobsterBoard uses a dark theme. Use these CSS variables so your widget fits in:
 6. **Test with multiple instances** of the same widget on the canvas.
 7. **Keep it lightweight** — no large dependencies or bundled libraries.
 8. **Support the dark theme** — it's the only theme. Don't hardcode white backgrounds.
-9. **Give it a place in the Lobster Tower.** Built-in widgets must have an entry in `js/tower/catalog.js`: a room and an avatar, a wall piece, or an explicit entry in `TOWER_NONE` to leave it out. `tests/tower.test.js` fails when a widget type has neither. If it gets an avatar, it needs character art in `tower/assets/cast/` (work, sitting, sleeping, gym, alert and coffee poses, plus a 6-frame walk cycle) and, ideally, an adapter in `js/tower/live.js` that turns its data into working, idle, gym or alert.
 
 ---
 

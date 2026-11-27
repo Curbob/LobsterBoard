@@ -27,14 +27,12 @@
     maxLength: ['0', '50', '100', '150', '200', '300'],
     displayStyle: ['visual', 'numbers'],
     posterSize: ['1', '1.5', '2'],
-    sleepHours: ['0.5', '1', '2', '4', '8', '24'],
   };
 
   var PROP_LABELS = {
     maxLength: { '0': 'No limit', '50': '50 chars', '100': '100 chars', '150': '150 chars', '200': '200 chars', '300': '300 chars' },
     displayStyle: { visual: 'Visual (rings, bars, posters)', numbers: 'Numbers (stat tiles)' },
     posterSize: { '1': 'Normal', '1.5': 'Large (1.5×)', '2': 'Extra large (2×)' },
-    sleepHours: { '0.5': '30 minutes', '1': '1 hour', '2': '2 hours', '4': '4 hours', '8': '8 hours', '24': '1 day' },
   };
 
   // Friendlier labels for some extra properties (default: "camelCase" -> "Camel Case")
@@ -42,8 +40,6 @@
     serviceUrl: 'Service URL',
     displayStyle: 'Style',
     posterSize: 'Poster size',
-    sleepHours: 'Sleep after idle for',
-    hiddenRooms: 'Hidden rooms (comma separated, e.g. Gallery, Trading Floor)',
   };
 
   window.initProperties = function initProperties() {
