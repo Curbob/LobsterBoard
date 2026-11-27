@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.3] - 2026-11-27
+
+### Added
+- **Youtarr** widget in the 🎬 Media Server set, contributed by Youtarr's maintainer. [Youtarr](https://github.com/DialmasterOrg/Youtarr) downloads YouTube channels and playlists for Plex, Jellyfin and Emby; the widget shows the library (channels, videos, storage), what is downloading and queued, the last run result and recent downloads as thumbnails, in the same Visual and Numbers styles as the other media widgets. It needs Youtarr 1.94.0 or newer and a **read-only status key**, which stays on your server ([#40](https://github.com/Curbob/LobsterBoard/pull/40))
+
+### Docs
+- Website: Youtarr added to the media server lists
+
 ## [0.9.2] - 2026-11-27
 
 ### Added
