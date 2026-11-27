@@ -231,6 +231,12 @@ Where to find the key: Radarr, Sonarr, Prowlarr and Seerr: *Settings → General
 | Vertical Line | Vertical divider |
 | Pages Menu | Navigation for custom pages |
 
+## Add-ons
+
+| Add-on | What it does |
+|--------|--------------|
+| [🏢 Lobster Tower](https://github.com/Curbob/lobsterboard-tower) | A cutaway building of your dashboard: every widget is a room with an avatar that works, takes breaks, sleeps, does housekeeping or heads to the basement when its service is failing. Installs as a custom page: `git clone https://github.com/Curbob/lobsterboard-tower pages/tower` |
+
 ## Custom Pages
 
 LobsterBoard includes a pages system for adding full custom pages beyond the widget dashboard. Pages get their own route, nav entry, and optional server-side API.
