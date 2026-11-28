@@ -1,9 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [0.9.4] - 2026-11-28
 
 ### Added
-- **Docker install (optional).** A `Dockerfile`, `docker-compose.yml` and a published image (`ghcr.io/curbob/lobsterboard`, amd64 + arm64). App code lives in the image and everything you create lives in a `/data` volume, so updates are `docker compose pull && docker compose up -d`. Runs as a non-root user (`PUID`/`PGID`), has a health check, and optionally reads the Docker socket for the Docker Containers widget. See **Docker** in the README. The npm install is unchanged
+- **Docker install (optional).** A `Dockerfile`, `docker-compose.yml` and a published image (`ghcr.io/curbob/lobsterboard`, amd64 + arm64). App code lives in the image and everything you create lives in a `/data` volume, so updates are `docker compose pull && docker compose up -d`. Runs as a non-root user (`PUID`/`PGID`), has a health check, and optionally reads the Docker socket for the Docker Containers widget. See **Docker** in the README. The npm install is unchanged ([#46](https://github.com/Curbob/LobsterBoard/pull/46))
 - `LOBSTERBOARD_TEMPLATES_DIR` setting: save exported templates to a folder outside the app. Bundled templates are still listed. When it isn't set, templates work exactly as before
 
 ### Fixed
