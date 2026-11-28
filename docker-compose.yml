@@ -1,0 +1,42 @@
+# LobsterBoard — optional Docker install.
+#   docker compose up -d        then open http://localhost:8080
+# Your dashboards, settings and custom pages live in ./lobsterboard-data.
+services:
+  lobsterboard:
+    image: ghcr.io/curbob/lobsterboard:latest
+    # or build from this folder instead of pulling:
+    # build: .
+    container_name: lobsterboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Strongly recommended if the dashboard is reachable from your network
+      # - DASHBOARD_PASSWORD=changeme
+      # Run as your own user so files in ./lobsterboard-data are owned by you (`id -u` / `id -g`)
+      - PUID=1000
+      - PGID=1000
+      # - TZ=America/New_York
+    volumes:
+      - ./lobsterboard-data:/data
+
+      # ── Optional extras (uncomment what you need) ──
+
+      # Docker Containers widget. LobsterBoard only lists containers, but the
+      # socket gives full control of Docker on this machine (":ro" doesn't limit
+      # that). Set DASHBOARD_PASSWORD if you enable it.
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # AI usage widgets read the CLI login files from your home folder:
+      # - ~/.claude:/home/node/.claude:ro
+      # - ~/.codex:/home/node/.codex:ro
+      # - ~/.gemini:/home/node/.gemini:ro
+
+      # OpenClaw widgets (cron jobs, activity):
+      # - ~/.openclaw:/home/node/.openclaw:ro
+
+    # System stat widgets show the container, not this machine. For real machine
+    # stats, run lobsterboard-agent on the host (see README). This option only
+    # makes the network numbers match the host:
+    # (remove the "ports:" section above if you enable this; Linux only):
+    # network_mode: host

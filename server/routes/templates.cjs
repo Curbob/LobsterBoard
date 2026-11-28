@@ -4,12 +4,39 @@ const { sendResponse, sendJson, sendError } = require('../response.cjs');
 const { CONFIG_FILE, MIME_TYPES, scanTemplates } = require('../config.cjs');
 const { validateTemplateImport, validateTemplateExport } = require('../validation.cjs');
 
+// Bundled templates ship with the app. By default user exports are written to
+// the same folder (unchanged behavior). Set LOBSTERBOARD_TEMPLATES_DIR to keep
+// user templates somewhere else (the Docker image points it at /data/templates
+// so exports survive image updates); bundled templates are still listed.
+function getTemplateDirs(ctx) {
+  const builtinDir = path.join(ctx.__dirname, 'templates');
+  const userDir = process.env.LOBSTERBOARD_TEMPLATES_DIR
+    ? path.resolve(process.env.LOBSTERBOARD_TEMPLATES_DIR)
+    : builtinDir;
+  return { builtinDir, userDir };
+}
+
+// Find which folder holds a template: user folder first, then bundled.
+function findTemplateDir(dirs, id) {
+  const userPath = path.join(dirs.userDir, id);
+  if (fs.existsSync(userPath)) return userPath;
+  return path.join(dirs.builtinDir, id);
+}
+
+function listTemplates(dirs) {
+  const user = scanTemplates(dirs.userDir);
+  if (dirs.userDir === dirs.builtinDir) return user;
+  const seen = new Set(user.map(t => t.id));
+  return [...user, ...scanTemplates(dirs.builtinDir).filter(t => !seen.has(t.id))];
+}
+
 function handle(req, res, pathname, parsedUrl, ctx) {
-  const TEMPLATES_DIR = path.join(ctx.__dirname, 'templates');
+  const dirs = getTemplateDirs(ctx);
+  const TEMPLATES_DIR = dirs.userDir;
 
   if (req.method === 'GET' && pathname === '/api/templates') {
     try {
-      const templates = scanTemplates(TEMPLATES_DIR);
+      const templates = listTemplates(dirs);
       sendJson(res, 200, templates);
     } catch (e) {
       sendError(res, `Failed to list templates: ${e.message}`);
@@ -19,7 +46,7 @@ function handle(req, res, pathname, parsedUrl, ctx) {
 
   if (req.method === 'GET' && pathname.match(/^\/api\/templates\/([^/]+)$/) && !pathname.endsWith('/preview')) {
     const id = pathname.split('/')[3];
-    const configPath = path.join(TEMPLATES_DIR, id, 'config.json');
+    const configPath = path.join(findTemplateDir(dirs, id), 'config.json');
     if (!fs.existsSync(configPath)) { sendJson(res, 404, { error: 'Template not found' }); return true; }
     try {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -30,10 +57,11 @@ function handle(req, res, pathname, parsedUrl, ctx) {
 
   if (req.method === 'GET' && pathname.match(/^\/api\/templates\/([^/]+)\/preview$/)) {
     const id = pathname.split('/')[3];
-    const metaPath = path.join(TEMPLATES_DIR, id, 'meta.json');
+    const tplDir = findTemplateDir(dirs, id);
+    const metaPath = path.join(tplDir, 'meta.json');
     let previewFile = 'preview.png';
     try { previewFile = JSON.parse(fs.readFileSync(metaPath, 'utf8')).preview || 'preview.png'; } catch (_) {}
-    const previewPath = path.join(TEMPLATES_DIR, id, previewFile);
+    const previewPath = path.join(tplDir, previewFile);
     if (!fs.existsSync(previewPath)) { sendResponse(res, 404, 'text/plain', 'No preview'); return true; }
     const ext = path.extname(previewPath).toLowerCase();
     const ct = MIME_TYPES[ext] || 'application/octet-stream';
@@ -57,7 +85,7 @@ function handle(req, res, pathname, parsedUrl, ctx) {
         }
         const { id, mode } = parsed;
 
-        const tplConfigPath = path.join(TEMPLATES_DIR, id, 'config.json');
+        const tplConfigPath = path.join(findTemplateDir(dirs, id), 'config.json');
         if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: `Template "${id}" not found` }); return; }
 
         let tplConfig;
@@ -194,7 +222,7 @@ function handle(req, res, pathname, parsedUrl, ctx) {
 
   if (req.method === 'POST' && pathname.match(/^\/api\/templates\/[^/]+\/screenshot$/)) {
     const tplId = pathname.split('/')[3];
-    const tplDir = path.join(TEMPLATES_DIR, tplId);
+    const tplDir = findTemplateDir(dirs, tplId);
     if (!fs.existsSync(tplDir)) { sendJson(res, 404, { error: 'Template not found' }); return true; }
     let body = '';
     req.on('data', c => body += c);
@@ -213,7 +241,7 @@ function handle(req, res, pathname, parsedUrl, ctx) {
 
   if (req.method === 'DELETE' && pathname.match(/^\/api\/templates\/[^/]+$/)) {
     const tplId = pathname.split('/')[3];
-    const tplDir = path.join(TEMPLATES_DIR, tplId);
+    const tplDir = findTemplateDir(dirs, tplId);
     if (!fs.existsSync(tplDir)) { sendJson(res, 404, { error: 'Template not found' }); return true; }
     try {
       fs.rmSync(tplDir, { recursive: true, force: true });

@@ -111,7 +111,13 @@ function matchPageRoute(pages, method, pathname, parsedUrl) {
   if (pagesMatch) {
     const pageId = pagesMatch[1];
     if (pageId === '_shared') {
-      return { type: 'static', filePath: path.join(PAGES_DIR, '_shared', (pagesMatch[2] || '/').slice(1)) };
+      // Prefer the user's pages/_shared, fall back to the bundled one so
+      // built-in pages keep working once a user pages/ folder exists.
+      const rel = (pagesMatch[2] || '/').slice(1);
+      const userShared = path.join(PAGES_DIR, '_shared', rel);
+      const pkgShared = path.join(config.PKG_PAGES_DIR, '_shared', rel);
+      const filePath = (!fs.existsSync(userShared) && fs.existsSync(pkgShared)) ? pkgShared : userShared;
+      return { type: 'static', filePath };
     }
     const page = pages.find(p => p.id === pageId);
     if (page) {

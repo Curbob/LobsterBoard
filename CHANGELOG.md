@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Docker install (optional).** A `Dockerfile`, `docker-compose.yml` and a published image (`ghcr.io/curbob/lobsterboard`, amd64 + arm64). App code lives in the image and everything you create lives in a `/data` volume, so updates are `docker compose pull && docker compose up -d`. Runs as a non-root user (`PUID`/`PGID`), has a health check, and optionally reads the Docker socket for the Docker Containers widget. See **Docker** in the README. The npm install is unchanged
+- `LOBSTERBOARD_TEMPLATES_DIR` setting: save exported templates to a folder outside the app. Bundled templates are still listed. When it isn't set, templates work exactly as before
+
+### Fixed
+- Built-in pages (like Claude Usage) lost their shared navigation script when a `pages/` folder existed in the working directory. `/pages/_shared/` now falls back to the bundled files
+
 ## [0.9.3] - 2026-11-27
 
 ### Added

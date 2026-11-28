@@ -21,6 +21,8 @@ import { tmpdir } from 'node:os';
  * @param {object} [opts.config]    - initial config.json contents
  * @param {object} [opts.auth]      - initial auth.json contents
  * @param {object} [opts.secrets]   - initial secrets.json contents
+ * @param {object} [opts.env]       - extra environment variables
+ * @param {(cwd: string) => void} [opts.setup] - prepare the working directory before start
  * @returns {Promise<{baseUrl: string, port: number, cwd: string, kill: () => Promise<void>}>}
  */
 export async function startServer(opts = {}) {
@@ -31,6 +33,7 @@ export async function startServer(opts = {}) {
   if (opts.config) writeFileSync(join(cwd, 'config.json'), JSON.stringify(opts.config, null, 2));
   if (opts.auth) writeFileSync(join(cwd, 'auth.json'), JSON.stringify(opts.auth, null, 2));
   if (opts.secrets) writeFileSync(join(cwd, 'secrets.json'), JSON.stringify(opts.secrets, null, 2));
+  if (opts.setup) opts.setup(cwd);
 
   const env = {
     ...process.env,
@@ -39,6 +42,7 @@ export async function startServer(opts = {}) {
     LOBSTERBOARD_PKG_DIR: join(process.cwd()),
   };
   if (opts.password) env.DASHBOARD_PASSWORD = opts.password;
+  if (opts.env) Object.assign(env, opts.env);
 
   const child = spawn('node', [join(process.cwd(), 'server.cjs')], { cwd, env, stdio: 'pipe' });
 
