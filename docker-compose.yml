@@ -22,8 +22,9 @@ services:
 
       # ── Optional extras (uncomment what you need) ──
 
-      # Docker Containers widget. Note: access to the Docker socket is
-      # effectively root access to the host.
+      # Docker Containers widget. LobsterBoard only lists containers, but the
+      # socket gives full control of Docker on this machine (":ro" doesn't limit
+      # that). Set DASHBOARD_PASSWORD if you enable it.
       # - /var/run/docker.sock:/var/run/docker.sock:ro
 
       # AI usage widgets read the CLI login files from your home folder:

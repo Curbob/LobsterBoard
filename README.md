@@ -287,6 +287,20 @@ To build the image yourself instead of pulling it, run `docker compose build` wi
 | `PORT` | `8080` | Port inside the container |
 | `TZ` | UTC | Time zone used by the server (widgets in the browser use your browser's time zone) |
 
+### Ways to set it up
+
+**On a machine with nothing in Docker yet:** install [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on Windows/Mac, Docker Engine on Linux), then run the commands above.
+
+**On a machine that already runs containers (Plex, Radarr, Sonarr, ...)** you have two options:
+
+- **Its own folder:** put LobsterBoard's `docker-compose.yml` in a separate folder and run `docker compose up -d` there. It runs alongside your other containers without touching them.
+- **In your existing compose file:** copy the `lobsterboard:` block under `services:` in the `docker-compose.yml` you already use. This is the better choice for the media widgets, because containers in the same compose file can reach each other by name.
+
+Two things to watch for when adding it next to other apps:
+
+- **Port 8080 may already be taken.** qBittorrent and SABnzbd both default to it. Change LobsterBoard's port line to `"8081:8080"` (left side is the port on your machine, right side stays `8080`) and open `http://your-machine:8081`.
+- **`localhost` inside a container means the container itself.** In widget settings, `http://localhost:7878` won't find Radarr. Use the service name if both are in the same compose file (`http://radarr:7878`), or your machine's network address otherwise (`http://192.168.1.50:7878`).
+
 **Custom pages** go in `./lobsterboard-data/pages/`, for example `git clone https://github.com/Curbob/lobsterboard-tower lobsterboard-data/pages/tower`, then restart the container.
 
 **Moving from an npm install?** Copy `config.json`, `auth.json`, `secrets.json`, `todos.json`, `notes.json` and the `data/` and `pages/` folders (whichever exist) into `./lobsterboard-data/`, then start the container. Set `PUID`/`PGID` to your own user so the copied files stay yours.
@@ -296,7 +310,7 @@ To build the image yourself instead of pulling it, run `docker compose build` wi
 A container is isolated from the host, so a few widgets need extra setup (all optional, see the commented lines in `docker-compose.yml`):
 
 - **CPU / Memory / Disk / Network** report the container's view. CPU and memory match the host closely, but disk and network show the container's own filesystem and interface. For full host stats, use `network_mode: host` (Linux) or run [lobsterboard-agent](#remote-server-monitoring) on the host and pick it in the widget's **Server** dropdown.
-- **Docker Containers** needs the Docker socket: `- /var/run/docker.sock:/var/run/docker.sock:ro`. Anything with socket access can control Docker on the host, so only add it if you need the widget.
+- **Docker Containers** needs the Docker socket: `- /var/run/docker.sock:/var/run/docker.sock:ro`. LobsterBoard only reads the container list, but the socket itself gives full control of Docker (the same is true for any app you give it to, and `:ro` doesn't limit that). Only add it if you want the widget, and set `DASHBOARD_PASSWORD`. If you'd rather not mount it, run [lobsterboard-agent](#remote-server-monitoring) on the host and point the Docker widget at that server instead.
 - **AI usage widgets** (Claude Code, Codex, Gemini, ...) read login files from your home folder. Mount them read-only, for example `- ~/.claude:/home/node/.claude:ro`.
 - **OpenClaw widgets** can read `~/.openclaw` if you mount it, but the `openclaw` command isn't inside the container, so the version check shows "unknown".
 
