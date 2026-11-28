@@ -1,0 +1,34 @@
+.git
+.github
+node_modules
+.DS_Store
+*.log
+.env
+
+# User data — never bake into the image
+config.json
+auth.json
+secrets.json
+todos.json
+notes.json
+data/
+
+# Marketing / website assets not needed to run the app
+lobsterboard-*.jpg
+lobsterboard-*.png
+# ...except the two the app itself uses
+!lobsterboard-logo-final.png
+!lobsterboard-mascot-clean.png
+screenshot.jpg
+index.html
+changelog.html
+site-assets/
+site-script.js
+site-style.css
+CNAME
+Procfile
+docs/
+tests/
+helpers/
+*.test.js
+coverage/

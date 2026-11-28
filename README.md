@@ -27,6 +27,8 @@ node server.cjs
 
 Open **http://localhost:8080** → press **Ctrl+E** to enter edit mode → drag widgets from the sidebar → click **💾 Save**.
 
+Prefer containers? See [Docker](#docker) below. It's optional; the npm install above works the same as always.
+
 ![Edit Mode](lobsterboard-editor.jpg)
 
 ## Features
@@ -253,6 +255,50 @@ pages/
 Pages are auto-discovered on startup. Drop a folder in `pages/`, restart the server, and it appears in the nav.
 
 👉 **Full guide with examples:** [`pages/README.md`](pages/README.md)
+
+## Docker
+
+Docker is an optional way to run LobsterBoard. It doesn't replace the npm install.
+
+```bash
+mkdir lobsterboard && cd lobsterboard
+curl -O https://raw.githubusercontent.com/Curbob/LobsterBoard/main/docker-compose.yml
+docker compose up -d
+```
+
+Or with plain `docker run`:
+
+```bash
+docker run -d --name lobsterboard -p 8080:8080 -v ./lobsterboard-data:/data --restart unless-stopped ghcr.io/curbob/lobsterboard:latest
+```
+
+Open **http://localhost:8080**. Everything you create (`config.json`, password, API keys, todos, notes, exported templates, custom pages) is saved in `./lobsterboard-data`, so updating is just:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+To build the image yourself instead of pulling it, run `docker compose build` with `build: .` in `docker-compose.yml`.
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| `DASHBOARD_PASSWORD` | *(none)* | Require a password. Recommended if it's reachable from your network |
+| `PUID` / `PGID` | `1000` | User and group that owns the files in `/data` (use `id -u` / `id -g`) |
+| `PORT` | `8080` | Port inside the container |
+| `TZ` | UTC | Time zone used by the server (widgets in the browser use your browser's time zone) |
+
+**Custom pages** go in `./lobsterboard-data/pages/`, for example `git clone https://github.com/Curbob/lobsterboard-tower lobsterboard-data/pages/tower`, then restart the container.
+
+**Moving from an npm install?** Copy `config.json`, `auth.json`, `secrets.json`, `todos.json`, `notes.json` and the `data/` and `pages/` folders (whichever exist) into `./lobsterboard-data/`, then start the container. Set `PUID`/`PGID` to your own user so the copied files stay yours.
+
+### What works differently in a container
+
+A container is isolated from the host, so a few widgets need extra setup (all optional, see the commented lines in `docker-compose.yml`):
+
+- **CPU / Memory / Disk / Network** report the container's view. CPU and memory match the host closely, but disk and network show the container's own filesystem and interface. For full host stats, use `network_mode: host` (Linux) or run [lobsterboard-agent](#remote-server-monitoring) on the host and pick it in the widget's **Server** dropdown.
+- **Docker Containers** needs the Docker socket: `- /var/run/docker.sock:/var/run/docker.sock:ro`. Anything with socket access can control Docker on the host, so only add it if you need the widget.
+- **AI usage widgets** (Claude Code, Codex, Gemini, ...) read login files from your home folder. Mount them read-only, for example `- ~/.claude:/home/node/.claude:ro`.
+- **OpenClaw widgets** can read `~/.openclaw` if you mount it, but the `openclaw` command isn't inside the container, so the version check shows "unknown".
 
 ## Run on Boot
 
