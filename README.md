@@ -280,6 +280,8 @@ Open **http://localhost:8080**. Everything you create (`config.json`, password, 
 docker compose pull && docker compose up -d
 ```
 
+**Blank dashboard after an update or restart?** Your data is almost certainly fine. Docker was pointed at a different folder: if the folder on the left of `:/data` doesn't exist, Docker creates a new empty one and starts a fresh dashboard there. Relative paths like `./lobsterboard-data` depend on where you run the command, so run `docker compose` from the folder that holds `docker-compose.yml`, or use a full path (`/home/you/lobsterboard-data:/data`). To see which folder a running container uses: `docker inspect lobsterboard --format '{{range .Mounts}}{{.Source}} {{end}}'`
+
 To build the image yourself instead of pulling it, run `docker compose build` with `build: .` in `docker-compose.yml`.
 
 | Setting | Default | What it does |
