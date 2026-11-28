@@ -35,6 +35,8 @@ services:
       # OpenClaw widgets (cron jobs, activity):
       # - ~/.openclaw:/home/node/.openclaw:ro
 
-    # Host-level network stats instead of the container's own interface
+    # System stat widgets show the container, not this machine. For real machine
+    # stats, run lobsterboard-agent on the host (see README). This option only
+    # makes the network numbers match the host:
     # (remove the "ports:" section above if you enable this; Linux only):
     # network_mode: host

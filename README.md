@@ -260,6 +260,8 @@ Pages are auto-discovered on startup. Drop a folder in `pages/`, restart the ser
 
 Docker is an optional way to run LobsterBoard. It doesn't replace the npm install.
 
+> **System stats in Docker:** the CPU, Memory, Disk and Network widgets show the **container's** numbers, not your machine's. To see the machine itself, install [lobsterboard-agent](#remote-server-monitoring) on the host and pick it in each widget's **Server** dropdown. See [What works differently in a container](#what-works-differently-in-a-container).
+
 ```bash
 mkdir lobsterboard && cd lobsterboard
 curl -O https://raw.githubusercontent.com/Curbob/LobsterBoard/main/docker-compose.yml
@@ -309,7 +311,7 @@ Two things to watch for when adding it next to other apps:
 
 A container is isolated from the host, so a few widgets need extra setup (all optional, see the commented lines in `docker-compose.yml`):
 
-- **CPU / Memory / Disk / Network** report the container's view. CPU and memory match the host closely, but disk and network show the container's own filesystem and interface. For full host stats, use `network_mode: host` (Linux) or run [lobsterboard-agent](#remote-server-monitoring) on the host and pick it in the widget's **Server** dropdown.
+- **CPU / Memory / Disk / Network** report the container's view, not the machine's. CPU and memory come out close to the host's, but disk shows the container's filesystem and network shows the container's own interface. For real machine stats, run [lobsterboard-agent](#remote-server-monitoring) on the host and pick it in each widget's **Server** dropdown. (`network_mode: host` on Linux fixes the network numbers only.)
 - **Docker Containers** needs the Docker socket: `- /var/run/docker.sock:/var/run/docker.sock:ro`. LobsterBoard only reads the container list, but the socket itself gives full control of Docker (the same is true for any app you give it to, and `:ro` doesn't limit that). Only add it if you want the widget, and set `DASHBOARD_PASSWORD`. If you'd rather not mount it, run [lobsterboard-agent](#remote-server-monitoring) on the host and point the Docker widget at that server instead.
 - **AI usage widgets** (Claude Code, Codex, Gemini, ...) read login files from your home folder. Mount them read-only, for example `- ~/.claude:/home/node/.claude:ro`.
 - **OpenClaw widgets** can read `~/.openclaw` if you mount it, but the `openclaw` command isn't inside the container, so the version check shows "unknown".
